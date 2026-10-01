@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}AI 정보카드 — AI 표시, 근거까지 읽기{% endblock %}
+{% block content %}
+<section class="hero">
+  <h1>‘AI’라고 적힌 제품, 근거는 어디에 있을까요.</h1>
+  <p class="lede">판매페이지의 AI 표시 문구를 하나씩 꺼내, 설명서와 사양표, 공공 데이터베이스에서 근거를 찾아 이어 붙입니다. 결과는 근거 확인, 조건 확인, 자료 부족, 추가 확인 필요 네 가지로만 보여 드려요. 어느 제품이 더 낫다고는 말하지 않아요. 무엇이 적혀 있고 무엇이 빠져 있는지만 보여 드려요.</p>
+  <div class="hero-actions">
+    <a class="btn primary" href="#cards">공개된 카드 보기</a>
+    <a class="btn" href="/compare">두 제품 나란히 비교</a>
+    <a class="btn quiet" href="/about">확인 방법 읽기</a>
+  </div>
+</section>
+
+{% if featured %}
+<div class="tools" aria-label="보기 설정">
+  <button type="button" data-toggle="easy" aria-pressed="false">쉬운 말로 보기</button>
+  <button type="button" data-toggle="size" aria-pressed="false">큰 글씨</button>
+  <button type="button" data-toggle="speak" data-target="#label-{{ featured.product.id }}" aria-pressed="false">읽어주기</button>
+</div>
+{% with product=featured.product, card=featured.card, docs=docs, sum=featured.sum %}
+  {% include "_label.html" %}
+{% endwith %}
+<p class="meta" style="margin-top:10px">가장 최근에 공개된 카드예요. <a href="/card/{{ featured.product.id }}">이 카드만 따로 보기</a></p>
+{% else %}
+<div class="notice">아직 공개된 카드가 없어요. 검토자가 제품을 등록하고 승인하면 첫 카드가 여기에 올라와요. <a href="/new">제품 등록하기</a></div>
+{% endif %}
+
+<section class="gallery" id="cards">
+  <h2>공개된 카드 {{ cards|length }}장</h2>
+  <p class="hint">검토자가 원문을 확인한 카드만 올라와요. 막대 색은 AI 표시 문구의 확인상태 비율이에요.</p>
+  <div class="grid">
+    {% for row in cards %}
+    <a class="mini" href="/card/{{ row.product.id }}">
+      <p class="kicker">{{ row.product.maker }}</p>
+      <h3>{{ row.product.name }}</h3>
+      {% set n = row.sum.n_claims if row.sum.n_claims else 1 %}
+      <div class="statusbar" aria-hidden="true">
+        <i class="s1" style="width:{{ (100 * row.sum.counts['근거 확인'] / n)|round(1) }}%"></i><i class="s2" style="width:{{ (100 * row.sum.counts['조건 확인'] / n)|round(1) }}%"></i><i class="s3" style="width:{{ (100 * row.sum.counts['자료 부족'] / n)|round(1) }}%"></i><i class="s4" style="width:{{ (100 * row.sum.counts['추가 확인 필요'] / n)|round(1) }}%"></i>
+      </div>
+      <div class="nums" style="margin-top:10px">
+        <span>AI 표시 문구 <b>{{ row.sum.n_claims }}</b></span>
+        <span>근거가 연결된 문구 <b>{{ row.sum.counts["근거 확인"] + row.sum.counts["조건 확인"] }}</b></span>
+        <span>권익항목 공개 <b>{{ row.sum.items_covered }}/{{ row.sum.items_total }}</b></span>
+      </div>
+      {% if row.product.is_sample %}<span class="sample">교육용 가상 제품</span>{% endif %}
+    </a>
+    {% endfor %}
+  </div>
+</section>
+{% endblock %}

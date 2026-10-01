@@ -1,0 +1,69 @@
+"""환경 설정. .env 파일 또는 환경변수로 지정한다."""
+import os
+from pathlib import Path
+
+BASE_DIR = Path(__file__).resolve().parent.parent
+DATA_DIR = BASE_DIR / "data"
+DB_PATH = Path(os.getenv("AICARD_DB", DATA_DIR / "aicard.sqlite3"))
+
+
+def _load_dotenv() -> None:
+    env_file = BASE_DIR / ".env"
+    if not env_file.exists():
+        return
+    for line in env_file.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        k, v = line.split("=", 1)
+        os.environ.setdefault(k.strip(), v.strip().strip('"').strip("'"))
+
+
+_load_dotenv()
+
+# LLM 공급자: gemini | anthropic | openai | rules
+#   rules = 키 없이 규칙 기반으로만 동작하는 데모 모드
+LLM_PROVIDER = os.getenv("LLM_PROVIDER", "").lower() or (
+    "gemini" if os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY") else
+    "anthropic" if os.getenv("ANTHROPIC_API_KEY") else
+    "openai" if os.getenv("OPENAI_API_KEY") else "rules"
+)
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY", "")
+# 앞에서부터 차례로 시도한다. 모델이 단종되거나(404) 혼잡하면(503·429) 다음 모델로 넘어간다.
+GEMINI_MODELS = [m.strip() for m in os.getenv(
+    "GEMINI_MODEL", "gemini-3.8-flash,gemini-3.7-flash,gemini-3.6-flash,gemini-flash-latest,gemini-3.5-flash,gemini-3.1-flash-lite,gemini-flash-lite-latest").split(",") if m.strip()]
+GEMINI_MODEL = GEMINI_MODELS[0]
+# AQ. 으로 시작하는 키는 Vertex AI(express) 키일 수 있어 두 주소를 차례로 시도한다
+GEMINI_ENDPOINTS = [e for e in os.getenv("GEMINI_ENDPOINT", "").split(",") if e] or [
+    "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent",
+    "https://aiplatform.googleapis.com/v1/publishers/google/models/{model}:generateContent",
+]
+ANTHROPIC_MODEL = os.getenv("ANTHROPIC_MODEL", "claude-sonnet-4-5")
+OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+
+# 이미지(상세페이지) OCR을 비전 LLM으로 수행할 최대 이미지 수
+MAX_OCR_IMAGES = int(os.getenv("MAX_OCR_IMAGES", "12"))
+
+# 검토자 화면 보호용 토큰. 비어 있으면 누구나 접근 가능(로컬 개발용).
+REVIEW_TOKEN = os.getenv("REVIEW_TOKEN", "")
+
+# 확인상태 4종 — 1차 제안서 <표 2>와 동일
+STATUSES = ["근거 확인", "조건 확인", "자료 부족", "추가 확인 필요"]
+
+STATUS_HELP = {
+    "근거 확인": "표시 문구와 사업자가 공개한 근거 문장이 연결됩니다.",
+    "조건 확인": "근거가 있고, 적용 조건·한계도 함께 확인됩니다.",
+    "자료 부족": "공개자료만으로는 판단을 유보합니다. 허위·위법·저품질을 뜻하지 않습니다.",
+    "추가 확인 필요": "자료 간 차이가 있어 사람의 검토가 필요합니다.",
+}
+
+# 소비자 권익 7항목 — 1차 제안서 '소비자 정보카드' 구성
+CARD_ITEMS = [
+    ("functions", "AI 기능·목적", "이 제품에서 'AI'라고 표시한 기능은 무엇이고, 무엇을 위한 것인가"),
+    ("evidence", "표시 근거와 확인상태", "각 AI 표시 문구에 사업자가 제시한 근거가 있는가"),
+    ("conditions", "작동 조건·한계", "어떤 조건에서 작동하고, 어떤 경우에 작동하지 않는가"),
+    ("data", "수집 데이터·처리 위치·학습 이용", "어떤 데이터를 모으고, 어디서 처리하며, 학습에 쓰는가"),
+    ("optout", "AI 기능 해제와 대체모드", "AI 기능을 끌 수 있는가, 끄면 어떻게 동작하는가"),
+    ("safety", "오작동 안전장치·업데이트·지원", "오작동 시 보호장치, 소프트웨어 업데이트·지원 기간"),
+    ("remedy", "문의·환불·보상 등 피해구제", "문제가 생겼을 때 어디에, 어떻게 연락하고 구제받는가"),
+]

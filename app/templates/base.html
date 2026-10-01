@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}AI 정보카드{% endblock %}</title>
+<meta name="description" content="제품에 적힌 'AI' 표시 문구마다 사업자가 공개한 근거가 있는지, 작동 조건과 소비자 권익 정보까지 한 장으로 확인합니다.">
+<link rel="stylesheet" href="/static/style.css">
+<script>
+  // 깜빡임 방지: 저장된 보기 설정을 먼저 적용
+  try {
+    if (localStorage.getItem('aicard.easy') === 'on') document.documentElement.dataset.easy = 'on';
+    if (localStorage.getItem('aicard.size') === 'large') document.documentElement.dataset.size = 'large';
+  } catch (e) {}
+</script>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <a class="brand" href="/">AI 정보카드 <small>AI 표시, 근거까지 읽기</small></a>
+    <nav aria-label="주요 메뉴">
+      <a href="/" {% if path == '/' %}aria-current="page"{% endif %}>카드 보기</a>
+      <a href="/compare" {% if path.startswith('/compare') %}aria-current="page"{% endif %}>두 제품 비교</a>
+      <a href="/about" {% if path.startswith('/about') %}aria-current="page"{% endif %}>어떻게 확인하나요</a>
+      {% if is_reviewer %}<a href="/review" {% if path.startswith('/review') or path.startswith('/new') %}aria-current="page"{% endif %}>검토자</a>{% endif %}
+    </nav>
+  </header>
+
+  {% block content %}{% endblock %}
+
+  <footer class="site">
+    <p>정보카드는 회사가 공개한 판매페이지와 설명서, 공공 데이터베이스를 대조한 결과예요. 제품의 우열이나 법 위반 여부는 판단하지 않아요. '자료 부족'은 공개자료에서 찾지 못했다는 뜻이지, 거짓이거나 품질이 낮다는 뜻이 아니에요.</p>
+    <p style="margin-top:6px">2026 AI 라이프 솔루션 챌린지 출품작. <a href="/about">확인 방법과 한계 읽기</a></p>
+  </footer>
+</div>
+<script src="/static/app.js"></script>
+</body>
+</html>

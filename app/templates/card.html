@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %}{{ product.name }} — AI 정보카드{% endblock %}
+{% block content %}
+{% if preview %}<div class="notice">검토자 미리보기입니다. 아직 공개되지 않은 카드예요. <a href="/review/{{ product.id }}">검토 화면으로</a></div>{% endif %}
+<div class="tools" aria-label="보기 설정">
+  <button type="button" data-toggle="easy" aria-pressed="false">쉬운 말로 보기</button>
+  <button type="button" data-toggle="size" aria-pressed="false">큰 글씨</button>
+  <button type="button" data-toggle="speak" data-target="#label-{{ product.id }}" aria-pressed="false">읽어주기</button>
+  <a class="btn quiet" href="/compare?a={{ product.id }}">다른 제품과 비교</a>
+  <a class="btn quiet" href="/api/card/{{ product.id }}.json">데이터 내려받기(JSON)</a>
+</div>
+{% include "_label.html" %}
+<p class="meta" style="margin:14px 0 50px"><a href="/#cards">공개된 카드 목록으로</a></p>
+{% endblock %}

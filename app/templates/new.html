@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}제품 등록 — AI 정보카드{% endblock %}
+{% block content %}
+<section class="hero" style="padding-bottom:0">
+  <h1>제품 등록</h1>
+  <p class="lede">판매페이지와 설명서를 넣으면 카드 초안이 만들어집니다. 초안은 검토 화면에서 원문을 확인한 뒤 승인해야 공개됩니다.</p>
+</section>
+{% if not llm_available() %}
+<div class="notice">지금은 <b>규칙 기반 데모 모드</b>({{ provider() }})입니다. 키워드와 수치 표현으로만 판정하므로 결과가 거칠어요. <code>.env</code>에 <code>ANTHROPIC_API_KEY</code> 또는 <code>OPENAI_API_KEY</code>를 넣으면 문맥 판정과 이미지 OCR이 켜집니다.</div>
+{% endif %}
+{% if error %}<div class="notice">{{ error }}</div>{% endif %}
+<form class="form" method="post" action="/new" enctype="multipart/form-data">
+  <fieldset>
+    <legend>제품</legend>
+    <label>제품명 <input type="text" name="name" required placeholder="예) 클린봇 X9"></label>
+    <label>제조사·판매자 <input type="text" name="maker" placeholder="예) 가나전자"></label>
+    <label>모델명 <span class="help">전파인증·KC 조회에 쓰는 정식 모델명</span><input type="text" name="model" placeholder="예) CB-X9-W"></label>
+    <label>품목 <input type="text" name="category" value="로봇청소기"></label>
+  </fieldset>
+  <fieldset>
+    <legend>판매페이지 (AI 표시 문구를 찾는 곳)</legend>
+    <label>URL <span class="help">한 줄에 하나. 이미지로 된 상세페이지는 LLM 키가 있을 때 글자를 읽어 옵니다.</span><textarea name="sales_urls" placeholder="https://..."></textarea></label>
+    <label>또는 본문 붙여넣기<textarea name="sales_text" placeholder="상세페이지 글자를 복사해 붙여 넣으세요."></textarea></label>
+  </fieldset>
+  <fieldset>
+    <legend>설명서·사양표 (근거를 찾는 곳)</legend>
+    <label>URL <span class="help">PDF 주소도 됩니다.</span><textarea name="manual_urls" placeholder="https://..."></textarea></label>
+    <label>PDF 올리기 <input type="file" name="manual_pdf" accept="application/pdf"></label>
+    <label>또는 본문 붙여넣기<textarea name="manual_text"></textarea></label>
+  </fieldset>
+  <div><button class="btn primary" type="submit">카드 초안 만들기</button> <span class="meta">문서 분량에 따라 수십 초 걸릴 수 있어요.</span></div>
+</form>
+{% endblock %}

@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}담는 중 — AI 정보카드{% endblock %}
+{% block content %}
+<section class="hero" style="padding-bottom:0">
+  <h1 id="h">제품 페이지를 받는 중이에요</h1>
+  <p class="lede" id="msg">쇼핑몰 창에서 본문이 넘어오면 제품명과 모델명을 확인해 주세요.</p>
+</section>
+<form class="form" id="f" hidden>
+  <label>제품명 <input type="text" name="name" required></label>
+  <label>제조사·판매자 <input type="text" name="maker"></label>
+  <label>모델명 <span class="help">KC·전파인증 조회에 쓰는 정식 모델명</span><input type="text" name="model"></label>
+  <label>품목 <input type="text" name="category" value="로봇청소기"></label>
+  <p class="meta" id="sizes"></p>
+  <div><button class="btn primary" type="submit">카드 초안 만들기</button></div>
+</form>
+<script>
+(function(){
+  let data = null;
+  const f = document.getElementById('f');
+  window.addEventListener('message', (e) => {
+    if (!e.data || e.data.type !== 'aicard-capture') return;
+    data = e.data;
+    const t = (data.title || '').split('|');
+    f.name.value = t[0].trim();
+    const m = (data.title || '').match(/\b[A-Z]{2,}[0-9][A-Z0-9-]{3,}\b/);
+    if (m) f.model.value = m[0];
+    document.getElementById('h').textContent = '받았어요. 제품 정보를 확인해 주세요';
+    document.getElementById('msg').textContent = data.url;
+    document.getElementById('sizes').textContent =
+      '본문 ' + data.sales_text.length.toLocaleString() + '자, 각주·사양 ' + data.fine_text.length.toLocaleString() + '자를 받았어요.';
+    f.hidden = false; f.name.focus();
+  });
+  f.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (!data) return;
+    const body = Object.assign({}, data, {name: f.name.value, maker: f.maker.value, model: f.model.value, category: f.category.value});
+    const r = await fetch('/api/ingest', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)});
+    if (!r.ok) { document.getElementById('msg').textContent = '저장하지 못했어요: ' + r.status; return; }
+    const d = await r.json();
+    location.href = '/review/' + d.id;
+  });
+  if (window.opener) window.opener.postMessage('aicard-ready', '*');
+})();
+</script>
+{% endblock %}

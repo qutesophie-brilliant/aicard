@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}두 제품 비교 — AI 정보카드{% endblock %}
+{% block content %}
+<section class="hero" style="padding-bottom:10px">
+  <h1>같은 ‘AI’, 적힌 내용은 다릅니다.</h1>
+  <p class="lede">두 제품의 정보카드를 나란히 놓았어요. 어느 쪽이 좋은지가 아니라, 각자 무엇을 공개했는지 보여 드려요.</p>
+</section>
+<form class="compare-pick" method="get" action="/compare">
+  <label>왼쪽 제품
+    <select name="a">
+      <option value="">선택</option>
+      {% for p in approved %}<option value="{{ p.id }}" {% if a == p.id %}selected{% endif %}>{{ p.name }}</option>{% endfor %}
+    </select>
+  </label>
+  <label>오른쪽 제품
+    <select name="b">
+      <option value="">선택</option>
+      {% for p in approved %}<option value="{{ p.id }}" {% if b == p.id %}selected{% endif %}>{{ p.name }}</option>{% endfor %}
+    </select>
+  </label>
+  <button class="btn primary" type="submit">나란히 보기</button>
+</form>
+{% if pair|length == 2 %}
+<div class="tools" aria-label="보기 설정">
+  <button type="button" data-toggle="easy" aria-pressed="false">쉬운 말로 보기</button>
+  <button type="button" data-toggle="size" aria-pressed="false">큰 글씨</button>
+</div>
+<div class="compare">
+  {% for row in pair %}
+    {% with product=row.product, card=row.card, docs=row.docs, sum=row.sum, compact=True %}
+      {% include "_label.html" %}
+    {% endwith %}
+  {% endfor %}
+</div>
+{% elif approved|length < 2 %}
+<div class="notice" style="margin-bottom:60px">비교하려면 공개된 카드가 두 장 이상 있어야 합니다.</div>
+{% else %}
+<p class="meta" style="margin-bottom:60px">위에서 제품 두 개를 고르세요.</p>
+{% endif %}
+{% endblock %}

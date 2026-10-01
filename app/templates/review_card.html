@@ -1,0 +1,130 @@
+{% extends "base.html" %}
+{% block title %}검토: {{ product.name }} — AI 정보카드{% endblock %}
+{% block content %}
+<section class="hero" style="padding-bottom:0">
+  <p class="meta"><a href="/review">← 검토 목록</a></p>
+  <h1>{{ product.name }}</h1>
+  <p class="lede">{{ product.maker }}, {{ product.model }}, {{ product.category }}
+    <span class="pill {{ product.status }}">{{ {'draft':'초안','pending':'검토 대기','approved':'공개','held':'보류'}[product.status] }}</span>
+    {% if meta %}<br><span class="meta">판정 엔진 {{ meta.provider }}, 문서 {{ meta.n_docs }}개, 문장 {{ meta.n_chunks }}개, {{ meta.seconds }}초 소요</span>{% endif %}
+  </p>
+  {% if product.reviewer_note %}<p class="meta">메모: {{ product.reviewer_note }}</p>{% endif %}
+</section>
+
+{% if product.status == 'draft' and product.reviewer_note.startswith('카드 생성 중') %}<div class="ok">카드를 만드는 중이에요. 1~2분 뒤 새로고침하세요.</div>{% endif %}
+{% for w in warn %}<div class="notice">{{ w }}</div>{% endfor %}
+
+<div class="tools">
+  <form method="post" action="/review/{{ product.id }}/status" style="display:contents">
+    <input type="hidden" name="status" value="approved">
+    <button class="btn primary" type="submit" {% if not card %}disabled{% endif %}>승인하고 공개</button>
+  </form>
+  <form method="post" action="/review/{{ product.id }}/status" style="display:contents">
+    <input type="hidden" name="status" value="held"><input type="hidden" name="note" value="검토자 보류">
+    <button class="btn" type="submit">보류</button>
+  </form>
+  <form method="post" action="/review/{{ product.id }}/rebuild" style="display:contents">
+    <button class="btn" type="submit">카드 다시 생성</button>
+  </form>
+  <a class="btn quiet" href="/card/{{ product.id }}?preview=1">소비자 화면 미리보기</a>
+  <form method="post" action="/review/{{ product.id }}/delete" style="display:contents" onsubmit="return confirm('이 제품과 카드를 지웁니다. 되돌릴 수 없어요.')">
+    <button class="btn danger" type="submit">삭제</button>
+  </form>
+</div>
+
+{% if not card %}
+<div class="notice">아직 카드가 없습니다. 문서를 추가한 뒤 '카드 다시 생성'을 누르세요.</div>
+{% else %}
+
+<h2 style="margin-top:34px;font-size:1.3rem">1. AI 표시 문구 {{ card.claims|length }}건</h2>
+<p class="meta">AI 판정을 그대로 두려면 '그대로'를, 바꾸려면 상태를 고르고 저장하세요. 검토자 판정이 AI 판정보다 우선합니다.</p>
+{% for c in card.claims %}
+<div class="review-claim" id="claim-{{ c.id }}">
+  <p><b>“{{ c.text }}”</b> <span class="meta">({{ ITEM_LABEL.get(c.item, c.item) }}, {{ c.label }})</span></p>
+  <p class="ai">AI 판정: <b>{{ c.status }}</b>{% if c.reviewer_status %} → 검토자: <b>{{ c.reviewer_status }}</b>{% endif %}{% if c.note %}<br>{{ c.note }}{% endif %}</p>
+  {% if c.conditions %}<p class="ai">조건: {{ c.conditions }}</p>{% endif %}
+  <details class="ev"><summary>출처 문장과 근거 {{ c.evidence|length }}건</summary>
+    <blockquote>{{ c.source.quote }}<cite>출처: {{ docs[c.source.doc_id].kind if c.source.doc_id in docs else '' }} {{ docs[c.source.doc_id].title if c.source.doc_id in docs else '' }}</cite></blockquote>
+    {% for e in c.evidence %}<blockquote>{{ e.quote }}<cite>근거: {{ docs[e.doc_id].kind if e.doc_id in docs else e.kind }} {{ docs[e.doc_id].title if e.doc_id in docs else '' }}</cite></blockquote>{% endfor %}
+  </details>
+  <form class="edit" method="post" action="/review/{{ product.id }}/claim">
+    <input type="hidden" name="claim_id" value="{{ c.id }}">
+    <select name="reviewer_status" aria-label="검토자 판정">
+      <option value="">그대로 ({{ c.status }})</option>
+      {% for s in STATUSES %}<option value="{{ s }}" {% if c.reviewer_status == s %}selected{% endif %}>{{ s }}</option>{% endfor %}
+    </select>
+    <input type="text" name="reviewer_note" value="{{ c.reviewer_note }}" placeholder="검토 메모(선택)">
+    <button class="btn" type="submit">저장</button>
+  </form>
+  <form method="post" action="/review/{{ product.id }}/claim/delete" style="margin-top:8px" onsubmit="return confirm('이 문구를 카드에서 뺍니다.')">
+    <input type="hidden" name="claim_id" value="{{ c.id }}">
+    <button class="btn quiet" type="submit">이 문구는 AI 표시가 아님 (제외)</button>
+  </form>
+</div>
+{% else %}
+<div class="notice">AI 표시 문구를 찾지 못했습니다. 판매페이지 본문이 제대로 들어왔는지 아래 문서 목록에서 확인하세요.</div>
+{% endfor %}
+
+<h2 style="margin-top:34px;font-size:1.3rem">2. 권익 항목 5개</h2>
+{% for key in COVERAGE_ITEMS %}{% set it = card['items'][key] %}
+<div class="review-claim" id="item-{{ key }}">
+  <p><b>{{ ITEM_LABEL[key] }}</b> <span class="meta">{{ ITEM_QUESTION[key] }}</span></p>
+  <p class="ai">AI 판정: <b>{{ it.status }}</b></p>
+  {% if it.evidence %}<details class="ev"><summary>근거 {{ it.evidence|length }}건</summary>{% for e in it.evidence %}<blockquote>{{ e.quote }}<cite>{{ docs[e.doc_id].kind if e.doc_id in docs else e.kind }} {{ docs[e.doc_id].title if e.doc_id in docs else '' }}</cite></blockquote>{% endfor %}</details>{% endif %}
+  <form class="edit" method="post" action="/review/{{ product.id }}/item" style="display:grid;gap:8px">
+    <input type="hidden" name="key" value="{{ key }}">
+    <div style="display:flex;gap:10px;flex-wrap:wrap">
+      <select name="status">{% for s in STATUSES %}<option value="{{ s }}" {% if it.status == s %}selected{% endif %}>{{ s }}</option>{% endfor %}</select>
+      <button class="btn" type="submit">저장</button>
+    </div>
+    <textarea name="summary" style="min-height:70px" aria-label="소비자에게 보여줄 요약">{{ it.summary }}</textarea>
+  </form>
+</div>
+{% endfor %}
+
+<h2 style="margin-top:34px;font-size:1.3rem" id="pubdb">3. 공공 DB 교차확인</h2>
+<p class="meta">모델명 <b>{{ product.model or '(미입력)' }}</b>으로 직접 조회해 결과를 적습니다. 조회처:
+  <a href="https://www.safetykorea.kr/release/itemSearch" target="_blank" rel="noopener">제품안전정보센터</a>,
+  <a href="https://www.rra.go.kr/ko/license/A_c_search.do" target="_blank" rel="noopener">국립전파연구원</a>,
+  <a href="https://eep.energy.or.kr" target="_blank" rel="noopener">효율관리제도</a>,
+  <a href="https://www.consumer.go.kr" target="_blank" rel="noopener">소비자24</a></p>
+{% set pdb = card.public_db %}
+<form class="form" method="post" action="/review/{{ product.id }}/pubdb" style="margin-top:10px">
+  {% for key, label, extra in [('kc','KC 안전인증','number'),('rra','전파 적합성평가','number'),('energy','에너지소비효율','grade'),('recall','리콜·비교시험 이력','detail')] %}
+  <fieldset>
+    <legend>{{ label }}</legend>
+    <div style="display:flex;gap:14px;flex-wrap:wrap">
+      <label style="display:flex;gap:6px;align-items:center;font-weight:400"><input type="radio" name="{{ key }}_found" value="" {% if pdb[key].found is none %}checked{% endif %}> 미조회</label>
+      <label style="display:flex;gap:6px;align-items:center;font-weight:400"><input type="radio" name="{{ key }}_found" value="yes" {% if pdb[key].found %}checked{% endif %}> 확인됨</label>
+      <label style="display:flex;gap:6px;align-items:center;font-weight:400"><input type="radio" name="{{ key }}_found" value="no" {% if pdb[key].found == False %}checked{% endif %}> 결과 없음</label>
+    </div>
+    <label>{{ {'number':'인증번호','grade':'등급','detail':'내용'}[extra] }}<input type="text" name="{{ key }}_{{ extra }}" value="{{ pdb[key][extra] }}"></label>
+    <label>조회 결과 URL<input type="url" name="{{ key }}_url" value="{{ pdb[key].url }}"></label>
+  </fieldset>
+  {% endfor %}
+  <div><button class="btn" type="submit">공공 DB 결과 저장</button></div>
+</form>
+
+<h2 style="margin-top:34px;font-size:1.3rem">4. 쉬운 말 버전</h2>
+<div class="review-claim">
+  <p><b>{{ card.easy.headline }}</b></p>
+  {% for k, v in card.easy['items'].items() %}<p class="ai"><b>{{ ITEM_LABEL.get(k, k) }}</b> — {{ v }}</p>{% endfor %}
+  <p class="meta" style="margin-top:8px">쉬운 말 문장은 '카드 다시 생성'으로 갱신됩니다. 검토자 판정을 바꾼 뒤에는 한 번 다시 생성하세요.</p>
+</div>
+{% endif %}
+
+<h2 style="margin-top:34px;font-size:1.3rem">문서 {{ docs|length }}개</h2>
+<table class="table">
+  <tr><th>종류</th><th>제목</th><th>문장 수</th><th>가져온 때</th></tr>
+  {% for d in docs.values() %}<tr><td>{{ d.kind }}</td><td>{% if d.url %}<a href="{{ d.url }}" target="_blank" rel="noopener">{{ d.title|truncate(60) }}</a>{% else %}{{ d.title|truncate(60) }}{% endif %}</td><td>{{ d.chunks|length }}</td><td class="meta">{{ d.fetched_at }}</td></tr>{% endfor %}
+</table>
+<form class="form" method="post" action="/review/{{ product.id }}/doc" enctype="multipart/form-data" style="margin-top:14px">
+  <fieldset><legend>문서 추가</legend>
+    <label>종류 <select name="kind"><option>설명서</option><option>사양표</option><option>판매페이지</option><option>공공DB</option><option>기타</option></select></label>
+    <label>URL <input type="url" name="url"></label>
+    <label>PDF <input type="file" name="pdf" accept="application/pdf"></label>
+    <label>본문 붙여넣기 <textarea name="text" style="min-height:90px"></textarea></label>
+    <div><button class="btn" type="submit">추가</button> <span class="meta">추가한 뒤 '카드 다시 생성'을 누르면 반영됩니다.</span></div>
+  </fieldset>
+</form>
+{% endblock %}

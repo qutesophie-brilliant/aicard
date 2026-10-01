@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}검토 대기 — AI 정보카드{% endblock %}
+{% block content %}
+<section class="hero" style="padding-bottom:0">
+  <h1>검토자</h1>
+  <p class="lede">AI가 만든 초안을 원문과 대조해 승인·수정·보류합니다. 승인한 카드만 공개됩니다. 판정 엔진: <b>{{ provider() }}</b>{% if not llm_available() %} (규칙 기반 데모 모드){% endif %}</p>
+  <div class="hero-actions">
+    <a class="btn primary" href="/new">제품 등록</a>
+    <a class="btn" href="/capture">브라우저에서 담기</a>
+    <a class="btn" href="/export/claims.csv">라벨링용 CSV 내려받기</a>
+  </div>
+</section>
+<table class="table">
+  <tr><th>제품</th><th>상태</th><th>AI 표시</th><th>근거 연결</th><th>권익항목</th><th>생성</th><th></th></tr>
+  {% for r in rows %}
+  <tr>
+    <td><a href="/review/{{ r.product.id }}">{{ r.product.name }}</a><br><span class="meta">{{ r.product.maker }} {{ r.product.model }}{% if r.product.is_sample %} (가상){% endif %}</span></td>
+    <td><span class="pill {{ r.product.status }}">{{ {'draft':'초안','pending':'검토 대기','approved':'공개','held':'보류'}[r.product.status] }}</span>{% if r.product.reviewer_note %}<br><span class="meta">{{ r.product.reviewer_note|truncate(60) }}</span>{% endif %}</td>
+    <td>{{ r.sum.n_claims if r.sum else '—' }}</td>
+    <td>{{ (r.sum.counts['근거 확인'] + r.sum.counts['조건 확인']) if r.sum else '—' }}</td>
+    <td>{{ (r.sum.items_covered ~ '/' ~ r.sum.items_total) if r.sum else '—' }}</td>
+    <td class="meta">{{ r.meta.get('provider','') }} {{ r.meta.get('seconds','') }}{% if r.meta.get('seconds') is not none and r.meta.get('seconds') != '' %}초{% endif %}</td>
+    <td>{% if r.product.status == 'approved' %}<a href="/card/{{ r.product.id }}">공개 화면</a>{% else %}<a href="/card/{{ r.product.id }}?preview=1">미리보기</a>{% endif %}</td>
+  </tr>
+  {% else %}
+  <tr><td colspan="7" class="meta">등록된 제품이 없습니다.</td></tr>
+  {% endfor %}
+</table>
+<p class="meta" style="margin:20px 0 60px">라벨링 절차: CSV를 내려받아 <code>gold_status</code>와 <code>gold_evidence_quote</code>를 채운 뒤 <code>python eval/evaluate.py 파일.csv</code>로 정확도를 계산합니다.</p>
+{% endblock %}
