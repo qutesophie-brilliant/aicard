@@ -672,7 +672,11 @@ _INPUT_FIT = re.compile(r"(?:무게|종류|오염도|옷감|재질|부하|사용
 def self_describes(t: str) -> bool:
     # 1) 무엇으로(센서·레이더) 또는 무엇을(무게·온도·사용 패턴) 감지·분석해 무엇을 하는지
     for m in _SELF_SENSE.finditer(t):
-        if _SELF_SRC.search(t[max(0, m.start() - 24):m.start()]) and _SELF_ACT.search(t[m.end():]):
+        win = t[max(0, m.start() - 24):m.start()]
+        # 13회차: '온도 사용 패턴을 분석해'처럼 입력이 패턴·이력·습관(학습 자료)이면 문구만으로는 근거가 아니다(3차 라벨러 3인 일치).
+        if re.search(r"(패턴|이력|습관|데이터)", win):
+            continue
+        if _SELF_SRC.search(win) and _SELF_ACT.search(t[m.end():]):
             return True
     # 2) 어떤 일이 생기면(요청하면·다다르면) 무엇을 하는지
     m = _SELF_EVENT.search(t)
