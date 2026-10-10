@@ -3,6 +3,7 @@ import os
 import csv
 import io
 import json
+import re
 from pathlib import Path
 from typing import Any
 
@@ -14,10 +15,12 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from . import config, db
-from .pipeline import ingest, llm
-from .pipeline.run import build_card
-from .schema import (CARD_ITEMS, COVERAGE_ITEMS, ITEM_LABEL, ITEM_QUESTION, effective_status,
-                     summarize)
+from .pipeline import ingest, llm, ocr
+from .pipeline.run import build_card, quick_check, split_fine_print
+from .schema import (BASIS_HELP, BASIS_KINDS, BASIS_LABEL, BASIS_STATE_HELP, BASIS_STATES, CARD_ITEMS, COVERAGE_ITEMS,
+                     DATA_SERVER_LABEL, DATA_SERVERS, ITEM_LABEL, ITEM_QUESTION, ITEM_SHORT, ITEM_TILE, QUESTIONS,
+                     QUESTION_TEXT, SUPPORT_PERIOD_LABEL, SUPPORT_PERIODS, axes_of, basis_counts, question_text,
+                     effective_status, global_extra, heads_up, status_from, summarize)
 
 APP_DIR = Path(__file__).resolve().parent
 if os.getenv("PUBLIC_DEPLOY") == "1" and not config.REVIEW_TOKEN:
@@ -25,18 +28,51 @@ if os.getenv("PUBLIC_DEPLOY") == "1" and not config.REVIEW_TOKEN:
     raise SystemExit("공개 배포에는 REVIEW_TOKEN 설정이 필요합니다.")
 
 app = FastAPI(title="AI 정보카드")
+db.init_db()  # 새 표(요청 등)가 있으면 바로 만든다
 app.mount("/static", StaticFiles(directory=APP_DIR / "static"), name="static")
 templates = Jinja2Templates(directory=APP_DIR / "templates")
 
 STATUS_CLASS = {"근거 확인": "s1", "조건 확인": "s2", "자료 부족": "s3", "추가 확인 필요": "s4"}
-STATUS_MARK = {"근거 확인": "■", "조건 확인": "◪", "자료 부족": "□", "추가 확인 필요": "▲"}
+STATUS_MARK = {"근거 확인": "✓", "조건 확인": "✓", "자료 부족": "–", "추가 확인 필요": "!"}
+# 라벨에서 쓰는 짧은 상태 이름. 소비자에게는 세 가지로 보인다: 근거 있음 / 근거 못 찾음 / 설명 어긋남
+STATUS_SHORT = {"근거 확인": "회사 설명 있음", "조건 확인": "회사 설명 있음", "자료 부족": "회사 설명 없음", "추가 확인 필요": "설명이 서로 어긋남"}
 
 templates.env.globals.update(
     STATUSES=config.STATUSES, STATUS_HELP=config.STATUS_HELP, STATUS_CLASS=STATUS_CLASS,
     STATUS_MARK=STATUS_MARK, CARD_ITEMS=CARD_ITEMS, COVERAGE_ITEMS=COVERAGE_ITEMS,
-    ITEM_LABEL=ITEM_LABEL, ITEM_QUESTION=ITEM_QUESTION, eff=effective_status, summarize=summarize,
+    ITEM_LABEL=ITEM_LABEL, ITEM_QUESTION=ITEM_QUESTION, ITEM_SHORT=ITEM_SHORT, ITEM_TILE=ITEM_TILE,
+    QUESTIONS=QUESTIONS, QUESTION_TEXT=QUESTION_TEXT, STATUS_SHORT=STATUS_SHORT, qtext=question_text,
+    eff=effective_status, summarize=summarize, heads_up=heads_up, axes=axes_of,
+    BASIS_STATES=BASIS_STATES, BASIS_STATE_HELP=BASIS_STATE_HELP,
+    DATA_SERVERS=DATA_SERVERS, DATA_SERVER_LABEL=DATA_SERVER_LABEL,
+    SUPPORT_PERIODS=SUPPORT_PERIODS, SUPPORT_PERIOD_LABEL=SUPPORT_PERIOD_LABEL,
+    BASIS_KINDS=BASIS_KINDS, BASIS_LABEL=BASIS_LABEL, BASIS_HELP=BASIS_HELP, basis_counts=basis_counts, global_extra=global_extra,
     provider=llm.provider, llm_available=llm.available,
 )
+
+
+def kdate(v: str) -> str:
+    """2026-10-01 -> 2026. 10. 1."""
+    v = (v or "")[:10]
+    try:
+        y, m, d = v.split("-")
+        return f"{int(y)}. {int(m)}. {int(d)}."
+    except Exception:
+        return v
+
+
+templates.env.filters["kdate"] = kdate
+
+
+def wa(word: str) -> str:
+    """'와/과' 조사."""
+    ch = (word or "").strip()[-1:]
+    if not ch or not ("가" <= ch <= "힣"):
+        return word + "와" if not ch or ch.isdigit() is False and ch.isalpha() else word + "과"
+    return word + ("과" if (ord(ch) - 0xAC00) % 28 else "와")
+
+
+templates.env.filters["wa"] = wa
 
 
 @app.on_event("startup")
@@ -48,6 +84,21 @@ def _startup() -> None:
 # 쇼핑몰은 서버의 자동 접속을 막는 경우가 많다(403). 그래서 소비자·검토자가 브라우저에서 보고 있는
 # 페이지 본문을 그대로 이 서비스로 보내는 통로를 둔다. 로컬(127.0.0.1)로 보내는 요청을 브라우저가
 # 허용하도록 CORS와 Private Network Access 헤더를 붙인다.
+@app.middleware("http")
+async def _count_views(request: Request, call_next):
+    resp = await call_next(request)
+    resp.headers.setdefault("X-Content-Type-Options", "nosniff")
+    resp.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+    resp.headers.setdefault("X-Frame-Options", "SAMEORIGIN")
+    p = request.url.path
+    if request.method == "GET" and resp.status_code == 200 and (p == "/" or p.startswith(("/card/", "/compare", "/about", "/check"))):
+        try:
+            db.count_view(p.split("?")[0])
+        except Exception:
+            pass
+    return resp
+
+
 @app.middleware("http")
 async def _cors_for_capture(request: Request, call_next):
     if request.url.path.startswith("/api/ingest"):
@@ -125,6 +176,29 @@ def card_view(pid: int) -> tuple[dict[str, Any], dict[str, Any], dict[int, dict[
     return product, card, docs
 
 
+@app.exception_handler(500)
+async def _server_error(request: Request, exc: Exception):
+    return templates.TemplateResponse(request, "404.html", {"request": request, "path": request.url.path, "is_reviewer": False,
+                                                             "detail": "잠깐 문제가 생겼어요. 잠시 뒤 다시 열어 주세요."}, status_code=500)
+
+
+@app.exception_handler(403)
+async def _forbidden(request: Request, exc: Exception):
+    if request.url.path.startswith(("/api/", "/export/")) or request.method != "GET":
+        return JSONResponse({"detail": getattr(exc, "detail", "forbidden")}, status_code=403)
+    return RedirectResponse("/review/login", status_code=303)
+
+
+@app.exception_handler(404)
+async def _not_found(request: Request, exc: Exception):
+    if request.url.path.startswith(("/api/", "/static/")):
+        return JSONResponse({"detail": "not found"}, status_code=404)
+    detail = getattr(exc, "detail", "") or ""
+    return templates.TemplateResponse(request, "404.html", {"request": request, "path": request.url.path,
+                                                             "is_reviewer": is_reviewer(request), "detail": detail},
+                                      status_code=404)
+
+
 # ---------- 소비자 화면 ----------
 @app.get("/", response_class=HTMLResponse)
 def index(request: Request):
@@ -134,9 +208,24 @@ def index(request: Request):
         c = db.get_card(p["id"])
         if c:
             cards.append({"product": p, "card": c, "sum": summarize(c)})
-    featured = cards[0] if cards else None
-    docs = {d["id"]: d for d in db.list_documents(featured["product"]["id"])} if featured else {}
-    return render(request, "index.html", cards=cards, featured=featured, docs=docs)
+    cards.sort(key=lambda r: (r["product"].get("is_sample", 0), r["product"]["name"]))
+    # 첫 화면 보기: 표시와 설명이 어긋난 문구가 있는 카드를 우선 고른다(없으면 문구가 가장 많은 카드).
+    example = None
+    real = [r for r in cards if not r["product"].get("is_sample") and r["sum"]["n_claims"] >= 3]
+    if real:
+        real.sort(key=lambda r: (-r["sum"]["counts"]["추가 확인 필요"], -r["sum"]["n_claims"]))
+        ex = real[0]
+        example = {"product": ex["product"], "card": ex["card"], "sum": ex["sum"], "heads": heads_up(ex["card"], 1),
+                   "claims": sorted(ex["card"]["claims"],
+                                    key=lambda c: (effective_status(c) != "추가 확인 필요", len(c["text"])))[:4]}
+    makers = sorted({r["product"]["maker"] for r in cards if r["product"]["maker"]})
+    # 품목별 수("로봇청소기 23종, 공기청정기 6종"). 품목이 하나면 그 이름만 쓴다
+    from collections import Counter as _C
+    cat_counts = _C((r["product"].get("category") or "제품") for r in cards if not r["product"].get("is_sample"))
+    cat_line = ", ".join(f"{k} {v}종" for k, v in sorted(cat_counts.items(), key=lambda kv: -kv[1])) or f"제품 {len(cards)}종"
+    base = str(request.base_url).rstrip("/")
+    return render(request, "index.html", cards=cards, example=example, makers=makers, cat_line=cat_line,
+                  bookmarklet=_bookmarklet(base, "/check/receive"))
 
 
 @app.get("/card/{pid}", response_class=HTMLResponse)
@@ -167,7 +256,85 @@ def compare(request: Request, a: int | None = None, b: int | None = None):
 
 @app.get("/about", response_class=HTMLResponse)
 def about(request: Request):
-    return render(request, "about.html")
+    # 공개 카드 전체 집계 — 심사자가 보는 '현재 상태' 수치
+    tot = {"products": 0, "claims": 0, "linked": 0, "mismatch": 0, "missing": 0,
+           "basis": {k: 0 for k, _, _ in BASIS_KINDS}, "basis_global": {k: 0 for k, _, _ in BASIS_KINDS},
+           "global_extra": 0, "optout_missing": 0, "data_missing": 0}
+    for pr in db.list_products("approved"):
+        c = db.get_card(pr["id"])
+        if not c:
+            continue
+        sm = summarize(c)
+        tot["products"] += 1
+        tot["claims"] += sm["n_claims"]
+        tot["linked"] += sm["linked"]
+        tot["mismatch"] += sm["counts"]["추가 확인 필요"]
+        tot["missing"] += sm["counts"]["자료 부족"]
+        for k, v in basis_counts(c).items():
+            tot["basis"][k] += v
+        for k, v in basis_counts(c, "global").items():
+            tot["basis_global"][k] += v
+        tot["global_extra"] += len(global_extra(c))
+        if c["items"].get("optout", {}).get("status") == "자료 부족":
+            tot["optout_missing"] += 1
+        if c["items"].get("data", {}).get("status") == "자료 부족":
+            tot["data_missing"] += 1
+    return render(request, "about.html", tot=tot)
+
+
+@app.get("/findings", response_class=HTMLResponse)
+def findings(request: Request):
+    """공개한 카드 전체에서 확인된 것. 제품 순위를 매기지 않고, 문구 단위 집계와 실제 사례만 보여 준다."""
+    tot = {"products": 0, "claims": 0, "linked": 0, "mismatch": 0, "missing": 0, "control": 0,
+           "basis": {k: 0 for k, _, _ in BASIS_KINDS},
+           "optout_missing": 0, "data_missing": 0, "cond_missing": 0}
+    mismatches: list[dict[str, Any]] = []
+    cats: dict[str, int] = {}
+    for pr in db.list_products("approved"):
+        c = db.get_card(pr["id"])
+        if not c:
+            continue
+        sm = summarize(c)
+        tot["products"] += 1
+        tot["claims"] += sm["n_claims"]
+        tot["linked"] += sm["linked"]
+        tot["mismatch"] += sm["counts"]["추가 확인 필요"]
+        tot["missing"] += sm["counts"]["자료 부족"]
+        if sm["n_claims"] == 0:
+            tot["control"] += 1
+        cats[pr.get("category") or "제품"] = cats.get(pr.get("category") or "제품", 0) + 1
+        for k, v in basis_counts(c).items():
+            tot["basis"][k] += v
+        for key, slot in (("optout", "optout_missing"), ("data", "data_missing"), ("conditions", "cond_missing")):
+            if c["items"].get(key, {}).get("status") == "자료 부족":
+                tot[slot] += 1
+        for cl in c["claims"]:
+            if effective_status(cl) != "추가 확인 필요":
+                continue
+            mismatches.append({"pid": pr["id"], "product": pr["name"], "maker": pr["maker"],
+                               "claim": cl["text"],
+                               "note": cl.get("conditions") or cl.get("reviewer_note") or "",
+                               "quote": (cl.get("evidence") or [{}])[0].get("quote", ""),
+                               "anchor": f"claim-{cl['id']}"})
+    cat_line = ", ".join(f"{k} {v}장" for k, v in sorted(cats.items(), key=lambda kv: -kv[1]))
+    return render(request, "findings.html", tot=tot, mismatches=mismatches, cat_line=cat_line)
+
+
+@app.get("/api/cards.json")
+def cards_json():
+    """공개 카드 전체(승인된 것만)."""
+    out = []
+    for pr in db.list_products("approved"):
+        c = db.get_card(pr["id"])
+        if c:
+            out.append({"id": pr["id"], "product": c["product"], "checked_at": c.get("checked_at"),
+                        "summary": summarize(c), "card": c})
+    return JSONResponse(out, media_type="application/json; charset=utf-8")
+
+
+@app.get("/robots.txt")
+def robots():
+    return Response("User-agent: *\nAllow: /\nDisallow: /review\nDisallow: /api/\n", media_type="text/plain")
 
 
 @app.get("/api/card/{pid}.json")
@@ -211,6 +378,140 @@ async def api_ingest(request: Request, background: BackgroundTasks):
     return {"id": pid, "review_url": f"{base}/review/{pid}", "status": "building"}
 
 
+# ---------- 즉석 확인(소비자용, 저장·LLM 없음) ----------
+_check_hits: dict[str, list[float]] = {}
+
+
+def _rate_ok(ip: str, limit: int = 30, window: int = 3600) -> bool:
+    """IP별 시간당 횟수 제한. 키에 ':ocr' 같은 꼬리를 붙여 용도별로 따로 센다."""
+    import time as _t
+    now_t = _t.time()
+    hits = [t for t in _check_hits.get(ip, []) if now_t - t < window]
+    hits.append(now_t)
+    _check_hits[ip] = hits
+    return len(hits) <= limit
+
+
+def _check_summary(card: dict[str, Any]) -> dict[str, Any]:
+    claims = card["claims"]
+    with_ev = [c for c in claims if c.get("evidence")]
+    items = {k: bool(card["items"][k].get("evidence")) for k in COVERAGE_ITEMS}
+    return {"n": len(claims), "with_ev": len(with_ev), "items": items, "items_found": sum(items.values())}
+
+
+@app.get("/check", response_class=HTMLResponse)
+def check_page(request: Request, q: str = ""):
+    base = str(request.base_url).rstrip("/")
+    return render(request, "check.html", base=base, bookmarklet=_bookmarklet(base, "/check/receive"),
+                  error=None, url="", q=q.strip()[:80])
+
+
+@app.post("/check", response_class=HTMLResponse)
+async def check_url(request: Request, url: str = Form(""), text: str = Form(""),
+                    files: list[UploadFile] = File(default=[])):
+    ip = request.client.host if request.client else "?"
+    if not _rate_ok(ip):
+        raise HTTPException(429, "잠시 뒤 다시 시도해 주세요.")
+    base = str(request.base_url).rstrip("/")
+    bm = _bookmarklet(base, "/check/receive")
+    url = url.strip()
+    text = text.strip()
+    name = ""
+    notes: list[str] = []
+
+    # 1) 캡처 이미지·PDF 업로드 → 글자 읽기 (소비자용: 건수·크기 제한, 비전 모델은 설정으로 켜고 끔)
+    uploads = [f for f in (files or []) if f and f.filename]
+    if uploads:
+        if not _rate_ok(ip + ":ocr", limit=config.CHECK_OCR_PER_HOUR):
+            return render(request, "check.html", base=base, bookmarklet=bm, url=url, q="",
+                          error="이미지 확인은 한 시간에 몇 번만 할 수 있어요. 잠시 뒤 다시 시도해 주세요.")
+        if len(uploads) > config.CHECK_MAX_FILES:
+            return render(request, "check.html", base=base, bookmarklet=bm, url=url, q="",
+                          error=f"파일은 한 번에 {config.CHECK_MAX_FILES}개까지 올릴 수 있어요.")
+        imgs: list[bytes] = []
+        pdf_texts: list[str] = []
+        for f in uploads:
+            data = await f.read()
+            if len(data) > config.CHECK_MAX_FILE_MB * 1024 * 1024:
+                return render(request, "check.html", base=base, bookmarklet=bm, url=url, q="",
+                              error=f"파일 하나는 {config.CHECK_MAX_FILE_MB}MB까지만 올릴 수 있어요. ({f.filename})")
+            ctype = (f.content_type or "").lower()
+            if ctype == "application/pdf" or f.filename.lower().endswith(".pdf"):
+                r = ocr.read_pdf(data, allow_llm=config.CHECK_OCR_LLM)
+                pdf_texts.append(r.text); notes.extend(r.notes)
+            elif ctype.startswith("image/") or f.filename.lower().endswith((".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp")):
+                imgs.append(data)
+            else:
+                return render(request, "check.html", base=base, bookmarklet=bm, url=url, q="",
+                              error=f"이미지(JPG·PNG)나 PDF만 올릴 수 있어요. ({f.filename})")
+        if imgs:
+            r = ocr.read_images(imgs, allow_llm=config.CHECK_OCR_LLM)
+            notes.extend(r.notes)
+            text = "\n".join([text] + pdf_texts + [r.text]).strip()
+        else:
+            text = "\n".join([text] + pdf_texts).strip()
+        if len(text) < 20:
+            return render(request, "check.html", base=base, bookmarklet=bm, url=url, q="",
+                          error="올린 파일에서 읽을 수 있는 글자를 찾지 못했어요. 글자가 또렷하게 보이는 캡처인지 확인해 주세요.")
+        name = (uploads[0].filename.rsplit(".", 1)[0] or "올린 자료")[:60]
+        notes = [f"올린 파일 {len(uploads)}개에서 글자를 읽어 확인했어요."] + list(dict.fromkeys(notes))
+
+    if text:
+        sales, fine = split_fine_print(text)
+        if not name:
+            name = (text.splitlines()[0] if text.splitlines() else "붙여 넣은 설명")[:60]
+    elif url.startswith("http"):
+        try:
+            ing = ingest.from_url(url, ocr_images=False)
+        except Exception:  # 쇼핑몰이 서버 접근을 막은 경우가 대부분
+            return render(request, "check.html", base=base, bookmarklet=bm, url=url, q="",
+                          error="이 쇼핑몰은 서버가 페이지를 읽어 가는 걸 막고 있어요. 상세페이지를 캡처한 이미지나 PDF를 올리거나, 글을 복사해 붙여 넣어 주세요. PC라면 ‘쇼핑몰이 막아도 되는 방법’의 버튼으로 한 번에 보낼 수 있어요.")
+        sales, fine = split_fine_print(ing.text)
+        name = (ing.title or url).split("|")[0].strip()[:60]
+    else:
+        return render(request, "check.html", base=base, bookmarklet=bm, url=url, q="",
+                      error="판매페이지 주소를 넣거나, 캡처 이미지·PDF를 올리거나, 설명 글을 붙여 넣어 주세요.")
+    try:
+        card, docs = quick_check(name, url, sales, fine)
+    except ValueError as e:
+        return render(request, "check.html", base=base, bookmarklet=bm, url=url, q="", error=str(e))
+    return render(request, "check_result.html", card=card, docs=docs, pname=name, url=url, s=_check_summary(card), notes=notes)
+
+
+@app.get("/check/receive", response_class=HTMLResponse)
+def check_receive(request: Request):
+    return render(request, "check_receive.html")
+
+
+@app.post("/api/check")
+async def api_check(request: Request):
+    """북마클릿 수신 창이 보내는 본문으로 즉석 확인 결과를 HTML 조각으로 돌려준다."""
+    ip = request.client.host if request.client else "?"
+    if not _rate_ok(ip):
+        raise HTTPException(429)
+    data = await request.json()
+    name = (data.get("title") or "").split("|")[0].strip()[:60] or "제품"
+    url = (data.get("url") or "")[:500]
+    try:
+        card, docs = quick_check(name, url, data.get("sales_text", ""), data.get("fine_text", ""))
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    return templates.TemplateResponse(request, "_check_body.html",
+                                      {"card": card, "docs": docs, "pname": name, "url": url, "s": _check_summary(card),
+                                       "notes": [], "request": request, "is_reviewer": is_reviewer(request)})
+
+
+@app.post("/check/request")
+def check_request(request: Request, url: str = Form(""), name: str = Form(""), note: str = Form("")):
+    ip = request.client.host if request.client else "?"
+    if not _rate_ok(ip, limit=10):
+        raise HTTPException(429)
+    if not (url or name):
+        raise HTTPException(400)
+    rid = db.add_request(url, name, note)
+    return render(request, "check_thanks.html", rid=rid, pname=name)
+
+
 @app.get("/capture/receive", response_class=HTMLResponse)
 def capture_receive(request: Request, _=Depends(require_reviewer)):
     return render(request, "capture_receive.html")
@@ -222,7 +523,7 @@ def capture_help(request: Request, _=Depends(require_reviewer)):
     return render(request, "capture.html", base=base, bookmarklet=_bookmarklet(base))
 
 
-def _bookmarklet(base: str) -> str:
+def _bookmarklet(base: str, receive: str = "/capture/receive") -> str:
     """쇼핑몰 페이지에서 실행되는 북마클릿.
     보안 정책(CSP)이 엄격한 쇼핑몰은 다른 주소로 직접 보내는 요청(fetch)을 막는다. 그래서 정보카드의
     수신 창을 새로 열고, 창끼리 메시지(postMessage)로 본문을 넘긴다. 수신 창은 정보카드 서비스와 같은
@@ -234,7 +535,7 @@ def _bookmarklet(base: str) -> str:
         "const F=/^\\*|^※|^-|기준|측정|조건|환경에 따라|다를 수|않을 수|않습니다|한정|유의|주의|인증|시험|평가|필요합니다|설정이 필요/;"
         "const K=L.filter(s=>!J.test(s));const S=[],P=[];K.forEach(s=>(F.test(s)?P:S).push(s));"
         "const D={type:'aicard-capture',url:location.href,title:document.title,sales_text:S.join('\\n'),fine_text:P.join('\\n')};"
-        f"const B='{base}';const w=window.open(B+'/capture/receive','aicard_receive');"
+        f"const B='{base}';const w=window.open(B+'{receive}','aicard_receive');"
         "if(!w){alert('팝업이 막혔어요. 이 사이트의 팝업을 허용해 주세요.');return;}"
         "const h=e=>{if(e.origin===B&&e.data==='aicard-ready'){w.postMessage(D,B);window.removeEventListener('message',h);}};"
         "window.addEventListener('message',h);"
@@ -313,18 +614,128 @@ def _lines(s: str) -> list[str]:
 
 
 # ---------- 검토자 ----------
+@app.get("/review/login", response_class=HTMLResponse)
+def review_login(request: Request, bad: int = 0):
+    return render(request, "review_login.html", bad=bool(bad))
+
+
+@app.post("/review/login")
+def review_login_post(request: Request, token: str = Form("")):
+    if config.REVIEW_TOKEN and token.strip() != config.REVIEW_TOKEN:
+        return RedirectResponse("/review/login?bad=1", status_code=303)
+    resp = RedirectResponse("/review", status_code=303)
+    if config.REVIEW_TOKEN:
+        resp.set_cookie("aicard_token", config.REVIEW_TOKEN, httponly=True, samesite="lax", max_age=60 * 60 * 24 * 30)
+    return resp
+
+
 @app.get("/review", response_class=HTMLResponse)
-def review_list(request: Request, _=Depends(require_reviewer)):
+def review_list(request: Request):
+    if not is_reviewer(request):
+        return RedirectResponse("/review/login", status_code=303)
     products = db.list_products()
     rows = []
     for p in products:
         c = db.get_card(p["id"])
         rows.append({"product": p, "sum": summarize(c) if c else None, "meta": db.get_card_meta(p["id"])})
-    resp = render(request, "review_list.html", rows=rows)
+    resp = render(request, "review_list.html", rows=rows, requests=db.list_requests("new"), views=db.view_stats(30))
     if config.REVIEW_TOKEN and request.query_params.get("token"):
         resp.set_cookie("aicard_token", config.REVIEW_TOKEN, httponly=True, samesite="lax")
     return resp
 
+
+# 새 품목 12개(에어컨·세탁기). 카드를 다시 만들면 제품 번호가 바뀌므로, 번호 대신 수집 이름으로 찾는다
+# 개발 세트(2차 라벨, 2026-10-04). 규칙을 고칠 때 들여다본 제품이므로 최종 정확도에는 쓰지 않는다.
+_DEV_SLUGS = ["lg_fh25ese", "lg_fq18gn9be1", "lg_fx25vf", "lg_sw07gk1wes", "si_sma_c7800hs", "ss_af19dx837wft1",
+              "ss_af70f19d11grz", "ss_wd90f25ahs", "ss_wf90f25adt", "wn_wpvw17haecr", "wn_wpvw17hascrm", "wn_wwd12gew",
+              # 3차 라벨 세트(2026-10-09). 13회차 규칙 수정에 썼으므로 개발 세트로 내린다.
+              "ss_dv10bb8440gh", "lg_rd21ese", "ss_wh90f2120gbhy", "lg_fq17gw1hn2", "ss_af90h17d35wrt",
+              "lg_fq18gv3ek2", "lg_fx24kntr", "ss_ap90h03193egd", "ss_rm90h64p2w"]
+# 시험 세트(4차 라벨, 2026-10-11). 13회차 규칙 수정이 끝난 뒤 새로 모은 제품(새 품목 9개)만 넣는다. 최종 정확도는 여기서 한 번만 잰다.
+_BLIND_SLUGS = ["ss_dw90f79f1u01s", "ss_vr90f01aag", "ss_vs90f40csg", "ss_df90h24r5c", "ss_cc99h63i1d",
+                "ss_rk70f58m1zg", "ss_kq85qnh70afxkr", "ss_rm70h91rma", "ss_ls32fm703ukxkr"]
+
+
+def _blind_default_pids() -> str:
+    """시험 세트 제품의 최신 번호. 결과 파일이 없으면 처음 번호(96-107)를 쓴다."""
+    from . import round2
+    try:
+        res = json.loads(round2.RESULT_PATH.read_text(encoding="utf-8"))
+        pids = sorted(res["pushed"][s]["pid"] for s in _BLIND_SLUGS if s in res.get("pushed", {}))
+        if pids:
+            return ",".join(str(p) for p in pids)
+    except Exception:
+        pass
+    return "96-107"
+
+
+def _blind_pids(pids: str) -> list[int]:
+    """"96-107" 또는 "96,97,98" 을 번호 목록으로 바꾼다."""
+    out: list[int] = []
+    for part in re.split(r"[,\s]+", pids.strip()):
+        if not part:
+            continue
+        m = re.fullmatch(r"(\d+)-(\d+)", part)
+        if m:
+            a, b = int(m.group(1)), int(m.group(2))
+            out.extend(range(a, b + 1))
+        elif part.isdigit():
+            out.append(int(part))
+    return [p for p in dict.fromkeys(out)][:200]
+
+
+@app.get("/review/blind", response_class=HTMLResponse)
+def review_blind_list(request: Request, pids: str = "", _=Depends(require_reviewer)):
+    """라벨러용 화면. 문구와 판매페이지 원문만 보여 주고 파이프라인 판정은 넘기지 않는다.
+
+    최종 정확도를 재는 새 품목은 라벨러가 판정을 보지 않은 상태에서 매겨야 한다. 그래서 검토 화면과 따로 둔다."""
+    rows = []
+    for pid in _blind_pids(pids or _blind_default_pids()):
+        product = db.get_product(pid)
+        card = db.get_card(pid)
+        if not product or not card:
+            continue
+        rows.append({"product": product, "n": len(card.get("claims") or []),
+                     "control": "대조군" in (product.get("reviewer_note") or "")})
+    return render(request, "review_blind.html", rows=rows, product=None, pid_arg=pids or _blind_default_pids())
+
+
+@app.get("/review/blind/labels.csv")
+def review_blind_labels(pids: str = "", _=Depends(require_reviewer)):
+    """빈 라벨 표. 라벨러가 decision·basis·conditions_noted·gold_evidence_quote 를 채운다."""
+    buf = io.StringIO()
+    w = csv.writer(buf)
+    w.writerow(["pid", "slug", "product", "control", "claim_id", "claim_text",
+                "decision", "basis", "conditions_noted", "gold_evidence_quote", "labeler", "note"])
+    n = 0
+    for pid in _blind_pids(pids or _blind_default_pids()):
+        product = db.get_product(pid)
+        card = db.get_card(pid)
+        if not product or not card:
+            continue
+        control = "Y" if "대조군" in (product.get("reviewer_note") or "") else ""
+        for c in card.get("claims") or []:
+            w.writerow([pid, product.get("slug") or "", product["name"], control,
+                        c.get("id", ""), c.get("text", ""), "", "", "", "", "", ""])
+            n += 1
+    return Response(buf.getvalue().encode("utf-8-sig"), media_type="text/csv",
+                    headers={"Content-Disposition": f'attachment; filename="blind_labels_{n}.csv"',
+                             "Cache-Control": "no-store"})
+
+
+@app.get("/review/blind/{pid}.json")
+def review_blind_json(pid: int, _=Depends(require_reviewer)):
+    """검증자료로 묶을 블라인드 사본(판정 없음)."""
+    product = db.get_product(pid)
+    card = db.get_card(pid)
+    if not product or not card:
+        raise HTTPException(404, "카드가 없습니다.")
+    return JSONResponse({"pid": pid,
+                         "product": {k: product.get(k) for k in ("name", "maker", "model", "category")},
+                         "documents": [{"title": d.get("title"), "url": d.get("url"), "text": d.get("text") or ""}
+                                       for d in db.list_documents(pid)],
+                         "claims": [{"id": c.get("id"), "text": c.get("text")} for c in card.get("claims") or []]},
+                        headers={"Cache-Control": "no-store"})
 
 @app.get("/review/{pid}", response_class=HTMLResponse)
 def review_card(request: Request, pid: int, warn: str = "", _=Depends(require_reviewer)):
@@ -338,14 +749,35 @@ def review_card(request: Request, pid: int, warn: str = "", _=Depends(require_re
                   sum=summarize(card) if card else None)
 
 
+@app.get("/review/blind/{pid}", response_class=HTMLResponse)
+def review_blind_card(request: Request, pid: int, _=Depends(require_reviewer)):
+    product = db.get_product(pid)
+    card = db.get_card(pid)
+    if not product or not card:
+        raise HTTPException(404, "카드가 없습니다.")
+    claims = [{"id": c.get("id", ""), "text": c.get("text", "")} for c in card.get("claims") or []]
+    docs = [{"title": d.get("title"), "url": d.get("url"), "text": d.get("text") or ""}
+            for d in db.list_documents(pid)]
+    return render(request, "review_blind.html", rows=[], product=product, claims=claims, documents=docs,
+                  pid_arg=str(pid))
+
+
 @app.post("/review/{pid}/claim")
-def review_claim(pid: int, claim_id: str = Form(...), reviewer_status: str = Form(""),
-                 reviewer_note: str = Form(""), _=Depends(require_reviewer)):
+def review_claim(pid: int, claim_id: str = Form(...), reviewer_basis: str = Form(""),
+                 reviewer_conditions: str = Form(""),
+                 reviewer_note: str = Form(""), basis_kind: str = Form(""), basis_kind_global: str = Form(""),
+                 _=Depends(require_reviewer)):
     product, card, _ = card_view(pid)
     for c in card["claims"]:
         if c["id"] == claim_id:
-            c["reviewer_status"] = reviewer_status if reviewer_status in config.STATUSES else None
+            # 검토자는 두 축을 따로 고른다. 확인상태 이름은 두 축에서 파생한다.
+            if reviewer_basis in BASIS_STATES:
+                c["reviewer_status"] = status_from(reviewer_basis, reviewer_conditions == "예")
+            else:
+                c["reviewer_status"] = None
             c["reviewer_note"] = reviewer_note.strip()
+            c["basis_kind"] = basis_kind if basis_kind in BASIS_LABEL else None
+            c["basis_kind_global"] = basis_kind_global if basis_kind_global in BASIS_LABEL else None
     db.save_card(pid, card, db.get_card_meta(pid))
     return RedirectResponse(f"/review/{pid}#claim-{claim_id}", status_code=303)
 
@@ -360,11 +792,17 @@ def review_claim_delete(pid: int, claim_id: str = Form(...), _=Depends(require_r
 
 @app.post("/review/{pid}/item")
 def review_item(pid: int, key: str = Form(...), status: str = Form(...), summary: str = Form(""),
+                server: str = Form(""), support_period: str = Form(""),
                 _=Depends(require_reviewer)):
     product, card, _ = card_view(pid)
     if key in card["items"] and status in config.STATUSES:
         card["items"][key]["status"] = status
         card["items"][key]["summary"] = summary.strip()
+        # 항목 4는 처리 위치, 항목 6은 지원 기간 기재 여부를 따로 적는다.
+        if key == "data":
+            card["items"][key]["server"] = server if server in DATA_SERVER_LABEL else ""
+        if key == "safety":
+            card["items"][key]["support_period"] = support_period if support_period in SUPPORT_PERIOD_LABEL else ""
     db.save_card(pid, card, db.get_card_meta(pid))
     return RedirectResponse(f"/review/{pid}#item-{key}", status_code=303)
 
@@ -385,6 +823,14 @@ async def review_pubdb(request: Request, pid: int, _=Depends(require_reviewer)):
     return RedirectResponse(f"/review/{pid}#pubdb", status_code=303)
 
 
+@app.post("/review/request/{rid}")
+def review_request(rid: int, status: str = Form(...), _=Depends(require_reviewer)):
+    if status not in ("done", "skipped", "new"):
+        raise HTTPException(400)
+    db.set_request_status(rid, status)
+    return RedirectResponse("/review", status_code=303)
+
+
 @app.post("/review/{pid}/status")
 def review_status(pid: int, status: str = Form(...), note: str = Form(""), _=Depends(require_reviewer)):
     if status not in ("approved", "held", "pending"):
@@ -403,6 +849,111 @@ def review_rebuild(pid: int, background: BackgroundTasks, _=Depends(require_revi
         db.set_product_status(pid, "draft", "카드 생성 중")
     background.add_task(_build_in_background, pid)
     return RedirectResponse(f"/review/{pid}", status_code=303)
+
+
+@app.get("/review/{pid}/dryrun.json")
+def review_dryrun(pid: int, _=Depends(require_reviewer)):
+    """저장하지 않고 카드를 다시 만들어 돌려준다. 2차 정확도 측정용(검토자 전용, LLM 호출 2회)."""
+    from .pipeline.run import build_card_dry
+    product = db.get_product(pid)
+    if not product:
+        raise HTTPException(404)
+    card, meta = build_card_dry(pid)
+    return JSONResponse({"product_id": pid, "card": card, "meta": meta}, headers={"Cache-Control": "no-store"})
+
+
+@app.get("/review/{pid}/export.json")
+def review_export(pid: int, _=Depends(require_reviewer)):
+    """제품·문서·카드를 통째로 내려준다(검토자 전용). 다른 서버의 DB로 옮길 때 쓴다."""
+    product = db.get_product(pid)
+    if not product:
+        raise HTTPException(404)
+    return JSONResponse({"product": product, "documents": db.list_documents(pid),
+                         "card": db.get_card(pid), "meta": db.get_card_meta(pid)},
+                        headers={"Cache-Control": "no-store"})
+
+
+@app.get("/review/{pid}/export_slim.json")
+def review_export_slim(pid: int, _=Depends(require_reviewer)):
+    """문서의 chunks 를 뺀 가벼운 내보내기(원문 text 는 포함). 로컬에서 다시 나눈다."""
+    product = db.get_product(pid)
+    if not product:
+        raise HTTPException(404)
+    docs = [{k: v for k, v in d.items() if k != "chunks"} for d in db.list_documents(pid)]
+    return JSONResponse({"product": product, "documents": docs, "card": db.get_card(pid), "meta": db.get_card_meta(pid)},
+                        headers={"Cache-Control": "no-store"})
+
+
+@app.post("/review/collect")
+async def collect_upload(request: Request):
+    """브라우저(검토자 PC)에서 판매페이지 본문을 받아 저장한다. 다른 사이트 페이지에서 no-cors로 보내므로
+    본문(text/plain JSON)의 token으로 검토자를 확인한다. 저장만 하며 카드는 round2/start에서 만든다."""
+    from . import round2
+    try:
+        data = json.loads((await request.body()).decode("utf-8"))
+    except Exception:
+        raise HTTPException(400, "JSON 본문이 필요합니다.")
+    if config.REVIEW_TOKEN and data.get("token") != config.REVIEW_TOKEN:
+        raise HTTPException(403, "검토자 토큰이 필요합니다.")
+    slug = re.sub(r"[^a-z0-9_]", "", str(data.get("slug", "")).lower())[:60]
+    if not slug or not data.get("sales_text"):
+        raise HTTPException(400, "slug와 sales_text가 필요합니다.")
+    data.pop("token", None)
+    round2.NEW_COLLECT_DIR.mkdir(parents=True, exist_ok=True)
+    (round2.NEW_COLLECT_DIR / f"{slug}.json").write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+    return JSONResponse({"saved": slug})
+
+
+@app.get("/review/collect/list.json")
+def collect_list(_=Depends(require_reviewer)):
+    from . import round2
+    out = {}
+    for f in sorted(round2.NEW_COLLECT_DIR.glob("*.json")):
+        try:
+            j = json.loads(f.read_text(encoding="utf-8"))
+            out[f.stem] = {"name": j.get("name"), "url": j.get("url"), "sales": len(j.get("sales_text", "")),
+                           "fine": len(j.get("fine_text", "")), "images": len(j.get("image_urls") or [])}
+        except Exception as e:
+            out[f.stem] = {"error": str(e)[:100]}
+    return JSONResponse(out, headers={"Cache-Control": "no-store"})
+
+
+@app.get("/review/collect/{slug}.json")
+def collect_get(slug: str, _=Depends(require_reviewer)):
+    from . import round2
+    f = round2.NEW_COLLECT_DIR / f"{re.sub(r'[^a-z0-9_]', '', slug)}.json"
+    if not f.exists():
+        raise HTTPException(404, "없음")
+    return JSONResponse(json.loads(f.read_text(encoding="utf-8")), headers={"Cache-Control": "no-store"})
+
+
+@app.post("/review/round2/start")
+async def round2_start(request: Request, _=Depends(require_reviewer)):
+    """2차 수집 일괄 처리 시작(검토자 전용). JSON {only:[slug...], skip_dry:bool} 선택."""
+    from . import round2
+    try:
+        data = await request.json()
+    except Exception:
+        data = {}
+    ok = round2.start(only=data.get("only") or None, skip_dry=bool(data.get("skip_dry")),
+                      redo=data.get("redo") or None, redo_dry=bool(data.get("redo_dry")),
+                      rebuild=data.get("rebuild") or None, fix_spacing=data.get("fix_spacing", True) is not False)
+    return JSONResponse({"started": ok, "status": round2.status()}, headers={"Cache-Control": "no-store"})
+
+
+@app.get("/review/round2/status.json")
+def round2_status(_=Depends(require_reviewer)):
+    from . import round2
+    return JSONResponse(round2.status(), headers={"Cache-Control": "no-store"})
+
+
+@app.get("/review/round2/results.json")
+def round2_results(_=Depends(require_reviewer)):
+    from . import round2
+    b = round2.results_bytes()
+    if b is None:
+        raise HTTPException(404, "아직 결과가 없습니다.")
+    return Response(b, media_type="application/json", headers={"Cache-Control": "no-store"})
 
 
 @app.post("/review/{pid}/doc")
@@ -426,14 +977,17 @@ def review_delete(pid: int, _=Depends(require_reviewer)):
 def export_claims(_=Depends(require_reviewer)):
     buf = io.StringIO()
     w = csv.writer(buf)
-    w.writerow(["product_id", "product", "claim_id", "claim_text", "ai_status", "reviewer_status",
+    w.writerow(["product_id", "product", "claim_id", "claim_text", "ai_status", "ai_basis",
+                "ai_conditions_noted", "reviewer_status", "basis", "conditions_noted",
                 "gold_status", "gold_evidence_quote", "labeler", "note"])
     for p in db.list_products():
         c = db.get_card(p["id"])
         if not c:
             continue
         for cl in c["claims"]:
+            ab, ac = axes_of({k: v for k, v in cl.items() if k != "reviewer_status"})
             w.writerow([p["id"], p["name"], cl["id"], cl["text"], cl.get("status", ""),
-                        cl.get("reviewer_status") or "", "", "", "", ""])
+                        ab, "예" if ac else "아니오",
+                        cl.get("reviewer_status") or "", "", "", "", "", "", ""])
     return Response("﻿" + buf.getvalue(), media_type="text/csv; charset=utf-8",
                     headers={"Content-Disposition": "attachment; filename=claims_labels.csv"})
