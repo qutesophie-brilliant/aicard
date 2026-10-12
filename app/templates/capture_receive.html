@@ -36,7 +36,7 @@
     if (!data) return;
     const body = Object.assign({}, data, {name: f.name.value, maker: f.maker.value, model: f.model.value, category: f.category.value});
     const r = await fetch('/api/ingest', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)});
-    if (!r.ok) { document.getElementById('msg').textContent = '저장하지 못했어요: ' + r.status; return; }
+    if (!r.ok) { let m = '저장하지 못했어요: ' + r.status; try { const e = await r.json(); if (e.detail) m = e.detail; } catch (_) {} document.getElementById('msg').textContent = m; return; }
     const d = await r.json();
     location.href = '/review/' + d.id;
   });

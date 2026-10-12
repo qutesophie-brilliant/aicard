@@ -362,6 +362,12 @@ async def api_ingest(request: Request, background: BackgroundTasks):
     require_reviewer(request)
     data = await request.json()
     name = (data.get("name") or data.get("title") or "이름 없는 제품").strip()[:120]
+    # 같은 모델명이 이미 있으면 중복 등록을 막는다(10/12 중복 2건 재발 방지). force=true면 그대로 만든다.
+    model_in = (data.get("model") or "").strip().lower()
+    if model_in and not data.get("force"):
+        for p in db.list_products():
+            if (p.get("model") or "").strip().lower() == model_in and p.get("status") in ("approved", "pending", "draft"):
+                raise HTTPException(409, f"같은 모델명({p.get('model')})의 카드가 이미 있어요: /review/{p['id']} ({p.get('status')}). 그래도 만들려면 force=true로 보내 주세요.")
     pid = db.create_product(name, (data.get("maker") or "").strip()[:60],
                             (data.get("model") or "").strip()[:60],
                             (data.get("category") or "로봇청소기").strip()[:30])
