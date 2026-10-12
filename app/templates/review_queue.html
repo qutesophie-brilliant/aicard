@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block bodyclass %}review{% endblock %}
+{% block title %}빠른 검토 | AI 정보카드{% endblock %}
+{% from "_macros.html" import tag with context %}
+{% block content %}
+<section class="hero" style="padding-bottom:0">
+  <h1>빠른 검토 — 검토 대기 {{ rows|length }}장</h1>
+  <p class="lede">문구와 AI가 찾은 근거 문장을 한 화면에 폈어요. 문구마다 근거가 원문과 맞는지 보고, 맞으면 체크해서 한꺼번에 공개하세요. 고칠 게 있으면 ‘검토 화면’에서 문구별로 바꾼 뒤 공개하세요.</p>
+</section>
+<form method="post" action="/review/bulk_status" class="queue">
+  {% for r in rows %}
+  <article class="qcard{% if r.dup %} dup{% endif %}" id="p{{ r.product.id }}">
+    <header>
+      <label><input type="checkbox" name="pid" value="{{ r.product.id }}"{% if r.dup or r.sum.n_claims == 0 %} disabled{% endif %}> <b>{{ r.product.name }}</b> <span class="meta">{{ r.product.maker }} · {{ r.product.model }} · {{ r.product.category }}</span></label>
+      <span class="meta">{% if r.dup %}같은 모델이 이미 공개됨({{ r.dup }}) — 보류 권장 · {% endif %}‘AI’ 문구 {{ r.sum.n_claims }}개 중 {{ r.sum.linked }}개 작동 설명 · 항목 {{ r.sum.covered }}/5 · <a href="/review/{{ r.product.id }}">검토 화면</a> · <a href="/card/{{ r.product.id }}?preview=1">미리보기</a></span>
+    </header>
+    {% if r.sum.n_claims == 0 %}<p class="meta">‘AI’ 문구가 없어요. 대조군으로 쓸 제품이면 검토 화면에서 직접 공개하고, 수집이 덜 된 것이면 보류하세요.</p>{% endif %}
+    <ol class="qclaims">
+      {% for c in r.claims %}
+      <li>
+        <div class="qc-head">{{ tag(c.status) }} <q>{{ c.text }}</q>{% if c.kind %} <span class="kind">{{ c.kind }}</span>{% endif %}</div>
+        {% if c.quote %}<blockquote>“{{ c.quote }}”<cite>{{ c.kind_src }}</cite></blockquote>{% elif c.status != '자료 부족' %}<p class="meta">근거 문장이 없어요 — 검토 화면에서 확인하세요.</p>{% endif %}
+      </li>
+      {% endfor %}
+    </ol>
+  </article>
+  {% else %}
+  <p class="empty">검토 대기 카드가 없어요.</p>
+  {% endfor %}
+  {% if rows %}
+  <div class="qbar">
+    <label><input type="checkbox" id="qall"> 전부 선택</label>
+    <span class="meta" id="qn">0장 선택</span>
+    <button class="btn primary" type="submit" name="status" value="approved" onclick="return confirm('선택한 카드를 승인하고 공개할까요? 문구별 근거를 원문과 대조했다는 뜻이에요.')">선택한 카드 승인하고 공개</button>
+    <button class="btn" type="submit" name="status" value="held">선택한 카드 보류</button>
+  </div>
+  {% endif %}
+</form>
+<style>
+.queue { margin: 24px 0 120px; display: grid; gap: 18px; }
+.qcard { border: 1px solid var(--line); border-radius: 14px; padding: 18px 20px; }
+.qcard.dup { background: var(--amber-soft); border-color: var(--amber-line); }
+.qcard header { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; align-items: baseline; }
+.qcard header label { display: inline-flex; gap: 8px; align-items: baseline; font-size: 1.05rem; }
+.qcard header input { width: 18px; height: 18px; }
+.qclaims { margin-top: 12px; display: grid; gap: 10px; }
+.qclaims li { border-top: 1px solid var(--line); padding-top: 10px; }
+.qc-head { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+.qc-head q { font-weight: 600; }
+.qclaims blockquote { margin: 6px 0 0; padding: 8px 12px; background: var(--paper-2); border-left: 3px solid var(--navy); font-size: .92rem; color: var(--ink-2); border-radius: 0 6px 6px 0; }
+.qclaims cite { display: block; font-style: normal; font-size: .8rem; color: var(--ink-3); margin-top: 4px; }
+.qbar { position: sticky; bottom: 0; background: rgba(255,255,255,.95); border-top: 1px solid var(--line); padding: 14px 0; display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
+</style>
+<script>
+(function(){const all=document.getElementById('qall'),n=document.getElementById('qn');const boxes=()=>[...document.querySelectorAll('input[name=pid]:not(:disabled)')];
+const upd=()=>{if(n)n.textContent=boxes().filter(b=>b.checked).length+'장 선택'};
+if(all)all.addEventListener('change',()=>{boxes().forEach(b=>b.checked=all.checked);upd()});
+document.addEventListener('change',e=>{if(e.target.name==='pid')upd()});})();
+</script>
+{% endblock %}

@@ -702,9 +702,11 @@ footer.site a { color: var(--ink-3); text-decoration: underline; text-underline-
 .hero-stats b { font-size: 2.1rem; font-weight: 800; letter-spacing: -0.04em; line-height: 1; color: var(--navy); font-variant-numeric: tabular-nums; }
 .hero-stats b small { font-size: 1rem; font-weight: 600; color: var(--ink-3); margin-left: 2px; }
 .hero-stats span { font-size: .92rem; line-height: 1.5; color: var(--ink-2); }
+.hero-flow { grid-column: 2; font-size: .88rem; color: var(--ink-3); margin-top: 14px; line-height: 1.6; }
+.hero-flow b { color: var(--navy); font-weight: 700; }
 .hero .stage { margin-top: -110px; }
 .hero .shop { box-shadow: 0 24px 60px rgba(9, 41, 86, .14); }
 .shop-cap { text-align: center; color: var(--ink-3); font-size: .9rem; margin-top: 20px; }
-@media (max-width: 1000px) { .hero-band .hero-grid { grid-template-columns: 1fr; gap: 36px; } .hero-stats { grid-template-columns: repeat(3, 1fr); gap: 0 20px; } .hero-stats li { grid-template-columns: 1fr; gap: 6px; } .hero-stats li:last-child { border-bottom: 0; } .hero-stats { border-bottom: 1px solid var(--line-2); } }
+@media (max-width: 1000px) { .hero-flow { grid-column: 1; } .hero-band .hero-grid { grid-template-columns: 1fr; gap: 36px; } .hero-stats { grid-template-columns: repeat(3, 1fr); gap: 0 20px; } .hero-stats li { grid-template-columns: 1fr; gap: 6px; } .hero-stats li:last-child { border-bottom: 0; } .hero-stats { border-bottom: 1px solid var(--line-2); } }
 @media (max-width: 760px) { .hero-band { padding: 52px 0 104px; } .hero-stats { grid-template-columns: 1fr; gap: 0; } .hero-stats li { grid-template-columns: auto 1fr; } .hero .stage { margin-top: -64px; } .hero-band h1 br { display: none; } }
 @media (prefers-reduced-motion: no-preference) { .hero-band h1, .hero-band .sub, .hero-band .urlform, .hero-band .alt, .hero-stats li { opacity: 0; animation: rise .7s cubic-bezier(.2,.7,.2,1) forwards; } .hero-band .sub { animation-delay: .12s } .hero-band .urlform { animation-delay: .22s } .hero-band .alt { animation-delay: .3s } .hero-stats li:nth-child(1) { animation-delay: .25s } .hero-stats li:nth-child(2) { animation-delay: .35s } .hero-stats li:nth-child(3) { animation-delay: .45s } }

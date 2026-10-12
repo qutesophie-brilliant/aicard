@@ -1,4 +1,5 @@
 """AI 정보카드 — 웹 서비스 진입점."""
+from datetime import date, timedelta
 import os
 import csv
 import io
@@ -260,7 +261,9 @@ def index(request: Request):
     hero = {"products": len(real_cards), "cats": len(cat_counts),
             "claims": sum(r["sum"]["n_claims"] for r in real_cards),
             "linked": sum(r["sum"]["linked"] for r in real_cards),
-            "optout_missing": sum(1 for r in real_cards if (r["card"].get("items", {}).get("optout", {}) or {}).get("status") == "자료 부족")}
+            "optout_missing": sum(1 for r in real_cards if (r["card"].get("items", {}).get("optout", {}) or {}).get("status") == "자료 부족"),
+            "pending": sum(1 for p in db.list_products("pending") if not p.get("is_sample") and not (p.get("name") or "").startswith("probe")),
+            "week": sum(1 for p in approved if (p.get("approved_at") or "") >= (date.today() - timedelta(days=7)).isoformat())}
     return render(request, "index.html", cards=cards, example=example, makers=makers, cat_line=cat_line, hero=hero,
                   bookmarklet=_bookmarklet(base, "/check/receive"))
 
@@ -827,6 +830,41 @@ def review_blind_json(pid: int, _=Depends(require_reviewer)):
                                        for d in db.list_documents(pid)],
                          "claims": [{"id": c.get("id"), "text": c.get("text")} for c in card.get("claims") or []]},
                         headers={"Cache-Control": "no-store"})
+
+@app.get("/review/queue", response_class=HTMLResponse)
+def review_queue(request: Request, _=Depends(require_reviewer)):
+    """검토 대기 카드를 문구·근거 문장까지 펼쳐 한 화면에서 훑고 한꺼번에 승인·보류한다."""
+    from .schema import effective_status
+    approved_models = {(p.get("model") or "").strip().lower(): p["id"] for p in db.list_products("approved")}
+    rows = []
+    for p in db.list_products("pending"):
+        if p.get("is_sample") or (p.get("name") or "").startswith("probe"):
+            continue
+        c = db.get_card(p["id"])
+        if not c:
+            continue
+        sm = summarize(c)
+        claims = []
+        for cl in c.get("claims") or []:
+            st = effective_status(cl)
+            ev = (cl.get("evidence") or [{}])[0] if cl.get("evidence") else {}
+            kind = BASIS_LABEL.get(cl.get("basis_kind") or "", "") if cl.get("basis_kind") else ""
+            claims.append({"text": cl.get("text", ""), "status": st, "kind": kind,
+                           "quote": (ev.get("quote") or "")[:220], "kind_src": ev.get("kind") or ""})
+        rows.append({"product": p, "sum": sm, "claims": claims,
+                     "dup": approved_models.get((p.get("model") or "").strip().lower())})
+    rows.sort(key=lambda r: (bool(r["dup"]), -r["sum"]["n_claims"]))
+    return render(request, "review_queue.html", rows=rows)
+
+
+@app.post("/review/bulk_status")
+def review_bulk_status(pid: list[int] = Form([]), status: str = Form(...), _=Depends(require_reviewer)):
+    if status not in ("approved", "held"):
+        raise HTTPException(400)
+    for i in pid:
+        db.set_product_status(i, status, "빠른 검토 화면에서 일괄 처리")
+    return RedirectResponse("/review/queue", status_code=303)
+
 
 @app.get("/review/{pid}", response_class=HTMLResponse)
 def review_card(request: Request, pid: int, warn: str = "", _=Depends(require_reviewer)):
