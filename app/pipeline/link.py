@@ -68,7 +68,7 @@ BATCH_PROMPT = """제품 판매페이지의 AI 표시 문구(주장)들과, 각 
 - "~할 경우 ~합니다"처럼 상황별 동작을 설명하는 문장은 작동 방식이지 조건·한계가 아닙니다. 조건은 적용 범위를 좁히거나 실패 가능성을 밝히는 말입니다.
 - 같은 기능의 수치(최소 감지 크기, 인식 개수, 감지 항목 수)가 후보끼리 다르면 '추가 확인 필요'로 둡니다.
   세탁과 건조, 냉장과 냉동처럼 공정이 다르면 다른 기능입니다(세탁 "5종 옷감 감지"와 건조 "4종 옷감 감지"는 어긋남이 아닙니다).
-- 그 기능의 AI 인증(예: "[AI 정온 모드] * 한국표준협회 AI+ 인증을 받은 제품입니다")은 그 기능을 다룬 자료이므로 근거입니다.
+- 시험기관·인증 문장(예: "KSA AI+ 인증을 받은 제품입니다")은 그 시험이 무엇을 어떻게 쟀는지 적혀 있을 때만 근거입니다. 기능 이름 아래 인증 사실만 적힌 각주는 제품 인증이지 그 기능의 작동 설명이 아니므로 근거가 아닙니다(4차 라벨러 3인 판단, 2026-10-13 수정).
 
 {blocks}
 
@@ -532,7 +532,7 @@ def _apply(claim: dict[str, Any], cands: list[dict[str, Any]], row: dict[str, An
     # 센서·부품 이름만 있는 문장("진동 감지 센서와 2단 댐퍼로")은 그 판단의 근거가 아니다(남은 과대 판정 1건의 원인).
     if status in ("근거 확인", "조건 확인") and _VAGUE_ADAPT.search(claim["text"]):
         if not any((_PROC_V.search(e["quote"]) and _CAUSE.search(e["quote"])) or self_describes(e["quote"])
-                   or _CERT.search(e["quote"])  # 12회차: 그 기능을 다룬 인증은 근거(코드북)
+                   or (_CERT.search(e["quote"]) and _TESTRES.search(e["quote"]))  # 14회차: 인증 문장은 무엇을 쟀는지(시험 내용) 적혀 있을 때만 근거(4차 라벨러 3인)
                    or (_SENSOR_SPEC.search(e["quote"]) and _shares_noun(claim_text_for_vague(claim), e["quote"]))  # 13회차: "진동 감지 센서와 2단 댐퍼로 … 탈수"처럼 센서와 대상(진동)을 함께 든 문장(3차 라벨러 3인 일치)
                    for e in ev if not e.get("cond_only") and not _TESTCOND.search(e["quote"])):
             status, ev, has_cond, basis = "자료 부족", [], False, None
@@ -549,7 +549,7 @@ def _apply(claim: dict[str, Any], cands: list[dict[str, Any]], row: dict[str, An
     # 3차 개선: '학습한다'는 문구는 학습(데이터·이미지·모델)을 말하는 근거가 있어야 한다. 센서 이름만으로는 근거가 아니다
     learn_claim = bool(_LEARN_CLAIM.search(claim["text"]))  # 문구 자체가 학습·습관을 말할 때만
     learn_ok = any(_LEARN_EVID.search(e["quote"]) or (_PROC_V.search(e["quote"]) and _CAUSE.search(e["quote"]))
-                   or _CERT.search(e["quote"]) for e in ev)  # 13회차: 그 기능의 AI 인증(KSA AI+ 등)은 코드북상 근거
+                   or (_CERT.search(e["quote"]) and _TESTRES.search(e["quote"])) for e in ev)  # 14회차: 인증 사실만 적힌 각주는 근거 아님(4차 과대 5/8의 원인)
     # 13회차: 문구가 무엇을 학습·분석하는지(사용 패턴 등)를 이미 적었고, 본문의 다른 문장이 그 결과 동작(송풍 건조 등)을 적었으면
     # 둘을 이어 읽은 것이 작동 설명이다(3차 라벨러 3인 일치). 문구 혼자만 있는 경우는 여전히 근거가 아니다.
     if not learn_ok and _LEARN_EVID.search(claim["text"]) and any(e.get("kind") != "판매페이지(문구 자체)" and _PROC_V.search(e["quote"]) for e in ev):
