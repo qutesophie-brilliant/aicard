@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}검토자 로그인 | AI 정보카드{% endblock %}
+{% block content %}
+<section class="page-head narrow">
+  <h1>검토자 로그인</h1>
+  <p class="lede">카드를 검토하고 공개하는 화면이에요. 검토자 비밀번호가 필요해요.</p>
+</section>
+<form class="form narrow" method="post" action="/review/login" style="margin:20px auto 80px">
+  {% if bad %}<div class="notice" style="margin-top:0">비밀번호가 맞지 않아요.</div>{% endif %}
+  <label>검토자 비밀번호 <input type="password" name="token" autocomplete="current-password" required autofocus></label>
+  <div><button class="btn primary" type="submit">들어가기</button> <a class="btn quiet" href="/">처음으로</a></div>
+</form>
+{% endblock %}

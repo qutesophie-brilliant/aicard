@@ -1,5 +1,6 @@
 {% extends "base.html" %}
-{% block title %}검토: {{ product.name }} — AI 정보카드{% endblock %}
+{% block bodyclass %}review{% endblock %}
+{% block title %}검토: {{ product.name }} | AI 정보카드{% endblock %}
 {% block content %}
 <section class="hero" style="padding-bottom:0">
   <p class="meta"><a href="/review">← 검토 목록</a></p>
@@ -49,9 +50,22 @@
   </details>
   <form class="edit" method="post" action="/review/{{ product.id }}/claim">
     <input type="hidden" name="claim_id" value="{{ c.id }}">
-    <select name="reviewer_status" aria-label="검토자 판정">
+{% set ax = axes(c) %}
+    <select name="reviewer_basis" aria-label="축 1 — 뒷받침 설명이 있는가">
       <option value="">그대로 ({{ c.status }})</option>
-      {% for s in STATUSES %}<option value="{{ s }}" {% if c.reviewer_status == s %}selected{% endif %}>{{ s }}</option>{% endfor %}
+      {% for b in BASIS_STATES %}<option value="{{ b }}" {% if c.reviewer_status and ax[0] == b %}selected{% endif %} title="{{ BASIS_STATE_HELP[b] }}">근거 {{ b }}</option>{% endfor %}
+    </select>
+    <select name="reviewer_conditions" aria-label="축 2 — 작동 조건·한계도 적혀 있는가" title="축 1이 '있음'일 때만 반영됩니다">
+      <option value="아니오" {% if not ax[1] %}selected{% endif %}>조건·한계 없음</option>
+      <option value="예" {% if ax[1] %}selected{% endif %}>조건·한계 있음</option>
+    </select>
+    <select name="basis_kind" aria-label="회사 설명의 종류" title="회사가 이 문구를 무엇으로 설명했는지">
+      <option value="">설명 종류 미정</option>
+      {% for k, label, help in BASIS_KINDS %}<option value="{{ k }}" {% if c.basis_kind == k %}selected{% endif %} title="{{ help }}">{{ label }}</option>{% endfor %}
+    </select>
+    <select name="basis_kind_global" aria-label="해외 공식 자료까지 포함한 설명 종류" title="회사의 해외 영문 공식 자료까지 더하면 설명 종류가 달라질 때만 고르세요">
+      <option value="">해외 자료 포함(국내와 같음)</option>
+      {% for k, label, help in BASIS_KINDS %}<option value="{{ k }}" {% if c.basis_kind_global == k %}selected{% endif %}>해외 포함: {{ label }}</option>{% endfor %}
     </select>
     <input type="text" name="reviewer_note" value="{{ c.reviewer_note }}" placeholder="검토 메모(선택)">
     <button class="btn" type="submit">저장</button>
@@ -75,6 +89,14 @@
     <input type="hidden" name="key" value="{{ key }}">
     <div style="display:flex;gap:10px;flex-wrap:wrap">
       <select name="status">{% for s in STATUSES %}<option value="{{ s }}" {% if it.status == s %}selected{% endif %}>{{ s }}</option>{% endfor %}</select>
+      {% if key == 'data' %}<select name="server" aria-label="처리 위치">
+        <option value="">처리 위치 미정</option>
+        {% for k, label in DATA_SERVERS %}<option value="{{ k }}" {% if it.server == k %}selected{% endif %}>{{ label }}</option>{% endfor %}
+      </select>{% endif %}
+      {% if key == 'safety' %}<select name="support_period" aria-label="지원 기간 기재 여부">
+        <option value="">지원 기간 미정</option>
+        {% for k, label in SUPPORT_PERIODS %}<option value="{{ k }}" {% if it.support_period == k %}selected{% endif %}>{{ label }}</option>{% endfor %}
+      </select>{% endif %}
       <button class="btn" type="submit">저장</button>
     </div>
     <textarea name="summary" style="min-height:70px" aria-label="소비자에게 보여줄 요약">{{ it.summary }}</textarea>

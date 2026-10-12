@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}페이지를 찾을 수 없어요 | AI 정보카드{% endblock %}
+{% block content %}
+<section class="lost">
+  <h1>이 주소에는 카드가 없어요</h1>
+  <p>{% if detail %}{{ detail }}{% else %}주소가 바뀌었거나, 아직 공개되지 않은 카드일 수 있어요.{% endif %}</p>
+  <div class="tools" style="justify-content:center;margin-top:22px">
+    <a class="btn primary" href="/#find">제품 카드 보기</a>
+    <a class="btn" href="/check">주소로 바로 확인</a>
+  </div>
+</section>
+{% endblock %}

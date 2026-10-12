@@ -1,0 +1,8 @@
+{% extends "base.html" %}
+{% block title %}{{ pname }} 바로 확인 | AI 정보카드{% endblock %}
+{% block content %}
+<div class="card-page narrow" style="padding-top:10px">
+{% include "_check_body.html" %}
+<div class="card-after"><a class="btn" href="/check">다른 제품 확인하기</a><a class="btn quiet" href="/#find">제품 카드 보기</a></div>
+</div>
+{% endblock %}

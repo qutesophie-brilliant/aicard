@@ -117,6 +117,7 @@
     <p class="lead plain-only {% if it.status == '자료 부족' %}none{% endif %}">{{ it.summary }}</p>
     <p class="lead easy-only">{{ card.easy['items'].get('optout', it.summary) }}</p>
     {{ evidence(it.evidence, docs) }}
+    {% if it.status == '자료 부족' %}<p class="flag">공개자료에 끄는 방법이 없으면 구매 전에 판매자나 제조사 고객센터에 "AI 기능을 끌 수 있는지, 끄면 어떤 모드로 동작하는지" 물어보는 것이 좋아요.</p>{% endif %}
   </section>
 
   {# ---- 질문 4 ---- #}
@@ -129,6 +130,7 @@
       <p class="easy-only">{{ card.easy['items'].get(key, it.summary) }}</p>
       {% if key == 'safety' and it.support_period %}<p class="flag">지원 기간 — {{ SUPPORT_PERIOD_LABEL[it.support_period] }}</p>{% endif %}
       {{ evidence(it.evidence, docs) }}
+      {% if key == 'remedy' and it.status == '자료 부족' %}<p class="flag">자료에 연락처가 없을 때는 소비자상담센터 <b>1372</b>(국번 없이)로 문의할 수 있어요. 제조사와 분쟁이 생기면 한국소비자원 피해구제를 신청할 수 있어요.</p>{% endif %}
     </div>
     {% endfor %}
   </section>

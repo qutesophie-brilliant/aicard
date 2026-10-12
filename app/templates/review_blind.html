@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block bodyclass %}review{% endblock %}
+{% block title %}라벨링 자료 | AI 정보카드{% endblock %}
+{% block content %}
+{% if not product %}
+<section class="hero" style="padding-bottom:0">
+  <h1>라벨링 자료</h1>
+  <p class="lede">새 품목 {{ rows|length }}개의 판매페이지 자료와 문구 목록입니다. 파이프라인 판정은 이 화면들에 없습니다. 라벨러는 문구와 원문만 보고 <b>근거상태</b>와 <b>조건표시</b>를 매깁니다.</p>
+  <div class="hero-actions">
+    <a class="btn primary" href="/review/blind/labels.csv?pids={{ pid_arg }}">라벨 표 내려받기 (CSV)</a>
+  </div>
+</section>
+<style>
+  .blind-list td.nw, .blind-list th.nw { white-space: nowrap; }
+  @media (max-width: 560px) { .blind-list .cat { display: none; } .blind-list td, .blind-list th { padding-left: 6px; padding-right: 6px; } }
+</style>
+<table class="table blind-list" style="margin-top:22px">
+  <tr><th class="nw">번호</th><th>제품</th><th class="cat">품목</th><th class="nw">문구</th><th></th></tr>
+  {% for r in rows %}
+  <tr>
+    <td class="nw">{{ r.product.id }}</td>
+    <td>{{ r.product.name }}{% if r.control %} <span class="meta">(대조군)</span>{% endif %}</td>
+    <td class="cat">{{ r.product.category }}</td>
+    <td class="nw">{{ r.n }}개</td>
+    <td class="nw"><a href="/review/blind/{{ r.product.id }}">열기</a></td>
+  </tr>
+  {% endfor %}
+</table>
+<h2 style="margin-top:28px;font-size:1.15rem">라벨 기준</h2>
+<ul>
+  <li><b>decision</b> — include(회사가 표시한 AI 문구) / exclude(구매자 후기·메뉴·이미지 설명 등 사업자 표시가 아닌 것)</li>
+  <li><b>basis</b> — 있음 / 없음 / 어긋남. 같은 공개자료에 그 문구의 작동 방식을 설명한 문장이 있으면 ‘있음’, 못 찾으면 ‘없음’, 본문과 각주가 서로 맞지 않으면 ‘어긋남’</li>
+  <li><b>conditions_noted</b> — basis가 ‘있음’인 문구에만 적습니다. 작동 조건·한계·측정 기준이 적혀 있으면 예, 없으면 아니오</li>
+  <li><b>gold_evidence_quote</b> — ‘있음’으로 본 근거 문장을 자료에서 그대로 한 줄 옮겨 적습니다</li>
+</ul>
+{% else %}
+<section class="hero" style="padding-bottom:0">
+  <p class="meta"><a href="/review/blind">← 목록</a></p>
+  <h1>{{ product.name }}</h1>
+  <p class="lede">{{ product.maker }} · {{ product.model }} · {{ product.category }}</p>
+</section>
+<h2 style="margin-top:24px;font-size:1.15rem">문구 {{ claims|length }}개</h2>
+<ol>
+  {% for c in claims %}
+  <li id="{{ c.id }}" style="margin-bottom:10px"><b>{{ c.id }}</b> {{ c.text }}</li>
+  {% endfor %}
+</ol>
+<h2 style="margin-top:28px;font-size:1.15rem">판매페이지 자료</h2>
+{% for d in documents %}
+<details style="margin-bottom:12px">
+  <summary class="meta" style="cursor:pointer">{{ d.title }} ({{ d.text|length }}자)</summary>
+  {% if d.url %}<p class="meta"><a href="{{ d.url }}" rel="nofollow noopener" target="_blank">원문 주소</a></p>{% endif %}
+  <pre style="white-space:pre-wrap;word-break:break-word;font:inherit;font-size:.95rem;line-height:1.8;margin:8px 0 0">{{ d.text }}</pre>
+</details>
+{% endfor %}
+{% endif %}
+{% endblock %}

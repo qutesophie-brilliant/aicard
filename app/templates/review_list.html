@@ -1,5 +1,6 @@
 {% extends "base.html" %}
-{% block title %}검토 대기 — AI 정보카드{% endblock %}
+{% block bodyclass %}review{% endblock %}
+{% block title %}검토 대기 | AI 정보카드{% endblock %}
 {% block content %}
 <section class="hero" style="padding-bottom:0">
   <h1>검토자</h1>
@@ -10,6 +11,30 @@
     <a class="btn" href="/export/claims.csv">라벨링용 CSV 내려받기</a>
   </div>
 </section>
+{% if views %}
+<details style="margin-top:22px"><summary class="meta" style="cursor:pointer">최근 30일 방문 수(쿠키 없이 서버에서 센 값) — 합계 {{ views|sum(attribute='n') }}</summary>
+<table class="table"><tr><th>화면</th><th>조회</th></tr>{% for v in views[:20] %}<tr><td>{{ v.path }}</td><td>{{ v.n }}</td></tr>{% endfor %}</table>
+</details>
+{% endif %}
+{% if requests %}
+<h2 style="margin-top:28px;font-size:1.15rem">소비자 카드 요청 {{ requests|length }}건</h2>
+<table class="table">
+  <tr><th>번호</th><th>제품</th><th>판매페이지</th><th>궁금한 점</th><th>받은 때</th><th></th></tr>
+  {% for q in requests %}
+  <tr>
+    <td>{{ q.id }}</td>
+    <td>{{ q.name }}</td>
+    <td>{% if q.url %}<a href="{{ q.url }}" target="_blank" rel="noopener">{{ q.url|truncate(40) }}</a>{% endif %}</td>
+    <td>{{ q.note }}</td>
+    <td class="meta">{{ q.created_at[:16] }}</td>
+    <td>
+      <form method="post" action="/review/request/{{ q.id }}" style="display:inline"><button class="btn quiet" name="status" value="done" type="submit">처리함</button></form>
+      <form method="post" action="/review/request/{{ q.id }}" style="display:inline"><button class="btn quiet" name="status" value="skipped" type="submit">건너뜀</button></form>
+    </td>
+  </tr>
+  {% endfor %}
+</table>
+{% endif %}
 <table class="table">
   <tr><th>제품</th><th>상태</th><th>AI 표시</th><th>근거 연결</th><th>권익항목</th><th>생성</th><th></th></tr>
   {% for r in rows %}

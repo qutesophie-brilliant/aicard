@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}요청을 받았어요 | AI 정보카드{% endblock %}
+{% block content %}
+<section class="page-head">
+  <h1>요청을 받았어요</h1>
+  <p class="lede">{{ pname }} 카드 요청이 {{ rid }}번으로 들어갔어요. 검토자가 판매페이지와 설명서, 공공 DB를 대조해 카드를 만들고 승인되면 ‘제품 카드’에 올라와요. 보통 1~3일 걸려요.</p>
+</section>
+<div class="tools" style="margin:16px 0 60px">
+  <a class="btn primary" href="/#find">제품 카드 보기</a>
+  <a class="btn" href="/check">다른 제품 확인하기</a>
+</div>
+{% endblock %}

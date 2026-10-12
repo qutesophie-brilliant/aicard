@@ -1,0 +1,66 @@
+{# 즉석 확인 결과 본문. 변수: card, docs, pname, url, s #}
+{% macro yes() %}<span class="st s1">관련 문장 있음</span>{% endmacro %}
+{% macro no() %}<span class="st s3">관련 문장 없음</span>{% endmacro %}
+<article class="label quick" style="margin-top:14px" aria-label="{{ pname }} 바로 확인 결과">
+  <div class="lb-band">
+    <span class="lb-brand"><img src="/static/logo.png" alt="">바로 확인 · 사람이 검토하기 전</span>
+    <span class="lb-cat">자동 분석</span>
+  </div>
+  <div class="lb-head">
+    <div>
+      <h2 class="lb-name">{{ pname }}</h2>
+      <p class="lb-meta">{% if url %}<a href="{{ url }}" target="_blank" rel="noopener">{{ url|replace('https://','')|truncate(60) }}</a><span class="sep">·</span>{% endif %}{{ card.checked_at|kdate }} 이 페이지의 글자만으로 확인</p>
+    </div>
+  </div>
+  {% if notes %}<p class="lb-note">{% for n in notes %}{{ n }}{% if not loop.last %} {% endif %}{% endfor %}</p>{% endif %}
+  <div class="lb-verdict">
+    {% if s.n == 0 %}
+    <p class="lb-big">이 페이지에서 ‘AI’라고 표시한 문구를 찾지 못했어요<small>‘AI’, ‘학습’, ‘스스로 인식’ 같은 표현이 든 문장이 없거나, 글자가 이미지 안에 있어서 읽지 못한 경우예요.</small></p>
+    {% else %}
+    <p class="lb-big"><span class="sr">‘AI’라고 적은 문구 {{ s.n }}개 중 {{ s.with_ev }}개는 같은 페이지 각주에 관련 문장이 있어요.</span><span aria-hidden="true">‘AI’라고 적은 문구 <em>{{ s.n }}</em>개 중 <em>{{ s.with_ev }}</em>개는<br>같은 페이지 각주에 관련 문장이 있어요</span><small>같은 페이지에 관련 문장이 있다는 뜻이에요. 회사 설명이 문구를 뒷받침하는지는 정식 카드에서 사람이 확인해요.</small></p>
+    <div class="cells" role="img" aria-label="관련 문장 있음 {{ s.with_ev }}, 없음 {{ s.n - s.with_ev }}">{% if s.with_ev %}<i class="s1" style="flex:{{ s.with_ev }}"></i>{% endif %}{% if s.n - s.with_ev %}<i class="s3" style="flex:{{ s.n - s.with_ev }}"></i>{% endif %}</div>
+    <ul class="lb-legend"><li><i class="sw s1"></i>관련 문장 있음 <b>{{ s.with_ev }}</b></li><li><i class="sw s3"></i>관련 문장 없음 <b>{{ s.n - s.with_ev }}</b></li></ul>
+    {% endif %}
+  </div>
+  <ul class="lb-items" aria-label="소비자 권익 항목 다섯 가지">
+    {% for key in COVERAGE_ITEMS %}{% set it = card['items'][key] %}
+    <li><a href="#qi-{{ key }}" class="{{ 's1' if it.evidence else 's3 none' }}"><b>{{ ITEM_TILE[key] }}</b><span>{{ '관련 문장 있음' if it.evidence else '없음' }}</span></a></li>
+    {% endfor %}
+  </ul>
+
+  <section class="qa">
+    <h3>{{ QUESTION_TEXT['what'] }}</h3>
+    <ul class="claims">
+      {% for c in card.claims %}
+      <li id="qc-{{ loop.index }}">
+        <div class="cl-head">{% if c.evidence %}{{ yes() }}{% else %}{{ no() }}{% endif %}<q>{{ c.text }}</q></div>
+        {% if c.evidence %}<details class="ev"><summary>관련 문장 {{ c.evidence|length }}건</summary>{% for e in c.evidence %}<blockquote>{{ e.quote }}<cite>{{ e.kind }}</cite></blockquote>{% endfor %}</details>{% endif %}
+      </li>
+      {% else %}
+      <li><p class="none">‘AI’라고 표시한 문구를 찾지 못했어요.</p></li>
+      {% endfor %}
+    </ul>
+  </section>
+
+  <section class="qa">
+    <h3>소비자 권익 항목에 관한 문장이 있나요?</h3>
+    {% for key in COVERAGE_ITEMS %}{% set it = card['items'][key] %}
+    <div class="block" id="qi-{{ key }}">
+      <h4>{{ ITEM_SHORT[key] }} {% if it.evidence %}{{ yes() }}{% else %}{{ no() }}{% endif %}</h4>
+      <p class="{% if not it.evidence %}none{% endif %}">{{ '이 페이지에 관련 문장이 있어요.' if it.evidence else '이 페이지에서는 관련 문장을 찾지 못했어요.' }}</p>
+      {% if it.evidence %}<details class="ev"><summary>관련 문장 {{ it.evidence|length }}건</summary>{% for e in it.evidence %}<blockquote>{{ e.quote }}<cite>{{ e.kind }}</cite></blockquote>{% endfor %}</details>{% endif %}
+    </div>
+    {% endfor %}
+  </section>
+
+  <section class="qa">
+    <h3>정식 카드 요청하기</h3>
+    <p class="lead">요청하면 검토자가 설명서와 공공 DB까지 대조해 ‘회사 설명 있음·없음’을 판정한 카드를 만들어 공개해요. 연락처는 받지 않아요.</p>
+    <form class="form" method="post" action="/check/request" style="margin-top:12px">
+      <input type="hidden" name="url" value="{{ url }}">
+      <label>제품 이름 <input type="text" name="name" value="{{ pname }}" required></label>
+      <label>궁금한 점 <span class="help">선택. 예: "AI 사물 인식이 진짜인지 궁금해요"</span><input type="text" name="note" maxlength="300"></label>
+      <div><button class="btn primary" type="submit">정식 카드 요청</button></div>
+    </form>
+  </section>
+</article>

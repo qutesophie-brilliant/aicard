@@ -1,50 +1,170 @@
 {% extends "base.html" %}
-{% block title %}AI 정보카드 — AI 표시, 근거까지 읽기{% endblock %}
+{% from "_macros.html" import tag, bar with context %}
+{% block title %}AI 정보카드 | ‘AI’ 표시와 근거를 한 장에{% endblock %}
+{% block mainclass %}{% endblock %}
 {% block content %}
+
 <section class="hero">
-  <h1>‘AI’라고 적힌 제품, 근거는 어디에 있을까요.</h1>
-  <p class="lede">판매페이지의 AI 표시 문구를 하나씩 꺼내, 설명서와 사양표, 공공 데이터베이스에서 근거를 찾아 이어 붙입니다. 결과는 근거 확인, 조건 확인, 자료 부족, 추가 확인 필요 네 가지로만 보여 드려요. 어느 제품이 더 낫다고는 말하지 않아요. 무엇이 적혀 있고 무엇이 빠져 있는지만 보여 드려요.</p>
-  <div class="hero-actions">
-    <a class="btn primary" href="#cards">공개된 카드 보기</a>
-    <a class="btn" href="/compare">두 제품 나란히 비교</a>
-    <a class="btn quiet" href="/about">확인 방법 읽기</a>
+  <div class="wrap hero-grid">
+    <div>
+      <h1>정말 ‘AI’ 제품일까요?</h1>
+      <p class="sub">‘AI’라고 적은 문구마다 회사가 공개한 설명서와 각주를 찾아 붙여 둔 카드예요.</p>
+    </div>
+    <div class="hero-side">
+      <p class="eyebrow">왜 만들었나</p>
+      <p class="lede">소비자 10명 중 7명은 어떤 제품이 실제로 AI를 쓰는지 가려내기 어렵다고 답했어요. 2025년에는 온라인몰 가전의 ‘AI’ 표시 20건이 과장이나 조건 누락으로 시정됐어요. 근거와 조건은 각주와 설명서에 흩어져 있어서 쇼핑 중에 다 찾아 읽기 어려워요.</p>
+      <p class="lede">{{ cat_line }}을 먼저 확인했어요. 다른 제품은 판매페이지 주소나 캡처를 넣으면 바로 볼 수 있어요.</p>
+      <form class="urlform" method="post" action="/check">
+        <label class="sr" for="hero-url">판매페이지 주소</label>
+        <input id="hero-url" type="url" name="url" placeholder="판매페이지 주소를 붙여 넣으세요" required>
+        <button class="btn primary" type="submit">바로 확인</button>
+      </form>
+      <p class="alt">쇼핑몰이 주소 접근을 막으면 <a href="/check">상세페이지 캡처(JPG·PNG·PDF)를 올려서</a> 확인할 수 있어요.<span class="desk-only"> 또는 이 버튼을 즐겨찾기 막대에 끌어다 놓고 제품 페이지에서 누르세요: <a class="bm" href="{{ bookmarklet }}" onclick="return false" title="이 버튼을 즐겨찾기 막대로 끌어다 놓으세요">AI 정보카드로 확인</a></span></p>
+    </div>
+  </div>
+
+  {% if example %}
+  <div class="wrap stage">
+    <div class="shop" aria-label="사용 예: 판매페이지 위에 뜬 정보카드 요약">
+      <div class="bar"><i></i><i></i><i></i><span class="url">{{ (example.card.sources[0].url if example.card.sources else '')|replace('https://','')|truncate(60) }}</span><span class="bm">AI 정보카드로 확인</span></div>
+      <div class="page">
+        <div class="img" aria-hidden="true"><svg viewBox="0 0 48 48"><circle cx="24" cy="26" r="15"/><circle cx="24" cy="26" r="5"/><path d="M9 24h-4M43 24h-4M24 9v2"/></svg></div>
+        <div>
+          <h3>{{ example.product.name }}</h3>
+          <p class="maker">{{ example.product.maker }} 판매페이지에 적힌 문구</p>
+          <ul class="cp">
+            {% for c in example.claims %}{% set s = eff(c) %}<li>{{ tag(s) }}<span><mark>{{ c.text|truncate(60) }}</mark></span></li>{% endfor %}
+          </ul>
+        </div>
+        <a class="pop" href="/card/{{ example.product.id }}">
+          <span class="h"><img src="/static/logo.png" alt="">AI 정보카드 · 사람이 확인한 카드</span>
+          <p class="n" aria-label="‘AI’ 문구 {{ example.sum.n_claims }}개 중 {{ example.sum.linked }}개에 회사 설명이 있어요">‘AI’ 문구 <em aria-hidden="true">{{ example.sum.n_claims }}</em>개 중 <em aria-hidden="true">{{ example.sum.linked }}</em>개에 회사 설명이 있어요</p>
+          {{ bar(example.card.claims, example.sum) }}
+          {% if example.heads %}<span class="warn">{% if example.heads[0].kind == 's4' %}<i class="mark s4" aria-hidden="true"></i>{% else %}<span></span>{% endif %}<span>{{ example.heads[0].text|truncate(80) }}</span></span>{% endif %}
+          <span class="lk"><span>카드 전체 보기 →</span><span>{{ example.card.checked_at|kdate }} 확인</span></span>
+        </a>
+      </div>
+    </div>
+    <p class="shop-cap">카드 내용은 실제 데이터이고, 쇼핑 화면은 예시예요.</p>
+  </div>
+  {% endif %}
+
+  <div class="wrap makers" aria-label="확인한 브랜드">
+    {% for m in makers %}<span>{{ m }}</span>{% endfor %}
   </div>
 </section>
 
-{% if featured %}
-<div class="tools" aria-label="보기 설정">
-  <button type="button" data-toggle="easy" aria-pressed="false">쉬운 말로 보기</button>
-  <button type="button" data-toggle="size" aria-pressed="false">큰 글씨</button>
-  <button type="button" data-toggle="speak" data-target="#label-{{ featured.product.id }}" aria-pressed="false">읽어주기</button>
-</div>
-{% with product=featured.product, card=featured.card, docs=docs, sum=featured.sum %}
-  {% include "_label.html" %}
-{% endwith %}
-<p class="meta" style="margin-top:10px">가장 최근에 공개된 카드예요. <a href="/card/{{ featured.product.id }}">이 카드만 따로 보기</a></p>
-{% else %}
-<div class="notice">아직 공개된 카드가 없어요. 검토자가 제품을 등록하고 승인하면 첫 카드가 여기에 올라와요. <a href="/new">제품 등록하기</a></div>
-{% endif %}
+<section class="sec">
+  <div class="wrap two-col">
+    <div class="rv">
+      <p class="eyebrow">서비스 소개</p>
+      <h2>카드가<br>보여 주는 것</h2>
+      <p class="lede">회사가 공개한 자료에 적힌 내용을 옮겨 적고, 그 설명이 얼마나 자세한지 보여 줘요. 점수나 등급은 없어요.</p>
+    </div>
+    <ul class="plain rv">
+      <li><b>회사가 공개한 자료만으로 확인해요</b><span>판매페이지, 각주, 설명서, 공공 데이터베이스에 적힌 내용을 대조해요. 자료에 없는 내용은 AI가 추측해서 채우지 않아요.</span></li>
+      <li><b>설명이 얼마나 자세한지 보여요</b><span>‘AI’ 문구마다 회사 설명이 있는지, 그 설명이 학습·모델을 말하는지 센서·규칙을 말하는지, 조건과 한계가 적혀 있는지, 안전·전파 인증이 확인되는지를 적어요.</span></li>
+      <li><b>점수나 등급을 매기지 않아요</b><span>제품의 우열, 표시의 진위, 법 위반 여부는 판단하지 않아요. 카드는 판단에 필요한 내용을 모아서 보여 줘요.</span></li>
+      <li><b>공개 전에 사람이 원문을 확인해요</b><span>언어 모델은 자료에서 문장을 찾아 잇는 초안을 만들어요. 검토자가 원문을 확인한 뒤에 공개해요.</span></li>
+    </ul>
+  </div>
+</section>
 
-<section class="gallery" id="cards">
-  <h2>공개된 카드 {{ cards|length }}장</h2>
-  <p class="hint">검토자가 원문을 확인한 카드만 올라와요. 막대 색은 AI 표시 문구의 확인상태 비율이에요.</p>
-  <div class="grid">
-    {% for row in cards %}
-    <a class="mini" href="/card/{{ row.product.id }}">
-      <p class="kicker">{{ row.product.maker }}</p>
-      <h3>{{ row.product.name }}</h3>
-      {% set n = row.sum.n_claims if row.sum.n_claims else 1 %}
-      <div class="statusbar" aria-hidden="true">
-        <i class="s1" style="width:{{ (100 * row.sum.counts['근거 확인'] / n)|round(1) }}%"></i><i class="s2" style="width:{{ (100 * row.sum.counts['조건 확인'] / n)|round(1) }}%"></i><i class="s3" style="width:{{ (100 * row.sum.counts['자료 부족'] / n)|round(1) }}%"></i><i class="s4" style="width:{{ (100 * row.sum.counts['추가 확인 필요'] / n)|round(1) }}%"></i>
+<section class="sec">
+  <div class="wrap two-col">
+    <div class="rv">
+      <p class="eyebrow">카드 구성</p>
+      <h2>모든 카드에 같은<br>다섯 가지 질문</h2>
+      <p class="lede">카드마다 같은 질문을 동일한 순서로 확인하기 때문에 두 가지 제품을 나란히 두고 바로 비교할 수 있어요.</p>
+    </div>
+    <ol class="qlist rv">
+      {% set QDESC = {'what': "‘AI’라고 적은 문구마다 회사 설명이 있는지, 어떤 조건에서 작동하는지.",
+                      'data': "카메라·음성 같은 데이터를 어디서 처리하고 얼마나 보관하는지.",
+                      'optout': "AI 기능을 끌 수 있는지, 끄면 어떻게 동작하는지.",
+                      'trouble': "오작동 보호장치, 보안 인증, 업데이트 기간, 문의처와 보증.",
+                      'public': "전파 적합성평가·KC 안전인증·리콜 이력을 공공 데이터베이스에서 조회."} %}
+      {% for key, q, keys in QUESTIONS %}
+      <li><span class="num">{{ loop.index }}</span><div><b>{{ q }}</b><span>{{ QDESC[key] }}</span></div></li>
+      {% endfor %}
+    </ol>
+  </div>
+</section>
+
+<section class="dark-band">
+  <div class="wrap dark rv" aria-labelledby="how-h">
+    <div class="two-col">
+      <div>
+        <p class="eyebrow">표시 기호</p>
+        <h2 id="how-h">문구마다 붙는<br>세 가지 표시</h2>
+        <p class="lede">‘AI’라고 적은 문구 하나하나를 같은 회사가 공개한 각주·설명서와 대조한 결과예요. 결과는 기호 대신 글자로 적어 두었어요.</p>
+        <p class="foot">카드가 만들어지는 과정과 정확도는 <a href="/about">서비스 소개</a>에 적어 두었어요.</p>
       </div>
-      <div class="nums" style="margin-top:10px">
-        <span>AI 표시 문구 <b>{{ row.sum.n_claims }}</b></span>
-        <span>근거가 연결된 문구 <b>{{ row.sum.counts["근거 확인"] + row.sum.counts["조건 확인"] }}</b></span>
-        <span>권익항목 공개 <b>{{ row.sum.items_covered }}/{{ row.sum.items_total }}</b></span>
+      <ul class="row">
+        <li>{{ tag('근거 확인') }}<b>회사가 뒷받침 설명을 적어 두었어요</b><span>작동 조건이나 한계가 함께 적혀 있으면 문구 아래에 <span class="tag">조건</span> 꼬리표로 그 내용을 붙여요.</span></li>
+        <li>{{ tag('자료 부족') }}<b>공개자료에서 설명을 찾지 못했어요</b><span>회사가 공개한 자료 안에서 설명을 찾지 못했다는 뜻이에요. 기능이 없다거나 표시가 거짓이라고 판정한 것은 아니에요.</span></li>
+        <li><span class="kind">센서·규칙으로 설명</span><b>회사 설명의 종류도 함께 적어요</b><span>‘회사 설명 있음’ 문구에는 회사가 무엇으로 설명했는지도 꼬리표로 적어요. 학습·모델, 카메라 인식, 센서·규칙, 외부 서비스, 조건·한계만 적음 가운데 하나예요. 회사 설명을 그대로 옮긴 것이고 AI 여부를 판정한 것은 아니에요.</span></li>
+        <li>{{ tag('추가 확인 필요') }}<b>표시와 회사 설명이 서로 맞지 않아요</b><span>사기 전에 확인이 필요한 문구라서 카드 맨 위 ‘사기 전에 알아 둘 것’에 따로 모아 두어요.</span></li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section class="sec" id="find">
+  <div class="wrap">
+    <div class="sec-head">
+      <div>
+        <p class="eyebrow">제품 카드</p>
+        <h2>{{ cat_line }}</h2>
+        <p class="hint">검토자가 원문을 확인한 카드만 올라와요. 막대 한 칸이 ‘AI’ 문구 하나를 뜻해요.</p>
       </div>
-      {% if row.product.is_sample %}<span class="sample">교육용 가상 제품</span>{% endif %}
-    </a>
-    {% endfor %}
+      <div class="search">
+        <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true"><circle cx="9" cy="9" r="6.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M14 14l4 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+        <label class="sr" for="q">제품 이름이나 브랜드로 찾기</label>
+        <input id="q" type="search" placeholder="제품 이름, 브랜드, 모델명" autocomplete="off">
+        <span class="count" id="count">{{ cards|length }}개</span>
+      </div>
+    </div>
+    {% if makers|length > 1 %}
+    <div class="chips" role="group" aria-label="브랜드로 거르기">
+      <button type="button" data-maker="" aria-pressed="true">전체</button>
+      {% for m in makers %}<button type="button" data-maker="{{ m }}" aria-pressed="false">{{ m }}</button>{% endfor %}
+    </div>
+    {% endif %}
+    <div class="grid" id="grid" aria-live="polite">
+      {% for row in cards %}
+      <a class="mini rv" href="/card/{{ row.product.id }}" data-name="{{ row.product.name }} {{ row.product.maker }} {{ row.product.model }}" data-maker="{{ row.product.maker }}">
+        <p class="k"><span>{{ row.product.maker }}</span><span>{{ row.product.model }}</span></p>
+        <h3>{{ row.product.name }}</h3>
+        {% if row.sum.n_claims %}
+        {{ bar(row.card.claims, row.sum) }}
+        <p class="m"><span>‘AI’ 문구 {{ row.sum.n_claims }}개 중 <b>{{ row.sum.linked }}개</b> 회사 설명 있음</span>{% if row.sum.counts['추가 확인 필요'] %}<span class="w"><i class="mark s4"></i>어긋남 {{ row.sum.counts['추가 확인 필요'] }}</span>{% endif %}</p>
+        {% else %}
+        <p class="zero">‘AI’를 내세우지 않는 제품 · 비교 기준</p>
+        {% endif %}
+        {% if row.product.is_sample %}<p class="m"><span class="w">교육용 가상 제품</span></p>{% endif %}
+      </a>
+      {% else %}
+      <p class="empty">아직 공개된 카드가 없어요.</p>
+      {% endfor %}
+      <div class="empty" id="noresult" hidden>
+        <p><b id="noresult-q"></b> 카드는 아직 없어요. 판매페이지 주소를 붙여 넣으면 지금 확인할 수 있어요.</p>
+        <a class="btn primary" id="noresult-link" href="/check">바로 확인하기</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="cta-band">
+  <div class="wrap cta rv">
+    <h2>목록에 없는 제품<br>바로 확인</h2>
+    <div>
+      <p class="lede">판매페이지 주소를 붙여 넣거나 상세페이지 캡처를 올리면 ‘AI’ 문구와 각주를 바로 연결해요. 정식 카드가 필요하면 그 자리에서 요청하세요.</p>
+      <form class="urlform" method="post" action="/check">
+        <label class="sr" for="cta-url">판매페이지 주소</label>
+        <input id="cta-url" type="url" name="url" placeholder="https://" required>
+        <button class="btn primary" type="submit">바로 확인</button>
+      </form>
+    </div>
   </div>
 </section>
 {% endblock %}
