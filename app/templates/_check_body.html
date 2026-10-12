@@ -17,7 +17,7 @@
     {% if s.n == 0 %}
     <p class="lb-big">이 페이지에서 ‘AI’라고 표시한 문구를 찾지 못했어요<small>‘AI’, ‘학습’, ‘스스로 인식’ 같은 표현이 든 문장이 없거나, 글자가 이미지 안에 있어서 읽지 못한 경우예요.</small></p>
     {% else %}
-    <p class="lb-big"><span class="sr">‘AI’라고 적은 문구 {{ s.n }}개 중 {{ s.with_ev }}개는 같은 페이지 각주에 관련 문장이 있어요.</span><span aria-hidden="true">‘AI’라고 적은 문구 <em>{{ s.n }}</em>개 중 <em>{{ s.with_ev }}</em>개는<br>같은 페이지 각주에 관련 문장이 있어요</span><small>같은 페이지에 관련 문장이 있다는 뜻이에요. 회사 설명이 문구를 뒷받침하는지는 정식 카드에서 사람이 확인해요.</small></p>
+    <p class="lb-big"><span class="sr">‘AI’라고 적은 문구 {{ s.n }}개 중 {{ s.with_ev }}개는 같은 페이지에 관련 문장이 있어요.</span><span aria-hidden="true">‘AI’라고 적은 문구 <em>{{ s.n }}</em>개 중 <em>{{ s.with_ev }}</em>개는<br>같은 페이지 각주에 관련 문장이 있어요</span><small>같은 페이지에 관련 문장이 있다는 뜻이에요. 작동 설명이 문구를 뒷받침하는지는 정식 카드에서 사람이 확인해요.</small></p>
     <div class="cells" role="img" aria-label="관련 문장 있음 {{ s.with_ev }}, 없음 {{ s.n - s.with_ev }}">{% if s.with_ev %}<i class="s1" style="flex:{{ s.with_ev }}"></i>{% endif %}{% if s.n - s.with_ev %}<i class="s3" style="flex:{{ s.n - s.with_ev }}"></i>{% endif %}</div>
     <ul class="lb-legend"><li><i class="sw s1"></i>관련 문장 있음 <b>{{ s.with_ev }}</b></li><li><i class="sw s3"></i>관련 문장 없음 <b>{{ s.n - s.with_ev }}</b></li></ul>
     {% endif %}
@@ -55,7 +55,7 @@
 
   <section class="qa">
     <h3>정식 카드 요청하기</h3>
-    <p class="lead">요청하면 검토자가 설명서와 공공 DB까지 대조해 ‘회사 설명 있음·없음’을 판정한 카드를 만들어 공개해요. 연락처는 받지 않아요.</p>
+    <p class="lead">요청하면 검토자가 설명서와 공공 DB까지 대조해 ‘작동 설명 있음·없음’을 판정한 카드를 만들어 공개해요. 연락처는 받지 않아요.</p>
     <form class="form" method="post" action="/check/request" style="margin-top:12px">
       <input type="hidden" name="url" value="{{ url }}">
       <label>제품 이름 <input type="text" name="name" value="{{ pname }}" required></label>

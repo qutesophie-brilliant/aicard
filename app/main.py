@@ -35,7 +35,7 @@ templates = Jinja2Templates(directory=APP_DIR / "templates")
 STATUS_CLASS = {"근거 확인": "s1", "조건 확인": "s2", "자료 부족": "s3", "추가 확인 필요": "s4"}
 STATUS_MARK = {"근거 확인": "✓", "조건 확인": "✓", "자료 부족": "–", "추가 확인 필요": "!"}
 # 라벨에서 쓰는 짧은 상태 이름. 소비자에게는 세 가지로 보인다: 근거 있음 / 근거 못 찾음 / 설명 어긋남
-STATUS_SHORT = {"근거 확인": "회사 설명 있음", "조건 확인": "회사 설명 있음", "자료 부족": "회사 설명 없음", "추가 확인 필요": "설명이 서로 어긋남"}
+STATUS_SHORT = {"근거 확인": "작동 설명 있음", "조건 확인": "작동 설명 있음", "자료 부족": "작동 설명 없음", "추가 확인 필요": "표시와 설명 어긋남"}
 
 templates.env.globals.update(
     STATUSES=config.STATUSES, STATUS_HELP=config.STATUS_HELP, STATUS_CLASS=STATUS_CLASS,

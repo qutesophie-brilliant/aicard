@@ -59,7 +59,7 @@
       <option value="아니오" {% if not ax[1] %}selected{% endif %}>조건·한계 없음</option>
       <option value="예" {% if ax[1] %}selected{% endif %}>조건·한계 있음</option>
     </select>
-    <select name="basis_kind" aria-label="회사 설명의 종류" title="회사가 이 문구를 무엇으로 설명했는지">
+    <select name="basis_kind" aria-label="작동 설명의 종류" title="회사가 이 문구를 무엇으로 설명했는지">
       <option value="">설명 종류 미정</option>
       {% for k, label, help in BASIS_KINDS %}<option value="{{ k }}" {% if c.basis_kind == k %}selected{% endif %} title="{{ help }}">{{ label }}</option>{% endfor %}
     </select>
