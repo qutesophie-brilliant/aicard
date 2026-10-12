@@ -159,7 +159,7 @@ _build_lock = threading.Lock()
 
 def _ocr_then_build(pid: int, image_urls: list[str], name: str, url: str) -> None:
     """상세 이미지가 있으면 먼저 글자를 읽어 '판매페이지(이미지)' 문서로 붙인 뒤 카드를 만든다."""
-    if image_urls:
+    if image_urls and not any(d.get("title", "").startswith("상세 이미지") for d in db.list_documents(pid)):
         with _build_lock:
             try:
                 ing = ingest.from_image_urls(f"상세 이미지 ({name})", image_urls)
@@ -463,6 +463,24 @@ async def capture_form(request: Request, background: BackgroundTasks, name: str 
         return PlainTextResponse(f"OK {out['id']} {name} {model}")
     except HTTPException as e:
         return PlainTextResponse(f"ERR {e.status_code} {e.detail}", status_code=e.status_code)
+
+
+@app.post("/capture/requeue")
+async def capture_requeue(request: Request, model: str = Form(""), image_urls: str = Form(""), key: str = Form("")):
+    """이미 등록됐지만 생성이 끊긴 제품을 상세 이미지와 함께 대기열에 다시 넣는다(서버 재시작 복구용)."""
+    import time as _t
+    if not (key and _capture_keys.get(key, 0) > _t.time()):
+        require_reviewer(request)
+    m = model.strip().lower()
+    hit = [p for p in db.list_products() if (p.get("model") or "").strip().lower() == m and p.get("status") == "draft"]
+    if not hit:
+        return PlainTextResponse(f"ERR no draft for {model}", status_code=404)
+    p = hit[-1]
+    docs = db.list_documents(p["id"])
+    url = docs[0]["url"] if docs else ""
+    _enqueue_build(p["id"], [u.strip() for u in image_urls.splitlines() if u.strip().startswith("http")], p["name"], url)
+    db.set_product_status(p["id"], "draft", "카드 생성 중(대기열)")
+    return PlainTextResponse(f"OK requeued {p['id']} {p['name']}")
 
 
 def _ingest_data(request: Request, background: BackgroundTasks, data: dict) -> dict:
