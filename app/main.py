@@ -231,12 +231,13 @@ def index(request: Request):
 @app.get("/card/{pid}", response_class=HTMLResponse)
 def card_page(request: Request, pid: int, preview: int = 0):
     product, card, docs = card_view(pid)
+    from_check = request.query_params.get("from") == "check"
     if product["status"] != "approved" and not preview:
         raise HTTPException(404, "아직 검토가 끝나지 않은 카드입니다.")
     if preview:
         require_reviewer(request)
     return render(request, "card.html", product=product, card=card, docs=docs, sum=summarize(card),
-                  preview=bool(preview))
+                  preview=bool(preview), from_check=from_check)
 
 
 @app.get("/compare", response_class=HTMLResponse)
@@ -399,6 +400,24 @@ def _check_summary(card: dict[str, Any]) -> dict[str, Any]:
     return {"n": len(claims), "with_ev": len(with_ev), "items": items, "items_found": sum(items.values())}
 
 
+
+def _match_published(url: str) -> dict[str, Any] | None:
+    """붙여 넣은 주소가 이미 검토·공개된 제품이면 그 제품을 돌려준다(모델명이 주소에 들어 있거나 저장된 주소와 같은 경우)."""
+    import re as _re
+    u = (url or "").strip().lower()
+    if not u.startswith("http"):
+        return None
+    u_norm = u.split("?")[0].split("#")[0].rstrip("/")
+    for p in db.list_products("approved"):
+        model = (p.get("model") or "").strip().lower()
+        if model and len(model) >= 5 and _re.sub(r"[^a-z0-9]", "", model) in _re.sub(r"[^a-z0-9]", "", u_norm):
+            return p
+        for d in db.list_documents(p["id"]):
+            du = (d.get("url") or "").strip().lower().split("?")[0].split("#")[0].rstrip("/")
+            if du and du == u_norm:
+                return p
+    return None
+
 @app.get("/check", response_class=HTMLResponse)
 def check_page(request: Request, q: str = ""):
     base = str(request.base_url).rstrip("/")
@@ -418,6 +437,12 @@ async def check_url(request: Request, url: str = Form(""), text: str = Form(""),
     text = text.strip()
     name = ""
     notes: list[str] = []
+
+    # 0) 이미 검토·공개된 제품이면 즉석 분석 대신 그 카드로 보낸다(사람이 확인한 카드가 더 정확하다)
+    if url.startswith("http") and not text and not [f for f in (files or []) if f and f.filename]:
+        hit = _match_published(url)
+        if hit:
+            return RedirectResponse(f"/card/{hit['id']}?from=check", status_code=303)
 
     # 1) 캡처 이미지·PDF 업로드 → 글자 읽기 (소비자용: 건수·크기 제한, 비전 모델은 설정으로 켜고 끔)
     uploads = [f for f in (files or []) if f and f.filename]
@@ -471,8 +496,9 @@ async def check_url(request: Request, url: str = Form(""), text: str = Form(""),
     else:
         return render(request, "check.html", base=base, bookmarklet=bm, url=url, q="",
                       error="판매페이지 주소를 넣거나, 캡처 이미지·PDF를 올리거나, 설명 글을 붙여 넣어 주세요.")
+    use_llm = config.CHECK_LLM and _rate_ok(ip + ":llm", limit=config.CHECK_LLM_PER_HOUR)
     try:
-        card, docs = quick_check(name, url, sales, fine)
+        card, docs = quick_check(name, url, sales, fine, use_llm=use_llm)
     except ValueError as e:
         return render(request, "check.html", base=base, bookmarklet=bm, url=url, q="", error=str(e))
     return render(request, "check_result.html", card=card, docs=docs, pname=name, url=url, s=_check_summary(card), notes=notes)
