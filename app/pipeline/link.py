@@ -867,10 +867,13 @@ def _link_rules(claim: dict[str, Any], cands: list[dict[str, Any]]) -> None:
     # 어떻게 작동하는지 말하는 문장이거나, 조건·한계 문장일 때만 관련 문장으로 본다.
     pool = [c for c in cands if (c["kind"] in ("설명서", "사양표", "공공DB", "공식 자료") or c.get("near") or c.get("self") or c.get("adjacent") or c.get("joined"))
             and not _BOILER.search(c["quote"]) and not _TESTCOND.search(c["quote"])]
-    ev = [c for c in pool if _MECH.search(c["quote"]) or _PROC_V.search(c["quote"]) or _SENSOR_SPEC.search(c["quote"])
-          or _LEARN_EVID.search(c["quote"]) or self_describes(c["quote"])][:3]
+    def _mech(q: str) -> bool:
+        return bool(_MECH.search(q) or _PROC_V.search(q) or _SENSOR_SPEC.search(q) or _LEARN_EVID.search(q) or self_describes(q))
+    # 같은 기능을 말하는 문장(내용어 겹침·기능 이름 일치·바로 옆 줄)을 먼저, 없으면 작동 설명이 있는 아무 문장
+    related = [c for c in pool if _shares_noun(claim["text"], c["quote"]) or _names_feature(claim["text"], c["quote"]) or c.get("near") or c.get("self") or c.get("adjacent")]
+    ev = [c for c in related if _mech(c["quote"])][:3] or [c for c in related if _is_cond(c["quote"])][:2]
     if not ev:
-        ev = [c for c in pool if _is_cond(c["quote"])][:2]
+        ev = [c for c in pool if _mech(c["quote"])][:2]
     cond = next((c["quote"] for c in cands if _COND.search(c["quote"])), "")
     basis_state = "있음" if ev else "없음"
     conditions_noted = bool(ev and cond)
