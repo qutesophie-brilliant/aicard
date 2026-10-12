@@ -766,10 +766,15 @@ def review_blind_card(request: Request, pid: int, _=Depends(require_reviewer)):
 def review_claim(pid: int, claim_id: str = Form(...), reviewer_basis: str = Form(""),
                  reviewer_conditions: str = Form(""),
                  reviewer_note: str = Form(""), basis_kind: str = Form(""), basis_kind_global: str = Form(""),
-                 _=Depends(require_reviewer)):
+                 reviewer_quote: str = Form(""), _=Depends(require_reviewer)):
     product, card, _ = card_view(pid)
     for c in card["claims"]:
         if c["id"] == claim_id:
+            # 검토자가 원문에서 직접 찾은 근거 문장. AI가 못 찾은 설명을 사람이 붙일 때 쓴다.
+            rq = reviewer_quote.strip()
+            if rq:
+                evs = [e for e in (c.get("evidence") or []) if e.get("kind") != "판매페이지(검토자 확인)"]
+                c["evidence"] = [{"doc_id": None, "chunk": None, "quote": rq, "kind": "판매페이지(검토자 확인)"}] + evs
             # 검토자는 두 축을 따로 고른다. 확인상태 이름은 두 축에서 파생한다.
             if reviewer_basis in BASIS_STATES:
                 c["reviewer_status"] = status_from(reviewer_basis, reviewer_conditions == "예")

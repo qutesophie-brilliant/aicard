@@ -2,10 +2,24 @@
 <html lang="ko">
 <head>
 <meta charset="utf-8">
+<script>document.documentElement.className+=" js"</script>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{% block title %}AI 정보카드{% endblock %}</title>
-<meta name="description" content="제품에 적힌 'AI' 표시 문구마다 사업자가 공개한 근거가 있는지, 작동 조건과 소비자 권익 정보까지 한 장으로 확인합니다.">
-<link rel="stylesheet" href="/static/style.css">
+<meta name="description" content="{% block desc %}제품에 적힌 ‘AI’ 문구마다 회사가 공개한 설명이 있는지, 작동 조건과 소비자 권익 정보는 어떻게 적혀 있는지 한 장에서 확인해요.{% endblock %}">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="AI 정보카드">
+<meta property="og:title" content="{% block ogtitle %}{{ self.title() }}{% endblock %}">
+<meta property="og:description" content="{{ self.desc() }}">
+<meta property="og:image" content="{{ request.base_url }}static/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:url" content="{{ request.url }}">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#092956">
+<link rel="icon" href="/static/favicon.png" type="image/png">
+<link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
+<link rel="preload" href="/static/fonts/PretendardVariable-ko.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="/static/style.css?v=1012">
 <script>
   // 깜빡임 방지: 저장된 보기 설정을 먼저 적용
   try {
@@ -14,25 +28,47 @@
   } catch (e) {}
 </script>
 </head>
-<body>
-<div class="wrap">
+<body class="{% block bodyclass %}{% endblock %}">
+<a class="skip" href="#main">본문으로 건너뛰기</a>
+<div class="topbar"><div class="wrap">
   <header class="top">
-    <a class="brand" href="/">AI 정보카드 <small>AI 표시, 근거까지 읽기</small></a>
-    <nav aria-label="주요 메뉴">
-      <a href="/" {% if path == '/' %}aria-current="page"{% endif %}>카드 보기</a>
+    <a class="brand" href="/"><img src="/static/logo.png" alt="" width="30" height="30"><span>AI 정보카드</span></a>
+    <nav class="topnav" aria-label="주요 메뉴">
+      <a href="/" {% if path == '/' or path.startswith('/card') %}aria-current="page"{% endif %}>확인한 제품</a>
+      <a href="/check" {% if path.startswith('/check') %}aria-current="page"{% endif %}>바로 확인</a>
       <a href="/compare" {% if path.startswith('/compare') %}aria-current="page"{% endif %}>두 제품 비교</a>
-      <a href="/about" {% if path.startswith('/about') %}aria-current="page"{% endif %}>어떻게 확인하나요</a>
-      {% if is_reviewer %}<a href="/review" {% if path.startswith('/review') or path.startswith('/new') %}aria-current="page"{% endif %}>검토자</a>{% endif %}
+      <a href="/findings" {% if path.startswith('/findings') %}aria-current="page"{% endif %}>드러난 것</a>
+      <a href="/about" {% if path.startswith('/about') %}aria-current="page"{% endif %}>확인 방법</a>
     </nav>
+    <button type="button" class="menu-btn" aria-expanded="false" aria-controls="menu" aria-label="메뉴 열기"><span></span><span></span><span></span></button>
   </header>
-
+</div></div>
+<div class="menu" id="menu" hidden>
+  <div class="wrap menu-in">
+    <nav aria-label="전체 메뉴">
+      <a href="/">확인한 제품<small>검토자가 원문을 확인한 카드</small></a>
+      <a href="/check">바로 확인<small>판매페이지 주소나 캡처로 지금 확인</small></a>
+      <a href="/compare">두 제품 비교<small>같은 질문의 답을 나란히</small></a>
+      <a href="/findings">드러난 것<small>공개한 카드 전체에서 확인된 것</small></a>
+      <a href="/about">확인 방법<small>과정, 정확도, 하지 않는 일</small></a>
+      {% if is_reviewer %}<a href="/review">검토자<small>카드 검토와 요청 관리</small></a>{% else %}<a href="/review/login">검토자 로그인<small>검토자 비밀번호가 필요해요</small></a>{% endif %}
+    </nav>
+    <div class="menu-side">
+      <p>‘AI’라고 적힌 제품을 회사가 공개한 설명과 맞춰 보는 카드예요. 자료에 적힌 내용을 그대로 옮겨 적고, 제품의 좋고 나쁨은 가리지 않아요.</p>
+      <p class="meta">2026 AI 라이프 솔루션 챌린지 출품작</p>
+    </div>
+  </div>
+</div>
+<main id="main" class="{% block mainclass %}wrap{% endblock %}">
   {% block content %}{% endblock %}
-
+</main>
+<div class="wrap">
   <footer class="site">
-    <p>정보카드는 회사가 공개한 판매페이지와 설명서, 공공 데이터베이스를 대조한 결과예요. 제품의 우열이나 법 위반 여부는 판단하지 않아요. '자료 부족'은 공개자료에서 찾지 못했다는 뜻이지, 거짓이거나 품질이 낮다는 뜻이 아니에요.</p>
-    <p style="margin-top:6px">2026 AI 라이프 솔루션 챌린지 출품작. <a href="/about">확인 방법과 한계 읽기</a></p>
+    <p>회사가 공개한 자료에 적힌 내용을 대조한 카드예요. 자료에 없는 내용은 AI가 추측해서 채우지 않고, 제품의 우열이나 법 위반 여부는 가리지 않아요.</p>
+    <p>‘회사 설명 없음’은 공개자료에서 설명을 찾지 못했다는 뜻이에요. 회사는 공개하지 않은 실증자료를 가지고 있을 수 있고, 내용이 다르면 <a href="/about#fix">정정을 요청</a>할 수 있어요.</p>
+    <p>2026 AI 라이프 솔루션 챌린지 출품작 · <a href="/about">확인 방법과 한계</a></p>
   </footer>
 </div>
-<script src="/static/app.js"></script>
+<script src="/static/app.js?v=1012"></script>
 </body>
 </html>
