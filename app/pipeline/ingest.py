@@ -29,8 +29,43 @@ class Ingested:
 _SENT_SPLIT = re.compile(r"(?<=[\.\!\?。다요음함됨임니다])\s+|\n+")
 
 
-def chunk_text(text: str, max_len: int = 220) -> list[str]:
+_LINE_END = re.compile(r"[\.\!\?。다요음함됨임니다]\s*[\)\]”\"']?$|[:：]$")
+
+
+def merge_ocr_lines(text: str) -> str:
+    """OCR 결과는 문장 중간에서 줄이 바뀐다. 문장이 끝나지 않은 줄은 다음 줄과 잇는다.
+    짧은 줄(표 항목·제목)과 각주 표시로 시작하는 줄은 그대로 둔다."""
+    out: list[str] = []
+    for line in (l.strip() for l in text.splitlines()):
+        if not line:
+            if out and not out[-1].endswith("\n"):
+                out.append("")
+            continue
+        if (out and out[-1] and len(out[-1]) >= 12 and not _LINE_END.search(out[-1])
+                and not re.match(r"^[※\*†①-⑳\-•·]|^\d{1,2}[\)\.]\s", line) and len(line) >= 4):
+            out[-1] = out[-1] + " " + line
+        else:
+            out.append(line)
+    return "\n".join(l for l in out)
+
+
+def normalize_spacing(text: str) -> str:
+    """OCR 결과에 빠진 띄어쓰기를 보탠다: 문장 끝 뒤("청소합니다.AI"), 한글 뒤 로마자 대문자 단어("인식은RGB"),
+    그리고 문장 중간에 이어 붙은 각주 표시("…입니다.* RGB 카메라는")는 줄을 나눠 각주가 따로 서게 한다."""
+    # 문장 끝 뒤 띄어쓰기: 앞이 한글·영문 소문자·닫는 괄호일 때만(숫자 사이 소수점 "PM1.0", "99.5"와 주소 "lge.co.kr"는 건드리지 않는다)
+    text = re.sub(r"(?<=[가-힣\)])([\.\!\?。])(?=[가-힣A-Z\(\[])", r"\1 ", text)
+    text = re.sub(r"([가-힣\.\,\)])(?=[A-Z][A-Za-z]{1,})", r"\1 ", text)
+    text = re.sub(r"(?<=[\.\!\?。다요음함됨임])\s*(?=[※\*†]\s?[가-힣A-Za-z])", "\n", text)
+    # OCR이 소수점 뒤를 띄운 수치("PM 1. 0 센서", "0. 3㎛")를 붙인다. 단위나 센서가 바로 따라올 때만(번호 목록 "1. 2" 보호)
+    text = re.sub(r"(?<=\d)\.\s(?=\d{1,2}\s?(?:㎛|μm|um|mm|cm|㎜|㎝|%|kg|L\b|W\b|센서|이하|이상))", ".", text)
+    return text
+
+
+def chunk_text(text: str, max_len: int = 220, ocr: bool = False) -> list[str]:
+    if ocr:
+        text = merge_ocr_lines(text)
     """문장 단위로 자르되, 너무 짧은 조각은 앞 조각에 붙이고 너무 긴 조각은 나눈다."""
+    text = normalize_spacing(text)
     text = re.sub(r"[ \t　]+", " ", text)
     text = re.sub(r"\n{2,}", "\n", text)
     pieces = [p.strip() for p in _SENT_SPLIT.split(text) if p and p.strip()]
@@ -72,7 +107,7 @@ def from_pdf(title: str, data: bytes) -> Ingested:
 def from_image(title: str, data: bytes) -> Ingested:
     text = llm.ocr_image(data) if llm.available() else ""
     notes = [] if text else ["LLM 키가 없어 이미지 OCR을 건너뛰었습니다."]
-    return Ingested(title=title or "이미지", text=text, chunks=chunk_text(text), notes=notes)
+    return Ingested(title=title or "이미지", text=text, chunks=chunk_text(text, ocr=True), notes=notes)
 
 
 def _fetch(url: str) -> httpx.Response:
@@ -134,7 +169,7 @@ def from_url(url: str, ocr_images: bool = True) -> Ingested:
                 notes.append(f"이미지 OCR 실패: {src[:60]} ({e})")
         if ocr_texts:
             notes.append(f"상세페이지 이미지 {len(ocr_texts)}장을 OCR로 읽었습니다.")
-            body_text += "\n" + "\n".join(ocr_texts)
+            body_text += "\n" + merge_ocr_lines("\n".join(ocr_texts))
     elif imgs and not llm.available():
         notes.append(f"이미지 {len(imgs)}장이 있으나 LLM 키가 없어 OCR을 건너뛰었습니다.")
 
@@ -142,22 +177,43 @@ def from_url(url: str, ocr_images: bool = True) -> Ingested:
 
 
 # ---------- 이미지 상세페이지 ----------
-def _tiles(data: bytes, max_w: int = 1000) -> list[bytes]:
-    """세로로 긴 상세 이미지를 읽기 좋은 크기로 자른다. 글자가 뭉개지지 않게 폭을 맞추고 높이를 나눈다."""
+def _tiles(data: bytes, max_w: int = 1000, max_pixels: int = 12_000_000) -> list[bytes]:
+    """세로로 긴 상세 이미지를 읽기 좋은 크기로 자른다. 글자가 뭉개지지 않게 폭을 맞추고 높이를 나눈다.
+    무료 서버(512MB) 대비: 전체를 RGB로 바꾸거나 통째로 줄이지 않고, JPEG는 축소 디코딩(draft)으로 받고
+    조각마다 잘라서 변환·저장한 뒤 바로 버린다."""
+    import gc
     import io
+    import math
     from PIL import Image
-    im = Image.open(io.BytesIO(data)).convert("RGB")
-    if im.width > max_w:
-        im = im.resize((max_w, int(im.height * max_w / im.width)))
-    tile_h = int(im.width * 1.6)
+    im = Image.open(io.BytesIO(data))
+    px = im.width * im.height
+    if px > max_pixels:
+        f = 2 ** math.ceil(math.log2(math.sqrt(px / max_pixels)))
+        if im.format == "JPEG":
+            im.draft(im.mode if im.mode in ("RGB", "L") else "RGB", (im.width // f, im.height // f))
+        elif px > max_pixels * 3:
+            im.close()
+            return []  # PNG 등은 축소 디코딩이 없어 너무 크면 건너뛴다
+    im.load()
+    scale = min(1.0, max_w / im.width)
+    w = int(im.width * scale)
+    tile_src_h = max(200, int(im.width * 1.6))
     out = []
-    for top in range(0, im.height, tile_h):
-        part = im.crop((0, top, im.width, min(im.height, top + tile_h)))
-        if part.height < 80:
+    for top in range(0, im.height, tile_src_h):
+        part = im.crop((0, top, im.width, min(im.height, top + tile_src_h)))
+        if part.height * scale < 80:
             continue
+        if part.mode != "RGB":
+            part = part.convert("RGB")
+        if scale < 1.0:
+            part = part.resize((w, max(1, int(part.height * scale))))
         buf = io.BytesIO()
-        part.save(buf, "JPEG", quality=82)
+        part.save(buf, "JPEG", quality=80)
         out.append(buf.getvalue())
+        del part
+    im.close()
+    del im
+    gc.collect()
     return out
 
 
@@ -165,14 +221,32 @@ def from_image_urls(title: str, urls: list[str], per_call: int = 6) -> Ingested:
     """이미지 URL 목록 → 조각 → 여러 장씩 묶어 OCR. 호출 수 = 조각 수 / per_call."""
     notes: list[str] = []
     tiles: list[bytes] = []
-    for u in urls[:30]:
+    def _rss_mb() -> int:
+        """현재 RSS(MB). ru_maxrss 는 최고치라 쓰지 않는다."""
+        try:
+            with open("/proc/self/statm") as f:
+                return int(f.read().split()[1]) * 4096 // (1024 * 1024)
+        except Exception:
+            return 0
+    import os as _os
+    limit_mb = int(_os.getenv("OCR_MEM_LIMIT_MB", "1400"))
+    for u in urls[:60]:
+        if _rss_mb() > limit_mb:  # 서버 메모리 보호(현재 사용량 기준)
+            notes.append("메모리가 부족해 남은 이미지는 읽지 않았습니다.")
+            break
         try:
             r = _fetch(u)
-            if len(r.content) < 15_000:
+            if len(r.content) < 15_000 or len(r.content) > 12_000_000:
                 continue
             tiles.extend(_tiles(r.content))
+            del r
+            import gc
+            gc.collect()
         except Exception as e:
             notes.append(f"이미지 받기 실패: {u[-50:]} ({e})")
+        if len(tiles) >= 120:  # OCR 호출 20회 상한
+            notes.append("상세 이미지가 많아 앞부분 120조각까지만 읽었습니다.")
+            break
     if not tiles:
         return Ingested(title=title, text="", chunks=[], notes=notes or ["읽을 이미지가 없습니다."])
     if not llm.available():
@@ -188,4 +262,44 @@ def from_image_urls(title: str, urls: list[str], per_call: int = 6) -> Ingested:
             notes.append(f"이미지 글자 읽기 실패({i // per_call + 1}번째 묶음): {e}")
     text = "\n".join(texts)
     notes.append(f"상세 이미지 {len(urls)}장을 {len(tiles)}조각으로 나눠 {calls}번 호출로 읽었습니다.")
-    return Ingested(title=title, text=text, chunks=chunk_text(text), notes=notes)
+    return Ingested(title=title, text=text, chunks=chunk_text(text, ocr=True), notes=notes)
+
+
+# ---------- 띄어쓰기 보정 ----------
+# 판매페이지를 저장할 때 줄바꿈(<br>)이 사라져 "감지하고적외선", "사물과가구"처럼 단어가 붙은 문장이 생긴다.
+# LLM에 띄어쓰기만 고치게 하고, 공백을 뺀 글자가 원문과 한 글자라도 다르면 버린다(내용은 절대 바뀌지 않는다).
+SPACING_PROMPT = """아래 문장들은 웹페이지에서 줄바꿈이 사라져 단어가 붙어 버린 한국어 문장입니다.
+띄어쓰기만 바로잡으세요. 글자·숫자·기호·순서는 하나도 바꾸거나 더하거나 빼지 마세요. 이미 맞게 띄어 쓴 곳은 그대로 둡니다.
+출력(JSON 객체, 번호를 키로): {{"0": "고친 문장", "1": "고친 문장"}}
+
+{body}
+"""
+# 붙은 단어 의심: 한글 6자 이상 연속(예: "사물과가구"는 5자라 연결어미·조사 규칙으로 잡는다)
+_GLUE = re.compile(r"[가-힣]{6,}|[가-힣](과|와|고|며|하고|하며|하여|되어|해서|으로|에서|까지)(?=[가-힣]{2,})[가-힣]")
+
+
+def _squash(t: str) -> str:
+    return re.sub(r"\s+", "", t)
+
+
+def fix_spacing(chunks: list[str], cache: dict[str, str] | None = None) -> list[str]:
+    """붙은 단어가 의심되는 청크만 골라 LLM으로 띄어쓰기를 고친다. cache(원문→고친 문장)로 같은 문장은 다시 부르지 않는다."""
+    cache = {} if cache is None else cache
+    todo = [c for c in dict.fromkeys(chunks) if c not in cache and _GLUE.search(c)]
+    if todo and llm.available():
+        for i in range(0, len(todo), 40):
+            part = todo[i:i + 40]
+            body = "\n".join(f"[{k}] {t}" for k, t in enumerate(part))
+            try:
+                data = llm.ask_json(SPACING_PROMPT.format(body=body), max_tokens=6000)
+            except llm.LLMError:
+                continue
+            if not isinstance(data, dict):
+                continue
+            for k, t in enumerate(part):
+                new = data.get(str(k))
+                if isinstance(new, str) and _squash(new) == _squash(t):
+                    cache[t] = re.sub(r" {2,}", " ", new.strip())
+                else:
+                    cache[t] = t  # 글자가 바뀌었거나 빠졌으면 원문 유지
+    return [cache.get(c, c) for c in chunks]

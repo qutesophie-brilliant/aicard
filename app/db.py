@@ -36,6 +36,16 @@ CREATE TABLE IF NOT EXISTS cards (
   pipeline_meta TEXT DEFAULT '{}',
   updated_at TEXT
 );
+CREATE TABLE IF NOT EXISTS requests (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  url TEXT DEFAULT '', name TEXT DEFAULT '', note TEXT DEFAULT '',
+  status TEXT DEFAULT 'new',          -- new | done | skipped
+  created_at TEXT, product_id INTEGER
+);
+CREATE TABLE IF NOT EXISTS views (
+  day TEXT NOT NULL, path TEXT NOT NULL, n INTEGER DEFAULT 0,
+  PRIMARY KEY (day, path)
+);
 CREATE TABLE IF NOT EXISTS review_log (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   product_id INTEGER, action TEXT, detail TEXT, at TEXT
@@ -121,6 +131,11 @@ def add_document(product_id: int, kind: str, title: str, url: str, text: str,
         return cur.lastrowid
 
 
+def update_document_chunks(doc_id: int, chunks: list[str]) -> None:
+    with connect() as con:
+        con.execute("UPDATE documents SET chunks_json=? WHERE id=?", (json.dumps(chunks, ensure_ascii=False), doc_id))
+
+
 def list_documents(product_id: int) -> list[dict[str, Any]]:
     with connect() as con:
         rows = con.execute("SELECT * FROM documents WHERE product_id=? ORDER BY id",
@@ -155,3 +170,44 @@ def get_card_meta(product_id: int) -> dict[str, Any]:
     with connect() as con:
         r = con.execute("SELECT pipeline_meta FROM cards WHERE product_id=?", (product_id,)).fetchone()
         return json.loads(r["pipeline_meta"]) if r else {}
+
+
+# ---------- 정식 카드 요청 ----------
+def add_request(url: str, name: str, note: str = "") -> int:
+    with connect() as con:
+        cur = con.execute("INSERT INTO requests(url,name,note,status,created_at) VALUES(?,?,?,?,?)",
+                          (url[:500], name[:120], note[:500], "new", now()))
+        return int(cur.lastrowid)
+
+
+def list_requests(status: str | None = None) -> list[dict[str, Any]]:
+    with connect() as con:
+        if status:
+            rows = con.execute("SELECT * FROM requests WHERE status=? ORDER BY id DESC", (status,)).fetchall()
+        else:
+            rows = con.execute("SELECT * FROM requests ORDER BY id DESC").fetchall()
+        return [dict(r) for r in rows]
+
+
+def set_request_status(rid: int, status: str, product_id: int | None = None) -> None:
+    with connect() as con:
+        con.execute("UPDATE requests SET status=?, product_id=COALESCE(?, product_id) WHERE id=?", (status, product_id, rid))
+
+
+def count_requests(status: str = "new") -> int:
+    with connect() as con:
+        return int(con.execute("SELECT COUNT(*) FROM requests WHERE status=?", (status,)).fetchone()[0])
+
+
+# ---------- 방문 수(쿠키·개인정보 없음) ----------
+def count_view(path: str) -> None:
+    day = datetime.now().strftime("%Y-%m-%d")
+    with connect() as con:
+        con.execute("INSERT INTO views(day,path,n) VALUES(?,?,1) ON CONFLICT(day,path) DO UPDATE SET n=n+1", (day, path[:120]))
+
+
+def view_stats(days: int = 30) -> list[dict[str, Any]]:
+    with connect() as con:
+        rows = con.execute("SELECT path, SUM(n) AS n FROM views WHERE day >= date('now', ?) GROUP BY path ORDER BY n DESC",
+                           (f"-{days} days",)).fetchall()
+        return [dict(r) for r in rows]

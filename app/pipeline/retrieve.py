@@ -54,6 +54,20 @@ class ChunkIndex:
         out.sort(key=lambda x: x["score"], reverse=True)
         return out[:k]
 
+    def neighbors(self, doc_id: int, idx: int, span: int = 2) -> list[dict[str, Any]]:
+        """같은 문서에서 앞뒤 span개 청크. 제목형 문구 바로 아래 설명 문장을 근거 후보로 넣기 위해 쓴다."""
+        out = []
+        for d, i, t, k in self.entries:
+            if d == doc_id and i != idx and abs(i - idx) <= span:
+                out.append({"doc_id": d, "chunk": i, "quote": t, "kind": k, "score": 0.0, "near": True})
+        return out
+
+    def footnotes(self) -> list[dict[str, Any]]:
+        """각주 표시(※, *, 1))로 시작하는 청크. 조건·한계가 적혀 있을 때가 많아 근거 후보로 따로 넣는다."""
+        import re
+        return [{"doc_id": d, "chunk": i, "quote": t, "kind": k, "score": 0.0, "foot": True}
+                for d, i, t, k in self.entries if re.match(r"^[※\*†①-⑳]|^\d{1,2}\)", t.strip())]
+
     def by_kind(self, kinds: tuple[str, ...]) -> list[dict[str, Any]]:
         return [{"doc_id": d, "chunk": i, "quote": t, "kind": k}
                 for d, i, t, k in self.entries if k in kinds]

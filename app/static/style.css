@@ -277,7 +277,7 @@ html[data-easy="on"] .claims q { font-weight: 500; }
 
 /* ---- 첫 화면 ---- */
 .eyebrow { font-size: .88rem; font-weight: 600; color: var(--ink-3); margin-bottom: 14px; }
-.hero { padding: 72px 0 0; }
+.hero { padding: 0; }
 .hero-grid { display: grid; grid-template-columns: 1.15fr 1fr; gap: 48px; align-items: start; }
 .hero h1 { padding-top: 6px; font-size: clamp(2.8rem, 5.6vw, 4.8rem); }
 .hero .sub { margin-top: 18px; font-size: clamp(1.1rem, 1.7vw, 1.4rem); font-weight: 600; color: var(--ink-2); letter-spacing: -0.02em; }
@@ -601,9 +601,6 @@ footer.site a { color: var(--ink-3); text-decoration: underline; text-underline-
   .mini { transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease; }
   /* 스크롤 등장 효과는 뺐다(느린 기기에서 빈 화면으로 보임). 내용은 처음부터 보인다. */
   /* 첫 화면: 제목 → 설명 → 입력창 → 쇼핑 화면 순서로 등장 */
-  .hero h1, .hero .sub, .hero-side > * { opacity: 0; animation: rise .7s cubic-bezier(.2,.7,.2,1) forwards; }
-  .hero h1 { animation-delay: .05s } .hero .sub { animation-delay: .2s }
-  .hero-side > :nth-child(1) { animation-delay: .3s } .hero-side > :nth-child(2) { animation-delay: .38s } .hero-side > :nth-child(3) { animation-delay: .46s } .hero-side > :nth-child(4) { animation-delay: .54s } .hero-side > :nth-child(5) { animation-delay: .62s }
   .stage { opacity: 0; animation: rise .8s cubic-bezier(.2,.7,.2,1) .5s forwards; }
   .hero .shop .cp li { opacity: 0; animation: fadein .45s ease forwards; }
   .hero .shop .cp li:nth-child(1) { animation-delay: 1.0s } .hero .shop .cp li:nth-child(2) { animation-delay: 1.2s }
@@ -671,3 +668,30 @@ footer.site a { color: var(--ink-3); text-decoration: underline; text-underline-
 /* 사용성 시험(10/12) 반영: 문구별 조건 꼬리표를 더 눈에 띄게, 머리 숫자 보조 문장 */
 .claims li:not(.s4) .cond:not(.none):not(.has) { border-left: 3px solid var(--navy); padding: 4px 10px; background: var(--navy-soft); border-radius: 0 8px 8px 0; }
 .lb-big .lb-rest { display:block; margin-top:6px; font-weight:400; }
+
+/* ---- 첫 화면(2026-10-13 재설계): 남색 띠 + 카드가 띠 아래로 떠오름 ---- */
+.hero-band { background: radial-gradient(1200px 600px at 85% -10%, #1c4480 0%, var(--navy) 55%, #061c3c 100%); color: #fff; padding: 76px 0 150px; position: relative; overflow: hidden; }
+.hero-band::after { content: ""; position: absolute; inset: 0; background-image: radial-gradient(rgba(255,255,255,.08) 1px, transparent 1px); background-size: 22px 22px; mask-image: linear-gradient(180deg, rgba(0,0,0,.6), transparent 70%); pointer-events: none; }
+.hero-band .wrap { position: relative; z-index: 1; }
+.hero-band .hero-grid { grid-template-columns: 1.25fr .85fr; gap: 56px; align-items: end; }
+.hero-kicker { font-size: .92rem; font-weight: 700; letter-spacing: .02em; color: rgba(255,255,255,.72); margin-bottom: 18px; }
+.hero-band h1 { color: #fff; font-size: clamp(2.3rem, 4.8vw, 4rem); line-height: 1.12; letter-spacing: -0.04em; font-weight: 800; padding-top: 0; }
+.hero-band .sub { color: rgba(255,255,255,.82); font-weight: 500; font-size: clamp(1.02rem, 1.4vw, 1.2rem); line-height: 1.7; max-width: 46ch; margin-top: 20px; }
+.hero-band .urlform { margin-top: 28px; }
+.hero-band .urlform input { background: #fff; color: var(--ink); border-color: transparent; }
+.hero-band .urlform .btn.primary { background: #fff; color: var(--navy); border-color: #fff; }
+.hero-band .urlform .btn.primary:hover { background: #eef2fa; }
+.hero-band .alt { color: rgba(255,255,255,.66); }
+.hero-band .alt a { color: #fff; text-decoration: underline; text-underline-offset: 3px; }
+.hero-band .alt .bm { background: rgba(255,255,255,.1); border-color: rgba(255,255,255,.4); color: #fff; }
+.hero-stats { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+.hero-stats li { background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.14); border-radius: 14px; padding: 16px 18px; display: grid; grid-template-columns: auto 1fr; gap: 14px; align-items: center; backdrop-filter: blur(4px); }
+.hero-stats b { font-size: 2.1rem; font-weight: 800; letter-spacing: -0.04em; line-height: 1; color: #fff; }
+.hero-stats b small { font-size: 1rem; font-weight: 600; color: rgba(255,255,255,.7); margin-left: 2px; }
+.hero-stats span { font-size: .9rem; line-height: 1.45; color: rgba(255,255,255,.78); }
+.hero .stage { margin-top: -110px; }
+.hero .shop { box-shadow: 0 30px 80px rgba(3, 18, 45, .35); }
+.shop-cap { text-align: center; color: var(--ink-3); font-size: .9rem; margin-top: 16px; }
+@media (max-width: 1000px) { .hero-band .hero-grid { grid-template-columns: 1fr; gap: 28px; } .hero-stats { grid-template-columns: repeat(3, 1fr); } .hero-stats li { grid-template-columns: 1fr; gap: 6px; } }
+@media (max-width: 760px) { .hero-band { padding: 44px 0 96px; } .hero-stats { grid-template-columns: 1fr; gap: 8px; } .hero-stats li { grid-template-columns: auto 1fr; } .hero .stage { margin-top: -64px; } .hero-band h1 br { display: none; } }
+@media (prefers-reduced-motion: no-preference) { .hero-band h1, .hero-band .sub, .hero-band .urlform, .hero-band .alt, .hero-stats li { opacity: 0; animation: rise .7s cubic-bezier(.2,.7,.2,1) forwards; } .hero-band .sub { animation-delay: .12s } .hero-band .urlform { animation-delay: .22s } .hero-band .alt { animation-delay: .3s } .hero-stats li:nth-child(1) { animation-delay: .25s } .hero-stats li:nth-child(2) { animation-delay: .35s } .hero-stats li:nth-child(3) { animation-delay: .45s } }

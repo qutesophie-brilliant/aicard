@@ -2,6 +2,8 @@
 
 모든 호출은 JSON 응답을 요구하고, 파싱 실패 시 한 번 재시도한다.
 """
+import contextvars
+from contextlib import contextmanager
 import base64
 import json
 import os
@@ -23,7 +25,22 @@ class LLMError(RuntimeError):
     pass
 
 
+_force_rules: contextvars.ContextVar[bool] = contextvars.ContextVar("aicard_force_rules", default=False)
+
+
+@contextmanager
+def rules_only():
+    """이 블록 안에서는 LLM을 부르지 않고 규칙 판정만 쓴다(즉석 확인용, 크레딧 0)."""
+    token = _force_rules.set(True)
+    try:
+        yield
+    finally:
+        _force_rules.reset(token)
+
+
 def provider() -> str:
+    if _force_rules.get():
+        return "rules"
     return config.LLM_PROVIDER
 
 
@@ -88,7 +105,7 @@ def _gemini_call(prompt: str, images: list[bytes] | None, max_tokens: int) -> st
     body = {
         "systemInstruction": {"parts": [{"text": SYSTEM_PROMPT}]},
         "contents": [{"role": "user", "parts": parts}],
-        "generationConfig": {"maxOutputTokens": max(max_tokens, 4096), "temperature": 0.1,
+        "generationConfig": {"maxOutputTokens": min(max(max_tokens * 2, 8192), 32768), "temperature": 0.0,  # 생각 토큰도 이 한도에 포함되므로 넉넉히
                              "responseMimeType": "application/json"},
     }
     combos = [(ep, m) for ep in config.GEMINI_ENDPOINTS for m in config.GEMINI_MODELS

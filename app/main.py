@@ -256,7 +256,12 @@ def index(request: Request):
     cat_counts = _C((r["product"].get("category") or "제품") for r in cards if not r["product"].get("is_sample"))
     cat_line = ", ".join(f"{k} {v}종" for k, v in sorted(cat_counts.items(), key=lambda kv: -kv[1])) or f"제품 {len(cards)}종"
     base = _public_base(request)
-    return render(request, "index.html", cards=cards, example=example, makers=makers, cat_line=cat_line,
+    real_cards = [r for r in cards if not r["product"].get("is_sample")]
+    hero = {"products": len(real_cards), "cats": len(cat_counts),
+            "claims": sum(r["sum"]["n_claims"] for r in real_cards),
+            "linked": sum(r["sum"]["linked"] for r in real_cards),
+            "optout_missing": sum(1 for r in real_cards if (r["card"].get("items", {}).get("optout", {}) or {}).get("status") == "자료 부족")}
+    return render(request, "index.html", cards=cards, example=example, makers=makers, cat_line=cat_line, hero=hero,
                   bookmarklet=_bookmarklet(base, "/check/receive"))
 
 

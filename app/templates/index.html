@@ -5,21 +5,24 @@
 {% block content %}
 
 <section class="hero">
-  <div class="wrap hero-grid">
-    <div>
-      <h1>‘AI’ 표시, 근거까지 한 장에</h1>
-      <p class="sub">‘AI’라고 적은 문구마다 회사가 공개한 설명서와 각주를 찾아 붙여 둔 카드예요.</p>
-    </div>
-    <div class="hero-side">
-      <p class="eyebrow">서비스 제작 동기</p>
-      <p class="lede">소비자 10명 중 7명은 어떤 제품이 실제로 AI를 쓰는지 가려내기 어렵다고 답했어요. 2025년에는 온라인몰 가전의 ‘AI’ 표시 20건이 과장이나 조건 누락으로 시정됐어요. 근거와 조건은 각주와 설명서에 흩어져 있어서 쇼핑 중에 다 찾아 읽기 어려워요.</p>
-      <p class="lede">지금까지 {{ cat_line }}을 확인했어요. 목록에 없는 제품은 판매페이지 주소나 캡처로 바로 확인할 수 있어요.</p>
-      <form class="urlform" method="post" action="/check">
-        <label class="sr" for="hero-url">판매페이지 주소</label>
-        <input id="hero-url" type="url" name="url" placeholder="판매페이지 주소를 붙여 넣으세요" required>
-        <button class="btn primary" type="submit">바로 확인</button>
-      </form>
-      <p class="alt">쇼핑몰이 주소 접근을 막으면 <a href="/check">상세페이지 캡처(JPG·PNG·PDF)를 올려서</a> 확인할 수 있어요.<span class="desk-only"> 또는 이 버튼을 즐겨찾기 막대에 끌어다 놓고 제품 페이지에서 누르세요: <a class="bm" href="{{ bookmarklet }}" onclick="return false" title="이 버튼을 즐겨찾기 막대로 끌어다 놓으세요">AI 정보카드로 확인</a></span></p>
+  <div class="hero-band">
+    <div class="wrap hero-grid">
+      <div class="hero-copy">
+        <p class="hero-kicker">가전 ‘AI’ 표시 확인 서비스</p>
+        <h1>‘AI’라고 적혀 있다면,<br>근거부터 확인하세요.</h1>
+        <p class="sub">판매페이지의 ‘AI’ 문구마다 회사가 공개한 설명서·각주에서 작동 설명과 조건을 찾아 한 장의 카드로 보여 줘요. 점수나 등급은 매기지 않아요.</p>
+        <form class="urlform" method="post" action="/check">
+          <label class="sr" for="hero-url">판매페이지 주소</label>
+          <input id="hero-url" type="url" name="url" placeholder="판매페이지 주소를 붙여 넣으세요" required>
+          <button class="btn primary" type="submit">바로 확인</button>
+        </form>
+        <p class="alt">쇼핑몰이 주소 접근을 막으면 <a href="/check">캡처(JPG·PNG·PDF)를 올려서</a> 확인할 수 있어요.<span class="desk-only"> 또는 이 버튼을 즐겨찾기 막대에 끌어다 놓고 제품 페이지에서 누르세요: <a class="bm" href="{{ bookmarklet }}" onclick="return false" title="이 버튼을 즐겨찾기 막대로 끌어다 놓으세요">AI 정보카드로 확인</a></span></p>
+      </div>
+      <ul class="hero-stats" aria-label="지금까지 확인한 것">
+        <li><b>{{ hero.products }}<small>장</small></b><span>검토자가 원문을 확인한 카드<br>{{ hero.cats }}개 품목</span></li>
+        <li><b>{{ hero.claims }}<small>개</small></b><span>‘AI’라고 적은 문구<br>그중 {{ hero.linked }}개에 작동 설명</span></li>
+        <li><b>{{ hero.optout_missing }}<small>/{{ hero.products }}</small></b><span>AI 기능 끄는 방법이<br>공개자료에 없는 제품</span></li>
+      </ul>
     </div>
   </div>
 
@@ -45,7 +48,7 @@
         </a>
       </div>
     </div>
-    <p class="shop-cap">카드 내용은 실제 데이터이고, 쇼핑 화면은 예시예요.</p>
+    <p class="shop-cap">왼쪽은 판매페이지 예시 화면, 오른쪽 카드는 실제 데이터예요. 즐겨찾기 버튼 하나로 이렇게 떠요.</p>
   </div>
   {% endif %}
 
@@ -57,9 +60,10 @@
 <section class="sec">
   <div class="wrap two-col">
     <div class="rv">
-      <p class="eyebrow">서비스 소개</p>
-      <h2>카드가<br>보여 주는 것</h2>
-      <p class="lede">회사가 공개한 자료에 적힌 내용을 옮겨 적고, 그 설명이 얼마나 자세한지 보여 줘요. 점수나 등급은 없어요.</p>
+      <p class="eyebrow">서비스 제작 동기</p>
+      <h2>‘AI’ 표시는 늘었는데,<br>근거는 각주에 숨어 있어요</h2>
+      <p class="lede">소비자 10명 중 7명은 어떤 제품이 실제로 AI를 쓰는지 가려내기 어렵다고 답했어요(공정위·소비자원 2025년 조사). 2025년에는 온라인몰 가전의 ‘AI’ 표시 20건이 과장이나 조건 누락으로 시정됐어요. 근거와 조건은 각주와 설명서에 흩어져 있어서 쇼핑 중에 다 찾아 읽기 어려워요.</p>
+      <p class="lede">그래서 카드는 회사가 공개한 자료에 적힌 내용을 그대로 옮겨 적고, 그 설명이 얼마나 자세한지 보여 줘요. 점수나 등급은 없어요.</p>
     </div>
     <ul class="plain rv">
       <li><b>회사가 공개한 자료만으로 확인해요</b><span>판매페이지, 각주, 설명서, 공공 데이터베이스에 적힌 내용을 대조해요. 자료에 없는 내용은 AI가 추측해서 채우지 않아요.</span></li>
