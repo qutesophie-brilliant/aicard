@@ -398,13 +398,27 @@ async def api_ingest(request: Request, background: BackgroundTasks):
     return _ingest_data(request, background, data)
 
 
+_capture_keys: dict[str, float] = {}
+
+
+@app.get("/capture/key")
+def capture_key(request: Request, _=Depends(require_reviewer)):
+    """다른 사이트에서 폼 전송으로 수집할 때 쓰는 임시 열쇠(2시간). 쿠키는 다른 사이트에서 오는 전송에 실리지 않는다."""
+    import secrets, time as _t
+    k = secrets.token_urlsafe(16)
+    _capture_keys[k] = _t.time() + 7200
+    return {"key": k}
+
+
 @app.post("/capture/form")
 async def capture_form(request: Request, background: BackgroundTasks, name: str = Form(""), maker: str = Form(""),
                        model: str = Form(""), category: str = Form(""), url: str = Form(""),
                        sales_text: str = Form(""), fine_text: str = Form(""), image_urls: str = Form(""),
-                       force: str = Form("")):
+                       force: str = Form(""), key: str = Form("")):
     """외부 판매페이지에서 폼 전송으로 넘어오는 수집(팝업·fetch가 막힌 브라우저용). 결과를 글자로 보여 준다."""
-    require_reviewer(request)
+    import time as _t
+    if not (key and _capture_keys.get(key, 0) > _t.time()):
+        require_reviewer(request)
     data = {"name": name, "maker": maker, "model": model, "category": category, "url": url,
             "sales_text": sales_text, "fine_text": fine_text,
             "image_urls": [u.strip() for u in image_urls.splitlines() if u.strip()], "force": force == "true"}
