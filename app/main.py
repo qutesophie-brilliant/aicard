@@ -223,7 +223,7 @@ def index(request: Request):
     from collections import Counter as _C
     cat_counts = _C((r["product"].get("category") or "제품") for r in cards if not r["product"].get("is_sample"))
     cat_line = ", ".join(f"{k} {v}종" for k, v in sorted(cat_counts.items(), key=lambda kv: -kv[1])) or f"제품 {len(cards)}종"
-    base = str(request.base_url).rstrip("/")
+    base = _public_base(request)
     return render(request, "index.html", cards=cards, example=example, makers=makers, cat_line=cat_line,
                   bookmarklet=_bookmarklet(base, "/check/receive"))
 
@@ -375,7 +375,7 @@ async def api_ingest(request: Request, background: BackgroundTasks):
         raise HTTPException(400, "본문 글자를 받지 못했습니다.")
     db.set_product_status(pid, "draft", "카드 생성 중")
     background.add_task(_ocr_then_build, pid, image_urls, name, url)
-    base = str(request.base_url).rstrip("/")
+    base = _public_base(request)
     return {"id": pid, "review_url": f"{base}/review/{pid}", "status": "building"}
 
 
@@ -420,7 +420,7 @@ def _match_published(url: str) -> dict[str, Any] | None:
 
 @app.get("/check", response_class=HTMLResponse)
 def check_page(request: Request, q: str = ""):
-    base = str(request.base_url).rstrip("/")
+    base = _public_base(request)
     return render(request, "check.html", base=base, bookmarklet=_bookmarklet(base, "/check/receive"),
                   error=None, url="", q=q.strip()[:80])
 
@@ -431,7 +431,7 @@ async def check_url(request: Request, url: str = Form(""), text: str = Form(""),
     ip = request.client.host if request.client else "?"
     if not _rate_ok(ip):
         raise HTTPException(429, "잠시 뒤 다시 시도해 주세요.")
-    base = str(request.base_url).rstrip("/")
+    base = _public_base(request)
     bm = _bookmarklet(base, "/check/receive")
     url = url.strip()
     text = text.strip()
@@ -518,8 +518,14 @@ async def api_check(request: Request):
     data = await request.json()
     name = (data.get("title") or "").split("|")[0].strip()[:60] or "제품"
     url = (data.get("url") or "")[:500]
+    hit = _match_published(url)
+    if hit:
+        # 검토자가 확인한 카드가 있으면 즉석 분석 대신 그 카드로 보낸다
+        return HTMLResponse(f'<script>location.replace("/card/{hit["id"]}?from=check")</script>'
+                            f'<p class="lede">이 제품은 이미 검토자가 확인한 카드가 있어요. <a href="/card/{hit["id"]}?from=check">카드 보기</a></p>')
+    use_llm = config.CHECK_LLM and _rate_ok(ip + ":llm", limit=config.CHECK_LLM_PER_HOUR)
     try:
-        card, docs = quick_check(name, url, data.get("sales_text", ""), data.get("fine_text", ""))
+        card, docs = quick_check(name, url, data.get("sales_text", ""), data.get("fine_text", ""), use_llm=use_llm)
     except ValueError as e:
         raise HTTPException(400, str(e))
     return templates.TemplateResponse(request, "_check_body.html",
@@ -545,9 +551,19 @@ def capture_receive(request: Request, _=Depends(require_reviewer)):
 
 @app.get("/capture", response_class=HTMLResponse)
 def capture_help(request: Request, _=Depends(require_reviewer)):
-    base = str(request.base_url).rstrip("/")
+    base = _public_base(request)
     return render(request, "capture.html", base=base, bookmarklet=_bookmarklet(base))
 
+
+
+def _public_base(request: Request) -> str:
+    """바깥에서 보이는 주소. Render 같은 프록시 뒤에서는 base_url이 http로 잡히므로 X-Forwarded-Proto를 따른다."""
+    base = _public_base(request)
+    proto = request.headers.get("x-forwarded-proto", "").split(",")[0].strip()
+    host = request.headers.get("x-forwarded-host", "").split(",")[0].strip() or request.url.hostname or ""
+    if proto == "https" or (host and not host.startswith(("localhost", "127.0.0.1")) and base.startswith("http://")):
+        base = "https://" + base.split("://", 1)[1]
+    return base
 
 def _bookmarklet(base: str, receive: str = "/capture/receive") -> str:
     """쇼핑몰 페이지에서 실행되는 북마클릿.

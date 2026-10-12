@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}바로 확인 중 | AI 정보카드{% endblock %}
+{% block content %}
+<section class="page-head" id="wait">
+  <h1>제품 페이지를 받는 중이에요</h1>
+  <p class="lede" id="msg">쇼핑몰 창에서 글이 도착하면 바로 결과가 나와요. 몇 초 걸릴 수 있어요.</p>
+</section>
+<div id="out" class="narrow"></div>
+<script>
+(function(){
+  window.addEventListener('message', async (e) => {
+    if (!e.data || e.data.type !== 'aicard-capture') return;
+    document.getElementById('msg').textContent = '받았어요. 확인하는 중…';
+    const r = await fetch('/api/check', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(e.data)});
+    if (!r.ok) { document.getElementById('msg').textContent = '확인하지 못했어요. 잠시 뒤 다시 눌러 주세요. (' + r.status + ')'; return; }
+    const html = await r.text();
+    const m = html.match(/location\.replace\("([^"]+)"\)/); if (m) { location.replace(m[1]); return; }
+    document.getElementById('out').innerHTML = html;
+    document.getElementById('wait').hidden = true;
+  });
+  if (window.opener) window.opener.postMessage('aicard-ready', '*');
+})();
+</script>
+{% endblock %}
