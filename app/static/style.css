@@ -538,7 +538,7 @@ footer.site a { color: var(--ink-3); text-decoration: underline; text-underline-
   .menu-in { grid-template-columns: 1fr; padding-top: 96px; gap: 28px; }
   .menu nav a { padding: 16px 0; }
   .brand span { display: none; }
-  .hero { padding-top: 40px; }
+  .hero { padding-top: 0; }
   .hero-grid { grid-template-columns: 1fr; gap: 24px; }
   .hero .lede { max-width: none; font-size: 1rem; }
   .urlform { max-width: none; }
