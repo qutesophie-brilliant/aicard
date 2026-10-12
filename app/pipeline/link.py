@@ -863,8 +863,14 @@ _EVID = re.compile(r"(센서|카메라|라이다|LiDAR|ToF|구조광|레이저|�
 
 def _link_rules(claim: dict[str, Any], cands: list[dict[str, Any]]) -> None:
     """키 없는 데모 모드. 설명서·사양표 문장 중 수치·부품 표현이 있으면 근거로 본다."""
-    ev = [c for c in cands if (c["kind"] in ("설명서", "사양표", "공공DB", "공식 자료") or c.get("near") or c.get("self"))
-          and _EVID.search(c["quote"])][:3]
+    # 규칙만으로는 '설명'을 너그럽게 잡기 쉽다(분·시간·% 같은 수치만으로 인정). 센서·방식·학습 데이터처럼
+    # 어떻게 작동하는지 말하는 문장이거나, 조건·한계 문장일 때만 관련 문장으로 본다.
+    pool = [c for c in cands if (c["kind"] in ("설명서", "사양표", "공공DB", "공식 자료") or c.get("near") or c.get("self") or c.get("adjacent") or c.get("joined"))
+            and not _BOILER.search(c["quote"]) and not _TESTCOND.search(c["quote"])]
+    ev = [c for c in pool if _MECH.search(c["quote"]) or _PROC_V.search(c["quote"]) or _SENSOR_SPEC.search(c["quote"])
+          or _LEARN_EVID.search(c["quote"]) or self_describes(c["quote"])][:3]
+    if not ev:
+        ev = [c for c in pool if _is_cond(c["quote"])][:2]
     cond = next((c["quote"] for c in cands if _COND.search(c["quote"])), "")
     basis_state = "있음" if ev else "없음"
     conditions_noted = bool(ev and cond)

@@ -572,7 +572,13 @@ def _bookmarklet(base: str, receive: str = "/capture/receive") -> str:
     주소라서 자기 서버로 저장할 수 있다."""
     js = (
         "(()=>{"
-        "const L=document.body.innerText.split('\\n').map(s=>s.trim()).filter(s=>s.length>1);"
+        # 상품평·메뉴·추천 상품 영역은 글자를 읽기 전에 뺀다(상품평 문장이 'AI 표시 문구'로 잡히는 것을 막는다)
+        "const X=/review|rating|comment|reply|gnb|lnb|header|footer|nav|breadcrumb|recommend|related|cross-?sell|bundle|cart|chat|modal|popup|layer|cookie/i;"
+        # 복제본은 레이아웃이 없어 줄바꿈이 사라지므로, 실제 화면에서 잠깐 감추고 innerText를 읽은 뒤 되돌린다
+        "const H=[];document.querySelectorAll('nav,header,footer,aside,iframe,*[class],*[id]').forEach(n=>{const k=n.tagName.toLowerCase()+' '+(typeof n.className==='string'?n.className:'')+' '+(n.id||'');"
+        "if(/^(nav|header|footer|aside|iframe)\\b/.test(k)||X.test(k)){if(n.style.display!=='none'){H.push([n,n.style.display]);n.style.display='none';}}});"
+        "const T=(document.querySelector('main')||document.body).innerText;H.forEach(([n,d])=>n.style.display=d);"
+        "const L=T.split('\\n').map(s=>s.trim()).filter(s=>s.length>1);"
         "const J=/쿠폰|장바구니|구매하기|로그인|혜택|무이자|배송|포인트|리뷰|평점|이벤트|공유하기|위시리스트|비교하기|결제|구독|슬라이드|별점|좋아요|^[0-9][0-9,]*$|원 ~$|상담 예약|더보기|자세히 보기|신청/;"
         "const F=/^\\*|^※|^-|기준|측정|조건|환경에 따라|다를 수|않을 수|않습니다|한정|유의|주의|인증|시험|평가|필요합니다|설정이 필요/;"
         "const K=L.filter(s=>!J.test(s));const S=[],P=[];K.forEach(s=>(F.test(s)?P:S).push(s));"
