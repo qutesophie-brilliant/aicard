@@ -667,3 +667,7 @@ footer.site a { color: var(--ink-3); text-decoration: underline; text-underline-
 /* 비교표 머리말 — 우열 비교가 아님을 먼저 밝힌다 */
 .cmp-note{margin:0 0 18px;padding:11px 14px;font-size:.95rem;line-height:1.6;
   color:var(--ink-2,#4a5568);background:var(--tint,#f4f6fa);border-radius:6px}
+
+/* 사용성 시험(10/12) 반영: 문구별 조건 꼬리표를 더 눈에 띄게, 머리 숫자 보조 문장 */
+.claims li:not(.s4) .cond:not(.none):not(.has) { border-left: 3px solid var(--navy); padding: 4px 10px; background: var(--navy-soft); border-radius: 0 8px 8px 0; }
+.lb-big .lb-rest { display:block; margin-top:6px; font-weight:400; }
