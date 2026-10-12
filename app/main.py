@@ -709,15 +709,15 @@ def _lines(s: str) -> list[str]:
 
 # ---------- 검토자 ----------
 @app.get("/review/login", response_class=HTMLResponse)
-def review_login(request: Request, bad: int = 0):
-    return render(request, "review_login.html", bad=bool(bad))
+def review_login(request: Request, bad: int = 0, next: str = ""):
+    return render(request, "review_login.html", bad=bool(bad), next=next if next.startswith("/review") else "")
 
 
 @app.post("/review/login")
-def review_login_post(request: Request, token: str = Form("")):
+def review_login_post(request: Request, token: str = Form(""), next: str = Form("")):
     if config.REVIEW_TOKEN and token.strip() != config.REVIEW_TOKEN:
         return RedirectResponse("/review/login?bad=1", status_code=303)
-    resp = RedirectResponse("/review", status_code=303)
+    resp = RedirectResponse(next if next.startswith("/review") else "/review", status_code=303)
     if config.REVIEW_TOKEN:
         resp.set_cookie("aicard_token", config.REVIEW_TOKEN, httponly=True, samesite="lax", max_age=60 * 60 * 24 * 30)
     return resp
@@ -832,8 +832,10 @@ def review_blind_json(pid: int, _=Depends(require_reviewer)):
                         headers={"Cache-Control": "no-store"})
 
 @app.get("/review/queue", response_class=HTMLResponse)
-def review_queue(request: Request, _=Depends(require_reviewer)):
+def review_queue(request: Request):
     """검토 대기 카드를 문구·근거 문장까지 펼쳐 한 화면에서 훑고 한꺼번에 승인·보류한다."""
+    if not is_reviewer(request):
+        return RedirectResponse("/review/login?next=/review/queue", status_code=303)
     from .schema import effective_status
     approved_models = {(p.get("model") or "").strip().lower(): p["id"] for p in db.list_products("approved")}
     rows = []
