@@ -1,0 +1,221 @@
+const fs = require('fs');
+const {
+  Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, WidthType,
+  AlignmentType, HeadingLevel, PageBreak, BorderStyle, ShadingType, LevelFormat,
+} = require('docx');
+
+const FONT = 'Malgun Gothic';
+const base = { font: FONT, size: 21 }; // 10.5pt
+const P = (text, opt = {}) => new Paragraph({
+  spacing: { after: opt.after ?? 100, line: 300 },
+  alignment: opt.align,
+  children: [new TextRun({ ...base, text, bold: opt.bold, size: opt.size ?? base.size, color: opt.color })],
+});
+const H1 = (t) => new Paragraph({ heading: HeadingLevel.HEADING_1, spacing: { before: 0, after: 160 }, children: [new TextRun({ font: FONT, text: t, bold: true, size: 32 })] });
+const H2 = (t) => new Paragraph({ heading: HeadingLevel.HEADING_2, spacing: { before: 240, after: 100 }, children: [new TextRun({ font: FONT, text: t, bold: true, size: 24 })] });
+const bullet = (t) => new Paragraph({ numbering: { reference: 'b', level: 0 }, spacing: { after: 60, line: 300 }, children: [new TextRun({ ...base, text: t })] });
+const num = (t) => new Paragraph({ numbering: { reference: 'n', level: 0 }, spacing: { after: 60, line: 300 }, children: [new TextRun({ ...base, text: t })] });
+const br = () => new Paragraph({ children: [new PageBreak()] });
+const blank = () => P('', { after: 60 });
+
+const border = { style: BorderStyle.SINGLE, size: 6, color: '555555' };
+const borders = { top: border, bottom: border, left: border, right: border };
+function cell(text, w, opt = {}) {
+  return new TableCell({
+    width: { size: w, type: WidthType.DXA },
+    borders,
+    shading: opt.head ? { type: ShadingType.CLEAR, fill: 'E8E8E8', color: 'auto' } : undefined,
+    margins: { top: 60, bottom: 60, left: 80, right: 80 },
+    verticalAlign: 'center',
+    children: [new Paragraph({ spacing: { after: 0, line: 280 }, alignment: opt.align, children: [new TextRun({ ...base, text, bold: opt.head || opt.bold, size: opt.size ?? 20 })] })],
+  });
+}
+function table(widths, rows, opts = {}) {
+  return new Table({
+    columnWidths: widths,
+    width: { size: widths.reduce((a, b) => a + b, 0), type: WidthType.DXA },
+    rows: rows.map((r, i) => new TableRow({
+      height: opts.rowHeight && i > 0 ? { value: opts.rowHeight, rule: 'atLeast' } : undefined,
+      children: r.map((c, j) => cell(c, widths[j], { head: i === 0 && !opts.noHead, align: opts.center && j > 0 ? AlignmentType.CENTER : undefined })),
+    })),
+  });
+}
+
+const W = 9640; // A4 content width with 2cm margins approx (11906-2*1134)
+
+// ---------- 0. 표지/안내 ----------
+const cover = [
+  H1('AI 정보카드 소비자 사용성 시험 — 진행 키트'),
+  P('가설 2·3 검증(소비자 핵심정보 발견율 전후 비교). 한 사람당 15분. 이 키트는 eval/usability_protocol.md를 현장에서 그대로 쓸 수 있게 종이 양식으로 옮긴 것이다.', { after: 160 }),
+  H2('구성'),
+  num('진행자 대본 — 진행자가 읽는 순서와 말'),
+  num('참여 동의서 — 참여자 1명당 1장, 서명 후 보관'),
+  num('기록표 — 참여자 1명당 1장'),
+  num('정답지 — 제품 A·B 5문항 정답, 진행자만 본다'),
+  num('집계표 — 끝난 뒤 보고 지표 4개를 계산'),
+  H2('준비물'),
+  bullet('제품 A·B 원본 상세페이지 출력물(또는 태블릿 화면) 각 1부'),
+  bullet('제품 A·B AI 정보카드 화면(태블릿·노트북) — 60대 이상은 ‘쉬운 말’ 버튼을 켠 화면'),
+  bullet('스톱워치(휴대전화), 펜, 동의서·기록표 인쇄본 참여자 수만큼'),
+  H2('배정 규칙'),
+  bullet('제품: 참여자 번호 홀수 → 제품 A, 짝수 → 제품 B'),
+  bullet('순서: P1·P2·P5·P6·P9·P10은 원본 먼저, P3·P4·P7·P8은 카드 먼저 (순서 효과 상쇄)'),
+  bullet('60대 이상 참여자는 카드 단계에서 쉬운 말 모드를 켜고, 기록표 ‘쉬운 말 사용’에 ‘예’'),
+  H2('지켜야 할 것'),
+  bullet('어느 제품이 좋은지 묻지 않는다. 묻는 것은 ‘정보를 찾았는가’뿐이다.'),
+  bullet('녹음·녹화 없이 관찰 기록만 한다. 이름 대신 번호(P1, P2…)로 적는다.'),
+  bullet('문항당 90초. 90초가 지나면 “다음으로 넘어갈게요”라고 하고 ‘포기’에 표시한다.'),
+  bullet('보고서에 결과를 쓸 때 참여자 수(n)를 반드시 함께 적는다.'),
+  br(),
+];
+
+// ---------- 1. 진행자 대본 ----------
+const script = [
+  H1('1. 진행자 대본 (15분)'),
+  H2('0:00 인사와 설명 (2분)'),
+  P('“안녕하세요, 시간 내주셔서 감사합니다. 저는 가전제품 설명 자료가 소비자에게 얼마나 잘 읽히는지 알아보는 작은 조사를 하고 있어요. 오늘은 제품 자료 두 가지를 보시고 제가 드리는 질문 다섯 개의 답을 자료에서 찾아 주시면 됩니다. 시험이 아니라 자료를 평가하는 거라서, 못 찾으셔도 괜찮아요. 그건 자료가 불친절하다는 뜻이에요.”'),
+  P('“15분 정도 걸리고, 녹음이나 녹화는 하지 않아요. 성함도 적지 않고 번호로만 기록합니다. 중간에 그만두고 싶으시면 언제든 말씀해 주세요.”'),
+  P('→ 동의서를 드리고 서명을 받는다. 기록표 상단(번호·연령대·제품·순서)을 채운다.'),
+  H2('2:00 첫 번째 자료 (5분)'),
+  P('“먼저 이 자료를 보실게요. 제가 질문을 드리면 자료 안에서 답을 찾아 말씀해 주세요. 한 질문에 1분 반 정도 드리고, 그 안에 못 찾으시면 다음으로 넘어갈게요.”'),
+  P('→ 배정된 순서대로 원본 또는 카드를 보여 준다. 질문마다 스톱워치를 켜고, 답이 나오면 멈춰서 초를 적는다. 참여자가 말한 답을 그대로 적는다(맞고 틀림은 나중에 정답지로 채점).'),
+  table([700, 6400, 2540], [
+    ['#', '질문(그대로 읽는다)', '카드에서의 위치'],
+    ['1', '이 제품이 ‘AI’라고 적은 기능은 몇 가지인가요?', '머리 숫자'],
+    ['2', '그 가운데 설명서에 근거가 있는 기능은 몇 가지인가요?', '머리 숫자·■◪ 표시'],
+    ['3', 'AI 기능이 잘 안 될 수 있는 상황이 적혀 있나요? 있다면 하나만 말해 주세요.', '작동 조건·한계'],
+    ['4', 'AI 기능을 끌 수 있나요?', '기능 해제와 대체모드'],
+    ['5', '문제가 생기면 어디로 연락하나요?', '피해구제'],
+  ]),
+  blank(),
+  P('※ 참여자가 “몰라요”, “없는 것 같아요”라고 하면 그대로 적고 시간을 멈춘다. 힌트를 주지 않는다.'),
+  H2('7:00 두 번째 자료 (5분)'),
+  P('“이번에는 같은 제품의 다른 자료예요. 같은 질문 다섯 개를 다시 드릴게요.”'),
+  P('→ 60대 이상이면 카드 화면에서 ‘쉬운 말’ 버튼을 눌러 준 뒤 시작한다. 같은 방식으로 기록한다.'),
+  H2('12:00 소감 한 줄 (2분)'),
+  P('“두 자료를 보신 소감을 한 줄만 말씀해 주세요. 어느 쪽이 좋다가 아니라, 찾기가 어땠는지요.”'),
+  P('→ 기록표 ‘한 줄 소감’에 적는다. 이어서 카드의 ‘자료 부족’ 표시를 가리키며 묻는다:'),
+  P('“이 표시는 무슨 뜻으로 보이셨어요?” → ‘제품이 나쁘다’는 뜻으로 받아들였으면 기록표 마지막 칸에 ‘예’. (목표 0명. 있으면 문구를 고친다.)'),
+  H2('14:00 마무리'),
+  P('“여기까지입니다. 도움 많이 됐어요. 감사합니다.” → 동의서·기록표를 번호별로 묶어 보관한다.'),
+  br(),
+];
+
+// ---------- 2. 동의서 ----------
+const consent = [
+  H1('2. 참여 동의서'),
+  P('조사 이름: 가전제품 AI 기능 설명 자료의 읽기 쉬움 조사', { after: 160 }),
+  P('이 조사는 가전제품의 AI 기능 설명 자료 두 가지를 보고 다섯 가지 정보를 찾는 활동입니다. 자료가 소비자에게 얼마나 잘 읽히는지를 알아보는 것이 목적이며, 참여자를 평가하는 것이 아닙니다.', { after: 160 }),
+  bullet('소요 시간은 15분 안팎입니다.'),
+  bullet('녹음·녹화는 하지 않습니다. 진행자가 답과 걸린 시간만 종이에 적습니다.'),
+  bullet('이름은 기록하지 않고 참여 번호(P1, P2…)와 연령대만 남깁니다.'),
+  bullet('결과는 참여자 여러 명의 수치를 합쳐서만 쓰이며, 개인을 알아볼 수 있는 형태로는 쓰이지 않습니다.'),
+  bullet('참여는 자유이며, 중간에 언제든 이유 없이 그만둘 수 있습니다. 그만두어도 불이익이 없습니다.'),
+  blank(),
+  P('위 내용을 읽고 이해했으며, 조사에 참여하는 데 동의합니다.', { bold: true, after: 300 }),
+  table([2400, 7240], [
+    ['참여 번호', 'P      '],
+    ['연령대', '□ 20대  □ 30대  □ 40대  □ 50대  □ 60대 이상'],
+    ['날짜', '2026년      월      일'],
+    ['참여자 서명', ''],
+    ['진행자 서명', ''],
+  ], { noHead: true, rowHeight: 560 }),
+  blank(),
+  P('진행자 연락처: ____________________ (문의가 있으면 언제든 연락해 주세요)', { size: 19 }),
+  br(),
+];
+
+// ---------- 3. 기록표 ----------
+const qShort = ['AI 기능 몇 가지', '근거 있는 기능 몇 가지', '잘 안 되는 상황', 'AI 끌 수 있나', '연락처'];
+function recordBlock(label) {
+  const rows = [['#', '질문', '참여자가 말한 답', '정오', '초', '포기']];
+  qShort.forEach((q, i) => rows.push([String(i + 1), q, '', '', '', '□']));
+  rows.push(['', '합계', '', '    / 5', '', '']);
+  return [
+    H2(label),
+    table([500, 2300, 4240, 900, 800, 900], rows, { rowHeight: 520 }),
+    blank(),
+  ];
+}
+const record = [
+  H1('3. 기록표 (참여자 1명 = 1장)'),
+  table([1500, 1800, 1500, 1800, 1500, 1540], [
+    ['참여 번호', 'P', '연령대', '', '제품', '□ A  □ B'],
+    ['순서', '□ 원본 먼저  □ 카드 먼저', '쉬운 말 사용', '□ 예  □ 아니오', '날짜', ''],
+  ], { noHead: true, rowHeight: 500 }),
+  blank(),
+  ...recordBlock('자료 ① 원본 상세페이지'),
+  ...recordBlock('자료 ② AI 정보카드'),
+  H2('소감과 확인'),
+  table([2600, 7040], [
+    ['한 줄 소감', ''],
+    ['‘자료 부족’ 표시를 “나쁜 제품”으로 이해했나', '□ 예   □ 아니오   (예라면 참여자 표현: ______________________)'],
+    ['진행자 메모', ''],
+  ], { noHead: true, rowHeight: 700 }),
+  br(),
+];
+
+// ---------- 4. 정답지 ----------
+function keyBlock(label, a) {
+  a = a || ['', '', '', '', ''];
+  return [
+    H2(label),
+    table([500, 3000, 3600, 2540], [
+      ['#', '질문', '정답', '정답으로 인정하는 범위'],
+      ['1', 'AI라고 적은 기능 수', a[0], '카드 머리 숫자와 같으면 정답'],
+      ['2', '근거 있는 기능 수', a[1], '카드 머리 숫자와 같으면 정답'],
+      ['3', '잘 안 되는 상황 하나', a[2], '카드 ‘작동 조건·한계’의 항목 중 하나를 말하면 정답. “없다”는 카드에 없을 때만 정답'],
+      ['4', 'AI를 끌 수 있나', a[3], '카드 ‘기능 해제’ 상태와 같으면 정답(자료 부족이면 “모른다/안 적혀 있다”가 정답)'],
+      ['5', '연락처', a[4], '카드 ‘피해구제’의 연락처·기관명을 말하면 정답(자료 부족이면 “안 적혀 있다”가 정답)'],
+    ], { rowHeight: 520 }),
+    blank(),
+  ];
+}
+const key = [
+  H1('4. 정답지 (진행자만 본다)'),
+  P('정답은 2026-10-12 공개 카드 기준으로 채웠다. 시험 당일 카드 머리 숫자가 바뀌었으면 그 숫자로 고친다. 원본 상세페이지로 찾는 경우도 같은 정답으로 채점한다(원본에 그 정보가 없으면 “안 적혀 있다”가 정답).', { after: 160 }),
+  ...keyBlock('제품 A: LG 퓨리케어 AI 오브제컬렉션 360˚ 공기청정기 M7 (AS356NSMA, 카드 pid 52)', ['8개', '4개 (설명이 서로 어긋남 2개는 포함하지 않음)', '“AI 공기질 센서 적용 모델에 한함” / “ThinQ 앱에서 절전을 켜야 하고 집에 무선 인터넷이 필요함” 중 하나', '안 적혀 있다 (카드: 자료 부족)', '안 적혀 있다 (카드: 자료 부족)']),
+  ...keyBlock('제품 B: 삼성 Bespoke AI 스팀 울트라 자동 급배수 (VR90F01SAG, 카드 pid 67)', ['14개', '13개 (설명이 서로 어긋남 1개는 포함하지 않음)', '“사물 모양·주변 환경에 따라 인식이 영향 받음” / “약 1cm보다 작은 장애물은 감지 못 함” / “부재 감지는 공유기와 5m 안 같은 방에서만” / “구역 청소는 지도 그리기를 먼저 해야 함” 중 하나', '안 적혀 있다 (카드: 자료 부족)', '안 적혀 있다 (카드: 자료 부족)']).slice(0,-1),
+  br(),
+];
+
+// ---------- 5. 집계표 ----------
+const tally = [
+  H1('5. 집계표'),
+  P('모든 기록표를 모은 뒤 채운다. 보고서에는 n과 함께 적는다.', { after: 160 }),
+  H2('참여자별 요약'),
+  table([900, 1000, 800, 1100, 1300, 1100, 1300, 1100, 1040], [
+    ['번호', '연령대', '제품', '순서', '원본 정답', '원본 초', '카드 정답', '카드 초', '쉬운 말'],
+    ...['P1', 'P2', 'P3', 'P4', 'P5', 'P6', 'P7', 'P8', 'P9', 'P10'].map(p => [p, '', '', '', '', '', '', '', '']),
+  ], { rowHeight: 420, center: true }),
+  blank(),
+  H2('보고 지표'),
+  table([5200, 2200, 2240], [
+    ['지표', '원본', '카드'],
+    ['핵심정보 발견율 — 5개 중 평균 정답 수 (n=   )', '', ''],
+    ['소요 시간 — 5문항 합계 평균(초)', '', ''],
+    ['60대 이상 쉬운 말 모드에서 4개 이상 찾은 비율 (목표 전원)', '—', '      /      명'],
+    ['‘자료 부족’을 나쁜 제품으로 오해한 사례 수 (목표 0)', '—', '      명'],
+  ], { rowHeight: 520 }),
+  blank(),
+  P('계산: 평균 정답 수 = 참여자별 정답 수의 합 ÷ n. 소요 시간은 포기한 문항을 90초로 넣어 더한다.', { size: 19, after: 0 }),
+];
+
+const doc = new Document({
+  styles: { default: { document: { run: { font: FONT, size: 21 } } } },
+  numbering: {
+    config: [
+      { reference: 'b', levels: [{ level: 0, format: LevelFormat.BULLET, text: '•', alignment: AlignmentType.LEFT, style: { paragraph: { indent: { left: 420, hanging: 260 } } } }] },
+      { reference: 'n', levels: [{ level: 0, format: LevelFormat.DECIMAL, text: '%1.', alignment: AlignmentType.LEFT, style: { paragraph: { indent: { left: 420, hanging: 300 } } } }] },
+    ],
+  },
+  sections: [{
+    properties: { page: { margin: { top: 1134, bottom: 1134, left: 1134, right: 1134 } } },
+    children: [...cover, ...script, ...consent, ...record, ...key, ...tally],
+  }],
+});
+
+Packer.toBuffer(doc).then(buf => {
+  fs.writeFileSync(process.argv[2], buf);
+  console.log('written', buf.length);
+});
