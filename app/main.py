@@ -84,6 +84,32 @@ templates.env.filters["wa"] = wa
 @app.on_event("startup")
 def _startup() -> None:
     db.init_db()
+    _start_keep_awake()
+
+
+@app.get("/healthz")
+def healthz():
+    return {"ok": True}
+
+
+def _start_keep_awake() -> None:
+    """무료 호스팅은 15분 동안 요청이 없으면 잠들어 다음 방문자가 30~60초를 기다린다.
+    공개 주소가 있으면 10분마다 스스로를 한 번 불러 깨어 있게 한다(KEEP_AWAKE=0이면 끔)."""
+    url = os.getenv("RENDER_EXTERNAL_URL") or os.getenv("PUBLIC_URL") or ""
+    if os.getenv("KEEP_AWAKE", "1") != "1" or not url.startswith("http"):
+        return
+    import urllib.request
+
+    def loop():
+        import time as _t
+        while True:
+            _t.sleep(600)
+            try:
+                urllib.request.urlopen(url.rstrip("/") + "/healthz", timeout=20).read()
+            except Exception:
+                pass
+
+    threading.Thread(target=loop, daemon=True, name="keep-awake").start()
 
 
 # ---------- 브라우저 '담기' 지원 ----------
