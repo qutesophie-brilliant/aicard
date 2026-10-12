@@ -11,7 +11,7 @@ from typing import Any
 import threading
 
 from fastapi import BackgroundTasks, Depends, FastAPI, File, Form, HTTPException, Request, UploadFile
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
+from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
@@ -395,6 +395,27 @@ async def api_ingest(request: Request, background: BackgroundTasks):
     """
     require_reviewer(request)
     data = await request.json()
+    return _ingest_data(request, background, data)
+
+
+@app.post("/capture/form")
+async def capture_form(request: Request, background: BackgroundTasks, name: str = Form(""), maker: str = Form(""),
+                       model: str = Form(""), category: str = Form(""), url: str = Form(""),
+                       sales_text: str = Form(""), fine_text: str = Form(""), image_urls: str = Form(""),
+                       force: str = Form("")):
+    """외부 판매페이지에서 폼 전송으로 넘어오는 수집(팝업·fetch가 막힌 브라우저용). 결과를 글자로 보여 준다."""
+    require_reviewer(request)
+    data = {"name": name, "maker": maker, "model": model, "category": category, "url": url,
+            "sales_text": sales_text, "fine_text": fine_text,
+            "image_urls": [u.strip() for u in image_urls.splitlines() if u.strip()], "force": force == "true"}
+    try:
+        out = _ingest_data(request, background, data)
+        return PlainTextResponse(f"OK {out['id']} {name} {model}")
+    except HTTPException as e:
+        return PlainTextResponse(f"ERR {e.status_code} {e.detail}", status_code=e.status_code)
+
+
+def _ingest_data(request: Request, background: BackgroundTasks, data: dict) -> dict:
     name = (data.get("name") or data.get("title") or "이름 없는 제품").strip()[:120]
     # 같은 모델명이 이미 있으면 중복 등록을 막는다(10/12 중복 2건 재발 방지). force=true면 그대로 만든다.
     model_in = (data.get("model") or "").strip().lower()
