@@ -881,7 +881,9 @@ def review_claim(pid: int, claim_id: str = Form(...), reviewer_basis: str = Form
 @app.post("/review/{pid}/claim/delete")
 def review_claim_delete(pid: int, claim_id: str = Form(...), _=Depends(require_reviewer)):
     product, card, _ = card_view(pid)
+    gone = [c["text"] for c in card["claims"] if c["id"] == claim_id]
     card["claims"] = [c for c in card["claims"] if c["id"] != claim_id]
+    card["deleted_claims"] = (card.get("deleted_claims") or []) + gone  # 재생성 때 되살아나지 않도록
     db.save_card(pid, card, db.get_card_meta(pid))
     return RedirectResponse(f"/review/{pid}", status_code=303)
 
@@ -894,6 +896,7 @@ def review_item(pid: int, key: str = Form(...), status: str = Form(...), summary
     if key in card["items"] and status in config.STATUSES:
         card["items"][key]["status"] = status
         card["items"][key]["summary"] = summary.strip()
+        card["items"][key]["reviewed"] = True  # 재생성해도 이 항목은 보존
         # 항목 4는 처리 위치, 항목 6은 지원 기간 기재 여부를 따로 적는다.
         if key == "data":
             card["items"][key]["server"] = server if server in DATA_SERVER_LABEL else ""

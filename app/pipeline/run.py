@@ -38,15 +38,7 @@ def build_card(product_id: int, keep_reviewer_edits: bool = True) -> dict[str, A
     if old:
         # 공공 DB 입력과 검토자 수정은 재생성해도 보존한다
         card["public_db"] = old.get("public_db", card["public_db"])
-        prev = {c["text"]: c for c in old.get("claims", [])}
-        for c in card["claims"]:
-            p = prev.get(c["text"])
-            if p:
-                c["reviewer_status"] = p.get("reviewer_status")
-                c["reviewer_note"] = p.get("reviewer_note", "")
-                for k in ("basis_kind", "basis_kind_global"):
-                    if p.get(k):
-                        c[k] = p[k]
+        _carry_review(old, card)
 
     meta = {"provider": llm.provider(), "seconds": round(time.time() - t0, 1),
             "n_docs": len(docs), "n_chunks": sum(len(d["chunks"]) for d in docs),
@@ -108,11 +100,57 @@ def quick_check(name: str, url: str, sales_text: str, fine_text: str = "", use_l
     return card, {d["id"]: d for d in docs}
 
 
+def _norm_claim(t: str) -> str:
+    import re
+    return re.sub(r"[\s\W_]+", "", (t or "")).lower()
+
+
+def _carry_review(old: dict[str, Any], card: dict[str, Any]) -> None:
+    """재생성해도 검토자가 손댄 것은 남긴다: 문구별 판정·메모·근거 종류·검토자 인용, 항목별 수정.
+    문구는 같은 글자가 아니어도(띄어쓰기·기호 차이, 85% 이상 비슷하면) 같은 문구로 본다."""
+    import difflib
+    old_claims = [c for c in old.get("claims", []) if c.get("reviewer_status") or c.get("reviewer_note")
+                  or c.get("basis_kind") or any(e.get("kind") == "판매페이지(검토자 확인)" for e in c.get("evidence") or [])]
+    used: set[int] = set()
+    for c in card["claims"]:
+        key = _norm_claim(c["text"])
+        best, best_r = None, 0.0
+        for i, p in enumerate(old_claims):
+            if i in used:
+                continue
+            r = 1.0 if _norm_claim(p["text"]) == key else difflib.SequenceMatcher(None, key, _norm_claim(p["text"])).ratio()
+            if r > best_r:
+                best, best_r = i, r
+        if best is None or best_r < 0.85:
+            continue
+        used.add(best)
+        p = old_claims[best]
+        c["reviewer_status"] = p.get("reviewer_status")
+        c["reviewer_note"] = p.get("reviewer_note", "")
+        for k in ("basis_kind", "basis_kind_global"):
+            if p.get(k):
+                c[k] = p[k]
+        rq = [e for e in p.get("evidence") or [] if e.get("kind") == "판매페이지(검토자 확인)"]
+        if rq:
+            c["evidence"] = rq + [e for e in (c.get("evidence") or []) if e.get("kind") != "판매페이지(검토자 확인)"]
+    # 검토자가 고친 권익 항목은 그대로 둔다(review_item 이 reviewed 표시를 남긴다)
+    for key, it in (old.get("items") or {}).items():
+        if isinstance(it, dict) and it.get("reviewed") and key in card.get("items", {}):
+            card["items"][key] = it
+    # 검토자가 지운 문구는 다시 살리지 않는다
+    deleted = {_norm_claim(t) for t in old.get("deleted_claims") or []}
+    if deleted:
+        card["claims"] = [c for c in card["claims"] if _norm_claim(c["text"]) not in deleted]
+        card["deleted_claims"] = old.get("deleted_claims")
+
+
 def split_fine_print(text: str) -> tuple[str, str]:
     """서버가 직접 받은 페이지 본문을 '본문'과 '각주·작은 글씨'로 나눈다(북마클릿과 같은 규칙)."""
     import re
     junk = re.compile(r"쿠폰|장바구니|구매하기|로그인|혜택|무이자|배송|포인트|리뷰|평점|이벤트|공유하기|위시리스트|비교하기|결제|구독|별점|좋아요|^[0-9][0-9,]*$|원 ~$|상담 예약|더보기|자세히 보기")
-    fine = re.compile(r"^\*|^※|^-|기준|측정|조건|환경에 따라|다를 수|않을 수|않습니다|한정|유의|주의|인증|시험|평가|필요합니다|설정이 필요")
+    # 각주 표시(*, ※, 번호)나 조건·한계를 말하는 구절만 각주로 본다. '인증'·'시험'·'조건' 같은 낱말 하나로는 넘기지 않는다
+    # (본문의 기능 설명 문장이 각주로 밀려 문구 추출에서 빠지던 문제, 2026-10-13).
+    fine = re.compile(r"^\*|^※|^-|^\d\)|^주\d|^\(\d+\)|환경에 따라|다를 수|않을 수|없을 수|않습니다|한정|유의|주의 사항|주의사항|필요합니다|설정이 필요|기준으로 측정|자체 시험|시험 결과|시험 기준|인증번호|인증 번호|실제 사용 환경|모델에 따라")
     sales, foot = [], []
     for line in (l.strip() for l in text.splitlines()):
         if len(line) < 2 or junk.search(line):
