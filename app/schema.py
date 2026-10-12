@@ -131,7 +131,9 @@ def heads_up(card: dict[str, Any], limit: int = 4) -> list[dict[str, str]]:
     out: list[dict[str, str]] = []
     for c in card.get("claims", []):
         if effective_status(c) == "추가 확인 필요":
-            text = c.get("conditions") or c.get("reviewer_note") or "표시 문구와 회사의 작동 설명이 맞지 않아요."
+            ct = (c.get("text") or "").strip()
+            ct = ct[:60] + "…" if len(ct) > 60 else ct
+            text = f"“{ct}” — 표시 문구와 회사의 작동 설명이 맞지 않아요."
             out.append({"kind": "s4", "text": text, "anchor": f"claim-{c['id']}"})
     bc = basis_counts(card)
     linked = sum(1 for c in card.get("claims", []) if effective_status(c) in ("근거 확인", "조건 확인"))
@@ -145,7 +147,7 @@ def heads_up(card: dict[str, Any], limit: int = 4) -> list[dict[str, str]]:
             how.append(f"외부 서비스 {bc['service']}개")
         text = f"작동 설명 {linked}개 가운데 AI 학습이나 모델을 언급한 것은 없어요."
         if how:
-            text = f"작동 설명 {linked}개 가운데 작동 방식을 적은 것은 " + ", ".join(how) + "이고, AI 학습이나 모델을 언급한 설명은 없어요."
+            text = f"작동 설명 {linked}개는 " + ", ".join(how) + "로 설명했고, AI 학습이나 모델을 언급한 설명은 없어요."
         out.append({"kind": "s3", "text": text, "anchor": "q-what"})
     extra = global_extra(card)
     if extra:

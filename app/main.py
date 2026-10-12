@@ -51,6 +51,11 @@ templates.env.globals.update(
 )
 
 
+def _haeyo(v: str) -> str:
+    """저장된 항목 요약의 고정 문구를 카드 문체(해요체)로 맞춘다."""
+    return (v or "").replace("공개자료에서 확인되지 않았습니다.", "공개자료에서 확인되지 않았어요.")
+
+
 def kdate(v: str) -> str:
     """2026-10-01 -> 2026. 10. 1."""
     v = (v or "")[:10]
@@ -62,6 +67,7 @@ def kdate(v: str) -> str:
 
 
 templates.env.filters["kdate"] = kdate
+templates.env.filters["haeyo"] = _haeyo
 
 
 def wa(word: str) -> str:

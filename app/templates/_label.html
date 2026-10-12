@@ -94,8 +94,14 @@
     {% set it = card['items']['conditions'] %}
     <div class="block">
       <h4>작동 조건 전반 {{ tag(it.status, ITEM_STATE[it.status]) }}</h4>
-      <p class="plain-only {% if it.status == '자료 부족' %}none{% endif %}">{{ it.summary }}</p>
-      <p class="easy-only">{{ card.easy['items'].get('conditions', it.summary) }}</p>
+      {% set ncond = card.claims|selectattr('conditions')|list|length %}
+      {% if it.status == '자료 부족' and ncond %}
+      <p class="plain-only">제품 전반의 조건·한계를 따로 적은 문단은 공개자료에서 찾지 못했어요. 문구별 조건 {{ ncond }}개는 위 문구 아래 ‘조건’ 꼬리표에 있어요.</p>
+      <p class="easy-only">전체 조건을 모아 적은 글은 없어요. 대신 위에서 문구마다 조건을 {{ ncond }}개 적어 두었어요.</p>
+      {% else %}
+      <p class="plain-only {% if it.status == '자료 부족' %}none{% endif %}">{{ it.summary|haeyo }}</p>
+      <p class="easy-only">{{ card.easy['items'].get('conditions', it.summary)|haeyo }}</p>
+      {% endif %}
       {{ evidence(it.evidence, docs) }}
     </div>
   </section>
@@ -104,7 +110,7 @@
   {% set it = card['items']['data'] %}
   <section class="qa" id="q-data">
     <h3>{{ qtext('data', product.category) }}{{ tag(it.status, ITEM_STATE[it.status]) }}</h3>
-    <p class="lead plain-only {% if it.status == '자료 부족' %}none{% endif %}">{{ it.summary }}</p>
+    <p class="lead plain-only {% if it.status == '자료 부족' %}none{% endif %}">{{ it.summary|haeyo }}</p>
     <p class="lead easy-only">{{ card.easy['items'].get('data', it.summary) }}</p>
     {% if it.server %}<p class="flag">처리 위치 — {{ DATA_SERVER_LABEL[it.server] }}</p>{% endif %}
     {{ evidence(it.evidence, docs) }}
@@ -114,8 +120,8 @@
   {% set it = card['items']['optout'] %}
   <section class="qa" id="q-optout">
     <h3>{{ QUESTION_TEXT['optout'] }}{{ tag(it.status, ITEM_STATE[it.status]) }}</h3>
-    <p class="lead plain-only {% if it.status == '자료 부족' %}none{% endif %}">{{ it.summary }}</p>
-    <p class="lead easy-only">{{ card.easy['items'].get('optout', it.summary) }}</p>
+    <p class="lead plain-only {% if it.status == '자료 부족' %}none{% endif %}">{{ it.summary|haeyo }}</p>
+    <p class="lead easy-only">{{ card.easy['items'].get('optout', it.summary)|haeyo }}</p>
     {{ evidence(it.evidence, docs) }}
     {% if it.status == '자료 부족' %}<p class="flag">공개자료에 끄는 방법이 없으면 구매 전에 판매자나 제조사 고객센터에 "AI 기능을 끌 수 있는지, 끄면 어떤 모드로 동작하는지" 물어보는 것이 좋아요.</p>{% endif %}
   </section>
@@ -126,8 +132,8 @@
     {% for key, title in [('safety', '오작동 보호장치 · 보안 · 업데이트'), ('remedy', '문의 · 보증 · 환불')] %}{% set it = card['items'][key] %}
     <div class="block">
       <h4>{{ title }} {{ tag(it.status, ITEM_STATE[it.status]) }}</h4>
-      <p class="plain-only {% if it.status == '자료 부족' %}none{% endif %}">{{ it.summary }}</p>
-      <p class="easy-only">{{ card.easy['items'].get(key, it.summary) }}</p>
+      <p class="plain-only {% if it.status == '자료 부족' %}none{% endif %}">{{ it.summary|haeyo }}</p>
+      <p class="easy-only">{{ card.easy['items'].get(key, it.summary)|haeyo }}</p>
       {% if key == 'safety' and it.support_period %}<p class="flag">지원 기간 — {{ SUPPORT_PERIOD_LABEL[it.support_period] }}</p>{% endif %}
       {{ evidence(it.evidence, docs) }}
       {% if key == 'remedy' and it.status == '자료 부족' %}<p class="flag">자료에 연락처가 없을 때는 소비자상담센터 <b>1372</b>(국번 없이)로 문의할 수 있어요. 제조사와 분쟁이 생기면 한국소비자원 피해구제를 신청할 수 있어요.</p>{% endif %}
@@ -165,7 +171,7 @@
 
   <div class="lb-foot">
     <span class="stamp"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5L20 7"/></svg>사람이 원문 확인{% if product.approved_at %} · {{ product.approved_at|kdate }}{% endif %}</span>
-    <p class="lb-src">대조한 자료: {% for s in card.sources %}{% if s.url %}<a href="{{ s.url }}" target="_blank" rel="noopener">{{ s.kind }}</a>{% else %}{{ s.kind }}{% endif %}{% if not loop.last %}, {% endif %}{% endfor %}{% if pdb.rra.found %}, 국립전파연구원 적합성평가{% endif %}{% if pdb.kc.found %}, 제품안전정보센터{% endif %}.{% if product.approved_at %} 검토자가 원문을 확인한 뒤 공개했어요.{% else %} 아직 검토자가 원문을 확인하지 않은 초안이에요.{% endif %}</p>
+    <p class="lb-src">대조한 자료: {% set seen = [] %}{% for s in card.sources %}{% if s.kind not in seen %}{% if seen %}, {% endif %}{% if s.url %}<a href="{{ s.url }}" target="_blank" rel="noopener">{{ s.kind }}</a>{% else %}{{ s.kind }}{% endif %}{% set _ = seen.append(s.kind) %}{% endif %}{% endfor %}{% if pdb.rra.found %}, 국립전파연구원 적합성평가{% endif %}{% if pdb.kc.found %}, 제품안전정보센터{% endif %}.{% if product.approved_at %} 검토자가 원문을 확인한 뒤 공개했어요.{% else %} 아직 검토자가 원문을 확인하지 않은 초안이에요.{% endif %}</p>
   </div>
   <details class="report plain-only">
     <summary>이 카드에서 틀린 내용을 봤어요</summary>

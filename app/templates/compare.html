@@ -48,7 +48,7 @@
       </ul>
       {% else %}<p class="lead none">‘AI’라고 표시한 문구가 없어요.</p>{% endif %}
       {% set it = row.card['items']['conditions'] %}
-      <div class="block"><h4>작동 조건 전반 {{ chip(it.status, ITEM_STATE[it.status]) }}</h4><p class="{% if it.status == '자료 부족' %}none{% endif %}">{{ it.summary }}</p></div>
+      <div class="block"><h4>작동 조건 전반 {{ chip(it.status, ITEM_STATE[it.status]) }}</h4><p class="{% if it.status == '자료 부족' %}none{% endif %}">{{ it.summary|haeyo }}</p></div>
     </div>
     {% endfor %}
   </div>
@@ -62,7 +62,7 @@
     <div>
       <p class="who">{{ row.product.name }}</p>
       {% for key in keys %}{% set it = row.card['items'][key] %}
-      <div class="block"><h4>{% if keys|length > 1 %}{{ ITEM_SHORT[key] }} {% endif %}{{ chip(it.status, ITEM_STATE[it.status]) }}</h4><p class="{% if it.status == '자료 부족' %}none{% endif %}">{{ it.summary }}</p>{{ evidence(it.evidence, row.docs) }}</div>
+      <div class="block"><h4>{% if keys|length > 1 %}{{ ITEM_SHORT[key] }} {% endif %}{{ chip(it.status, ITEM_STATE[it.status]) }}</h4><p class="{% if it.status == '자료 부족' %}none{% endif %}">{{ it.summary|haeyo }}</p>{{ evidence(it.evidence, row.docs) }}</div>
       {% endfor %}
     </div>
     {% endfor %}
