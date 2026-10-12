@@ -86,11 +86,16 @@ templates.env.filters["wa"] = wa
 def _startup() -> None:
     db.init_db()
     _start_keep_awake()
+    _start_queue_worker()
 
 
 @app.get("/healthz")
 def healthz():
-    return {"ok": True}
+    try:
+        q = db.queue_counts()
+    except Exception:
+        q = {}
+    return {"ok": True, "queue": q}
 
 
 def _start_keep_awake() -> None:
@@ -167,6 +172,37 @@ def _ocr_then_build(pid: int, image_urls: list[str], name: str, url: str) -> Non
         db.set_product_status(pid, "draft", "카드 생성 실패: 읽을 수 있는 글자가 없습니다.")
         return
     _build_in_background(pid)
+
+
+_queue_wake = threading.Event()
+
+
+def _enqueue_build(pid: int, image_urls: list[str], name: str, url: str) -> None:
+    """카드 생성을 DB 대기열에 넣고 작업 스레드를 깨운다. 요청 처리 스레드를 잡아먹지 않는다."""
+    db.enqueue_build(pid, image_urls, name, url)
+    _queue_wake.set()
+
+
+def _queue_worker() -> None:
+    while True:
+        job = None
+        try:
+            job = db.next_build()
+        except Exception:
+            pass
+        if not job:
+            _queue_wake.wait(30)
+            _queue_wake.clear()
+            continue
+        try:
+            _ocr_then_build(job["product_id"], job["image_urls"], job["name"], job["url"])
+            db.finish_build(job["id"], True)
+        except Exception as e:
+            db.finish_build(job["id"], False, str(e))
+
+
+def _start_queue_worker() -> None:
+    threading.Thread(target=_queue_worker, daemon=True, name="build-queue").start()
 
 
 def _build_in_background(pid: int) -> None:
@@ -455,7 +491,7 @@ def _ingest_data(request: Request, background: BackgroundTasks, data: dict) -> d
         db.delete_product(pid)
         raise HTTPException(400, "본문 글자를 받지 못했습니다.")
     db.set_product_status(pid, "draft", "카드 생성 중")
-    background.add_task(_ocr_then_build, pid, image_urls, name, url)
+    _enqueue_build(pid, image_urls, name, url)
     base = _public_base(request)
     return {"id": pid, "review_url": f"{base}/review/{pid}", "status": "building"}
 

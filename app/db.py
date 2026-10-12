@@ -50,6 +50,12 @@ CREATE TABLE IF NOT EXISTS review_log (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   product_id INTEGER, action TEXT, detail TEXT, at TEXT
 );
+CREATE TABLE IF NOT EXISTS build_queue (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  product_id INTEGER, image_urls TEXT, name TEXT, url TEXT,
+  status TEXT DEFAULT 'new',   -- new | running | done | error
+  created_at TEXT, finished_at TEXT, note TEXT
+);
 """
 
 
@@ -211,3 +217,34 @@ def view_stats(days: int = 30) -> list[dict[str, Any]]:
         rows = con.execute("SELECT path, SUM(n) AS n FROM views WHERE day >= date('now', ?) GROUP BY path ORDER BY n DESC",
                            (f"-{days} days",)).fetchall()
         return [dict(r) for r in rows]
+
+
+# ---------- build queue (카드 생성 대기열: 서버가 재시작해도 남는다) ----------
+def enqueue_build(pid: int, image_urls: list[str], name: str, url: str) -> int:
+    with connect() as con:
+        cur = con.execute("INSERT INTO build_queue(product_id,image_urls,name,url,status,created_at) VALUES(?,?,?,?,'new',?)",
+                          (pid, json.dumps(image_urls), name, url, now()))
+        return int(cur.lastrowid)
+
+
+def next_build() -> dict[str, Any] | None:
+    with connect() as con:
+        con.execute("UPDATE build_queue SET status='new' WHERE status='running'")  # 재시작으로 끊긴 것은 다시
+        row = con.execute("SELECT * FROM build_queue WHERE status='new' ORDER BY id LIMIT 1").fetchone()
+        if not row:
+            return None
+        con.execute("UPDATE build_queue SET status='running' WHERE id=?", (row["id"],))
+        d = dict(row)
+        d["image_urls"] = json.loads(d.get("image_urls") or "[]")
+        return d
+
+
+def finish_build(qid: int, ok: bool, note: str = "") -> None:
+    with connect() as con:
+        con.execute("UPDATE build_queue SET status=?, finished_at=?, note=? WHERE id=?",
+                    ("done" if ok else "error", now(), note[:300], qid))
+
+
+def queue_counts() -> dict[str, int]:
+    with connect() as con:
+        return {r["status"]: int(r["n"]) for r in con.execute("SELECT status, COUNT(*) n FROM build_queue GROUP BY status")}
