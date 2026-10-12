@@ -558,7 +558,7 @@ def capture_help(request: Request, _=Depends(require_reviewer)):
 
 def _public_base(request: Request) -> str:
     """바깥에서 보이는 주소. Render 같은 프록시 뒤에서는 base_url이 http로 잡히므로 X-Forwarded-Proto를 따른다."""
-    base = _public_base(request)
+    base = str(request.base_url).rstrip("/")
     proto = request.headers.get("x-forwarded-proto", "").split(",")[0].strip()
     host = request.headers.get("x-forwarded-host", "").split(",")[0].strip() or request.url.hostname or ""
     if proto == "https" or (host and not host.startswith(("localhost", "127.0.0.1")) and base.startswith("http://")):
