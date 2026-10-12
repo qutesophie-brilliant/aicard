@@ -1,110 +1,178 @@
-{# 정보카드. 변수: product, card, docs, sum, compact(선택) #}
-{% macro evidence(evs, docs) %}
+{# 정보카드(라벨). 변수: product, card, docs, sum, compact(선택: 윗부분만), h(선택: 제목 태그, 기본 h2)
+   표시 원칙: 상태는 글자 띠로만 적는다. 기호는 '설명이 서로 어긋남'의 ! 하나뿐이다. #}
+{% set h = h|default('h2') %}
+{% set heads = heads_up(card) %}
+{% set ITEM_STATE = {'근거 확인': '적혀 있음', '조건 확인': '적혀 있음', '자료 부족': '적혀 있지 않음', '추가 확인 필요': '설명이 서로 어긋남'} %}
+{% macro evidence(evs, docs, word='근거') %}
   {% if evs %}
   <details class="ev">
-    <summary>원문 근거 {{ evs|length }}건</summary>
+    <summary>회사 설명 원문 {{ evs|length }}건</summary>
     {% for e in evs %}
     <blockquote>{{ e.quote }}
-      <cite>{{ docs[e.doc_id].kind if e.doc_id in docs else e.kind }}, {{ docs[e.doc_id].title if e.doc_id in docs else '' }}{% if e.doc_id in docs and docs[e.doc_id].url %} <a href="{{ docs[e.doc_id].url }}" rel="noopener" target="_blank">원문 열기</a>{% endif %}</cite>
+      <cite>{{ docs[e.doc_id].kind if e.doc_id in docs else e.kind }}{% if e.kind == '판매페이지(문구 자체)' %}(표시 문구 안에 작동 방식이 적혀 있음){% endif %}{% if (docs[e.doc_id].kind if e.doc_id in docs else e.kind) == '해외 공식 자료' %}(영문, 국내 페이지에는 없는 내용){% endif %}{% if e.doc_id in docs and docs[e.doc_id].title %}, {{ docs[e.doc_id].title }}{% endif %}{% if e.doc_id in docs and docs[e.doc_id].url %} · <a href="{{ docs[e.doc_id].url }}" rel="noopener" target="_blank">원문 열기</a>{% endif %}</cite>
     </blockquote>
     {% endfor %}
   </details>
   {% endif %}
 {% endmacro %}
+{% from "_macros.html" import tag, bar with context %}
 
-<article class="label" id="label-{{ product.id }}" aria-label="{{ product.name }} AI 정보카드">
-  <div class="label-head">
-    <p class="kicker">{{ product.category or '제품' }}{% if product.is_sample %} <span class="tag-sample">교육용 가상 제품</span>{% endif %}</p>
-    <h2>{{ product.name }}</h2>
-    <p class="maker">{{ product.maker }}{% if product.model %}, 모델명 {{ product.model }}{% endif %}</p>
-    <p class="maker" style="color:var(--text-3);margin-top:2px">{{ card.checked_at }} 기준으로 확인했어요</p>
+<article class="label{% if compact %} compact{% endif %}" id="label-{{ product.id }}" aria-label="{{ product.name }} AI 정보카드">
+  <div class="lb-band">
+    <span class="lb-brand"><img src="/static/logo.png" alt="">AI 정보카드</span>
+    <span class="lb-cat">{{ product.category or '제품' }}</span>
   </div>
 
-  <div class="label-sum">
+  <div class="lb-head">
     <div>
-      <p class="big">{{ sum.n_claims }}개<small>AI라고 표시한 문구</small></p>
+      <{{ h }} class="lb-name">{% if compact %}<a href="/card/{{ product.id }}" style="color:inherit">{{ product.name }}</a>{% else %}{{ product.name }}{% endif %}</{{ h }}>
+      <p class="lb-meta">{{ product.maker }}{% if product.model %}<span class="sep">·</span>{{ product.model }}{% endif %}<span class="sep">·</span>{{ card.checked_at|kdate }} 공개자료 기준</p>
+      {% if product.is_sample %}<span class="lb-tag sample">교육용 가상 제품</span>{% endif %}
+      {% if sum.n_claims == 0 %}<span class="lb-tag">‘AI’를 내세우지 않는 제품 · 비교 기준</span>{% endif %}
     </div>
-    <div>
-      <p class="big">{{ sum.counts['근거 확인'] + sum.counts['조건 확인'] }}개<small>공개 근거가 연결된 문구</small></p>
+    {% if not compact %}
+    <div class="lb-tools" role="group" aria-label="보기 설정">
+      <button type="button" class="btn" data-toggle="easy" aria-pressed="false">쉬운 말</button>
+      <button type="button" class="btn" data-toggle="size" aria-pressed="false">큰 글씨</button>
+      <button type="button" class="btn" data-toggle="speak" data-target="#label-{{ product.id }}" aria-pressed="false">읽어주기</button>
+      <button type="button" class="btn" data-share="{{ product.name }} AI 정보카드">공유</button>
     </div>
-    <div style="grid-column:1 / -1;margin-top:14px">
-      {% set n = sum.n_claims if sum.n_claims else 1 %}
-      <div class="statusbar" role="img" aria-label="확인상태 분포: 근거 확인 {{ sum.counts['근거 확인'] }}, 조건 확인 {{ sum.counts['조건 확인'] }}, 자료 부족 {{ sum.counts['자료 부족'] }}, 추가 확인 필요 {{ sum.counts['추가 확인 필요'] }}">
-        <i class="s1" style="width:{{ (100 * sum.counts['근거 확인'] / n)|round(1) }}%"></i><i class="s2" style="width:{{ (100 * sum.counts['조건 확인'] / n)|round(1) }}%"></i><i class="s3" style="width:{{ (100 * sum.counts['자료 부족'] / n)|round(1) }}%"></i><i class="s4" style="width:{{ (100 * sum.counts['추가 확인 필요'] / n)|round(1) }}%"></i>
-      </div>
-      <p class="legend">
-        {% for s in STATUSES %}<span><i class="dot {{ STATUS_CLASS[s] }}"></i>{{ s }} {{ sum.counts[s] }}</span>{% endfor %}
-      </p>
-    </div>
+    {% endif %}
   </div>
 
-  <p class="easy-only easy-head" style="padding:18px 0 2px">{{ card.easy.headline }}</p>
-
-  <section>
-    <h3>AI라고 표시한 기능과 근거 <span class="q">문구마다 근거가 있는지</span></h3>
-    <div class="easy-only">
-      <div class="row"><i class="mark s1"></i><p class="txt">{{ card.easy['items'].get('functions','') }}</p></div>
-      <div class="row"><i class="mark s1"></i><p class="txt">{{ card.easy['items'].get('evidence','') }}</p></div>
-    </div>
-    <div class="plain-only">
-    {% for c in card.claims %}
-      {% set s = eff(c) %}
-      <div class="row" id="claim-{{ c.id }}">
-        <i class="mark {{ STATUS_CLASS[s] }}" aria-hidden="true"></i>
-        <div class="txt">
-          <span>“{{ c.text }}”</span><span class="st {{ STATUS_CLASS[s] }}">{{ s }}</span>
-          {% if c.conditions %}<p class="cond">{{ c.conditions }}</p>{% endif %}
-          {% if not compact %}{{ evidence(c.evidence, docs) }}{% endif %}
-        </div>
-      </div>
+  <div class="lb-verdict">
+    {% if sum.n_claims == 0 %}
+    <p class="lb-big">판매페이지에서 ‘AI’를 내세우지 않아요<small>AI를 내세우는 제품과 견줄 수 있도록 같은 다섯 질문을 확인했어요.</small></p>
     {% else %}
-      <div class="row"><i class="mark s3"></i><p class="txt">공개자료에서 AI라고 표시한 문구를 찾지 못했어요.</p></div>
+    {% set bc = basis_counts(card) %}
+    <p class="lb-big"><span class="sr">‘AI’라고 적은 문구 {{ sum.n_claims }}개 중 {{ sum.linked }}개에 회사가 설명을 적어 두었어요.</span><span aria-hidden="true">‘AI’라고 적은 문구 <em>{{ sum.n_claims }}</em>개 중 <em>{{ sum.linked }}</em>개에<br>회사가 설명을 적어 두었어요</span>{% if sum.linked and not compact and (bc.learn + bc.vision + bc.sensor + bc.service + bc.none) %}<small>{% set parts = [] %}{% if bc.vision %}{% set _ = parts.append('카메라 인식이 ' ~ bc.vision ~ '개') %}{% endif %}{% if bc.sensor %}{% set _ = parts.append('센서·규칙이 ' ~ bc.sensor ~ '개') %}{% endif %}{% if bc.service %}{% set _ = parts.append('외부 서비스가 ' ~ bc.service ~ '개') %}{% endif %}{% if bc.none %}{% set _ = parts.append('작동 방식 없이 조건만 적은 것이 ' ~ bc.none ~ '개') %}{% endif %}{% if bc.learn %}학습·모델을 언급한 설명이 {{ bc.learn }}개 있어요.{% else %}학습이나 모델을 언급한 설명은 없어요.{% endif %}{% if parts %} 설명을 보면 {{ parts|join(', ') }}예요.{% endif %}{% set ge = global_extra(card) %}{% if ge %} 국내 자료 기준이고, 회사의 해외 영문 자료까지 더하면 {{ ge|length }}개 문구의 설명이 달라져요.{% endif %}</small>{% endif %}</p>
+    {{ bar(card.claims, sum) }}
+    <ul class="lb-legend" aria-label="막대 뜻">
+      <li><i class="sw s1"></i>회사 설명 있음 <b>{{ sum.linked }}</b></li>
+      {% if sum.counts['자료 부족'] or not compact %}<li><i class="sw s3"></i>회사 설명 없음 <b>{{ sum.counts['자료 부족'] }}</b></li>{% endif %}
+      {% if sum.counts['추가 확인 필요'] or not compact %}<li><i class="sw s4"></i>설명이 서로 어긋남 <b>{{ sum.counts['추가 확인 필요'] }}</b></li>{% endif %}
+    </ul>
+    {% endif %}
+    {% if heads and not compact %}
+    <div class="lb-heads">
+      <h3>사기 전에 알아 둘 것</h3>
+      <ul>
+        {% for hd in heads %}<li class="{{ hd.kind }}">{% if hd.kind == 's4' %}<i class="mark s4" aria-hidden="true"></i>{% endif %}<a href="#{{ hd.anchor if hd.kind == 's3' else ('claim-' ~ product.id ~ '-' ~ hd.anchor[6:]) }}">{{ hd.text }}</a></li>{% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+  </div>
+
+  <ul class="lb-items" aria-label="소비자 권익 항목 다섯 가지">
+    {% for key in COVERAGE_ITEMS %}{% set it = card['items'][key] %}
+    {% set target = {'conditions': 'q-what', 'data': 'q-data', 'optout': 'q-optout', 'safety': 'q-trouble', 'remedy': 'q-trouble'}[key] %}
+    <li><a href="{% if compact %}/card/{{ product.id }}{% endif %}#{{ target }}" class="{{ STATUS_CLASS[it.status] }}{% if it.status == '자료 부족' %} none{% endif %}" title="{{ ITEM_SHORT[key] }}: {{ ITEM_STATE[it.status] }}"><b>{{ ITEM_TILE[key] }}</b><span>{{ ITEM_STATE[it.status] }}</span></a></li>
     {% endfor %}
+  </ul>
+
+  {% if not compact %}
+  {# ---- 질문 1 ---- #}
+  <section class="qa" id="q-what">
+    <h3>{{ QUESTION_TEXT['what'] }}</h3>
+    {% if sum.n_claims == 0 %}
+    <p class="lead none">판매페이지에서 ‘AI’, ‘학습’, ‘스스로 인식’ 같은 표현이 든 문구를 찾지 못했어요. 제품 이름이나 광고에 ‘AI’를 쓰지 않는 제품이에요.</p>
+    {% else %}
+    <p class="lead plain-only">{{ card.easy['items'].get('functions', sum.lines[0]) }}</p>
+    <p class="lead easy-only">{{ card.easy['items'].get('functions', '') }} {{ card.easy['items'].get('evidence', '') }}</p>
+    <ul class="claims">
+      {% for c in card.claims %}{% set s = eff(c) %}
+      <li id="claim-{{ product.id }}-{{ c.id }}" class="{{ STATUS_CLASS[s] }}">
+        <div class="cl-head">{{ tag(s) }}<q>{{ c.text }}</q>{% if s != '자료 부족' and c.basis_kind in BASIS_LABEL %}<span class="kind kind-{{ c.basis_kind }}" title="국내 공개자료 기준 · {{ BASIS_HELP[c.basis_kind] }}">{{ BASIS_LABEL[c.basis_kind] }}</span>{% endif %}{% if c.basis_kind_global and c.basis_kind_global != c.basis_kind %}<span class="kind kind-global" title="회사의 해외 영문 공식 자료까지 더하면">해외 자료: {{ BASIS_LABEL[c.basis_kind_global] }}</span>{% endif %}</div>
+        {% if s == '자료 부족' %}<p class="cond none">회사가 공개한 자료에서 이 문구에 관한 설명을 찾지 못했어요.</p>
+        {% elif c.conditions %}<p class="cond">{{ c.conditions }}</p>
+        {% elif s == '근거 확인' %}<p class="cond has">회사 자료에 작동 방식 설명이 있어요. 조건이나 한계는 따로 적혀 있지 않아요.</p>{% endif %}
+        {% if s != '자료 부족' %}{{ evidence(c.evidence, docs) }}{% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+    {% set it = card['items']['conditions'] %}
+    <div class="block">
+      <h4>작동 조건 전반 {{ tag(it.status, ITEM_STATE[it.status]) }}</h4>
+      <p class="plain-only {% if it.status == '자료 부족' %}none{% endif %}">{{ it.summary }}</p>
+      <p class="easy-only">{{ card.easy['items'].get('conditions', it.summary) }}</p>
+      {{ evidence(it.evidence, docs) }}
     </div>
   </section>
 
-  {% for key in COVERAGE_ITEMS %}
-  {% set it = card['items'][key] %}
-  <section id="item-{{ key }}">
-    <h3>{{ ITEM_LABEL[key] }} <span class="q">{{ ITEM_QUESTION[key] }}</span></h3>
-    <div class="item">
-      <i class="mark {{ STATUS_CLASS[it.status] }}" aria-hidden="true"></i>
-      <div>
-        <p class="summary plain-only {% if it.status == '자료 부족' %}none{% endif %}">{{ it.summary }}<span class="st {{ STATUS_CLASS[it.status] }}">{{ it.status }}</span></p>
-        <p class="summary easy-only">{{ card.easy['items'].get(key, '') }}</p>
-        {% if not compact %}{{ evidence(it.evidence, docs) }}{% endif %}
-      </div>
-    </div>
+  {# ---- 질문 2 ---- #}
+  {% set it = card['items']['data'] %}
+  <section class="qa" id="q-data">
+    <h3>{{ qtext('data', product.category) }}{{ tag(it.status, ITEM_STATE[it.status]) }}</h3>
+    <p class="lead plain-only {% if it.status == '자료 부족' %}none{% endif %}">{{ it.summary }}</p>
+    <p class="lead easy-only">{{ card.easy['items'].get('data', it.summary) }}</p>
+    {% if it.server %}<p class="flag">처리 위치 — {{ DATA_SERVER_LABEL[it.server] }}</p>{% endif %}
+    {{ evidence(it.evidence, docs) }}
   </section>
-  {% endfor %}
 
+  {# ---- 질문 3 ---- #}
+  {% set it = card['items']['optout'] %}
+  <section class="qa" id="q-optout">
+    <h3>{{ QUESTION_TEXT['optout'] }}{{ tag(it.status, ITEM_STATE[it.status]) }}</h3>
+    <p class="lead plain-only {% if it.status == '자료 부족' %}none{% endif %}">{{ it.summary }}</p>
+    <p class="lead easy-only">{{ card.easy['items'].get('optout', it.summary) }}</p>
+    {{ evidence(it.evidence, docs) }}
+  </section>
+
+  {# ---- 질문 4 ---- #}
+  <section class="qa" id="q-trouble">
+    <h3>{{ QUESTION_TEXT['trouble'] }}</h3>
+    {% for key, title in [('safety', '오작동 보호장치 · 보안 · 업데이트'), ('remedy', '문의 · 보증 · 환불')] %}{% set it = card['items'][key] %}
+    <div class="block">
+      <h4>{{ title }} {{ tag(it.status, ITEM_STATE[it.status]) }}</h4>
+      <p class="plain-only {% if it.status == '자료 부족' %}none{% endif %}">{{ it.summary }}</p>
+      <p class="easy-only">{{ card.easy['items'].get(key, it.summary) }}</p>
+      {% if key == 'safety' and it.support_period %}<p class="flag">지원 기간 — {{ SUPPORT_PERIOD_LABEL[it.support_period] }}</p>{% endif %}
+      {{ evidence(it.evidence, docs) }}
+    </div>
+    {% endfor %}
+  </section>
+
+  {# ---- 질문 5 ---- #}
   {% set pdb = card.public_db %}
-  <section id="pubdb">
-    <h3>공공 데이터베이스 확인 <span class="q">회사 자료가 아닌 공식 등록 정보</span></h3>
-    <div class="pubdb">
+  <section class="qa" id="q-public">
+    <h3>{{ QUESTION_TEXT['public'] }}</h3>
+    {% set pdb_done = pdb.rra.found is not none or pdb.kc.found is not none or pdb.energy.found is not none or pdb.recall.found is not none %}
+    <p class="lead">{% if pdb_done %}공공 데이터베이스에 등록된 정보예요. {{ card.checked_at|kdate }}에 조회했어요.{% else %}공공 데이터베이스는 아직 조회하지 않았어요.{% endif %} 이 인증은 전기 안전과 전파 적합성에 관한 것이고, AI 기능을 검증한 것은 아니에요.</p>
+    <ul class="pub">
       {% for key, label, val, link in [
-          ('kc', 'KC 안전인증', pdb.kc.number, '제품안전정보센터'),
           ('rra', '전파 적합성평가', pdb.rra.number, '국립전파연구원'),
+          ('kc', 'KC 안전인증', pdb.kc.number, '제품안전정보센터'),
           ('energy', '에너지소비효율', pdb.energy.grade, '효율관리제도'),
           ('recall', '리콜·안전 점검', '', '제품안전정보센터')] %}
       {% set e = pdb[key] %}
-      <div>
+      <li>
         <b>{{ label }}</b>
-        {% if e.found %}<span>{{ '등록 확인' if key in ('kc','rra') else (val or '확인됨') }}</span>{% if val and key in ('kc','rra') %}<br><span class="sub">{{ val }}</span>{% endif %}
-        {% elif e.found == False %}<span class="none">{{ '해당 없음' if key == 'energy' else ('리콜 이력 없음' if key == 'recall' else '조회 결과 없음') }}</span>
-        {% elif e.detail %}<span class="none">번호 미확인</span>
-        {% else %}<span class="none">아직 조회하지 않았어요</span>{% endif %}
-        {% if e.detail %}<br><span class="sub">{{ e.detail }}</span>{% endif %}
-        {% if e.url %}<br><a href="{{ e.url }}" target="_blank" rel="noopener">{{ e.link_label or link }}에서 보기</a>{% endif %}
-        {% if e.url2 %}<br><a href="{{ e.url2 }}" target="_blank" rel="noopener">{{ e.link_label2 }}</a>{% endif %}
-      </div>
+        <div>
+          {% if e.found %}<p>{% if key in ('kc', 'rra') %}등록을 확인했어요 {% if val %}<code>{{ val }}</code>{% endif %}{% else %}{{ val or '확인했어요' }}{% endif %}</p>
+          {% elif e.found == False %}<p class="none">{{ '효율등급 표시 대상 품목이 아니에요' if key == 'energy' else ('리콜 이력을 찾지 못했어요' if key == 'recall' else '조회 결과가 없어요') }}</p>
+          {% elif e.detail %}<p class="none">인증번호를 찾지 못해 조회하지 못했어요</p>
+          {% else %}<p class="none">아직 조회하지 않았어요</p>{% endif %}
+          {% if e.detail and key != 'energy' %}<small>{{ e.detail }}</small>{% endif %}
+          {% if e.url %}<a href="{{ e.url }}" target="_blank" rel="noopener">{{ e.link_label or link }}에서 보기</a>{% endif %}
+        </div>
+      </li>
       {% endfor %}
-    </div>
+    </ul>
   </section>
 
-  <p class="label-foot">
-    대조한 자료는
-    {% for s in card.sources %}{% if s.url %}<a href="{{ s.url }}" target="_blank" rel="noopener">{{ s.title|truncate(30) }}</a>{% else %}{{ s.title|truncate(30) }}{% endif %}({{ s.kind }}){% if not loop.last %}, {% endif %}{% endfor %}입니다.
-    검토자가 원문을 확인하고 {% if product.approved_at %}{{ product.approved_at[:10] }}에 {% endif %}공개했어요.
-  </p>
+  <div class="lb-foot">
+    <span class="stamp"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5L20 7"/></svg>사람이 원문 확인{% if product.approved_at %} · {{ product.approved_at|kdate }}{% endif %}</span>
+    <p class="lb-src">대조한 자료: {% for s in card.sources %}{% if s.url %}<a href="{{ s.url }}" target="_blank" rel="noopener">{{ s.kind }}</a>{% else %}{{ s.kind }}{% endif %}{% if not loop.last %}, {% endif %}{% endfor %}{% if pdb.rra.found %}, 국립전파연구원 적합성평가{% endif %}{% if pdb.kc.found %}, 제품안전정보센터{% endif %}.{% if product.approved_at %} 검토자가 원문을 확인한 뒤 공개했어요.{% else %} 아직 검토자가 원문을 확인하지 않은 초안이에요.{% endif %}</p>
+  </div>
+  <details class="report plain-only">
+    <summary>이 카드에서 틀린 내용을 봤어요</summary>
+    <form class="form" method="post" action="/check/request">
+      <input type="hidden" name="url" value="/card/{{ product.id }}">
+      <input type="hidden" name="name" value="{{ product.name }}">
+      <label>어떤 점이 틀렸는지 <span class="help">예: "두 번째 문구의 조건은 설명서 12쪽에 있어요". 연락처는 받지 않아요.</span><input type="text" name="note" maxlength="300" required></label>
+      <div><button class="btn primary" type="submit">검토자에게 보내기</button></div>
+    </form>
+  </details>
+  {% endif %}
 </article>
