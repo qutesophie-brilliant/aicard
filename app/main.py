@@ -953,6 +953,58 @@ def review_queue(request: Request):
     return render(request, "review_queue.html", rows=rows)
 
 
+PACKET5_PIDS = [307, 314, 318, 324, 329, 268, 274, 281, 284, 295]
+
+
+@app.get("/review/packet5.zip")
+def review_packet5(request: Request, _=Depends(require_reviewer)):
+    """5차 라벨링 자료(라벨러용, 판정 없음)를 zip으로 내려준다. 판정은 /review/packet5_pred.json 에 따로 둔다."""
+    import csv, io, zipfile
+    from pathlib import Path as _P
+    rows = []
+    for pid in PACKET5_PIDS:
+        p, c = db.get_product(pid), db.get_card(pid)
+        if not p or not c:
+            continue
+        for cl in c.get("claims") or []:
+            rows.append({"pid": pid, "slug": "", "product": p["name"], "control": "", "claim_id": cl.get("id", ""),
+                         "claim_text": cl.get("text", ""), "decision": "", "basis": "", "conditions_noted": "",
+                         "gold_evidence_quote": "", "labeler": "", "note": ""})
+    if not rows:
+        raise HTTPException(404, "5차 제품 카드가 없습니다.")
+    buf = io.BytesIO()
+    docs = _P(__file__).resolve().parent / "eval_docs"
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
+        for lab in "ABC":
+            out = io.StringIO()
+            w = csv.DictWriter(out, fieldnames=list(rows[0].keys()))
+            w.writeheader()
+            for r in rows:
+                w.writerow({**r, "labeler": lab})
+            z.writestr(f"labels_{lab}.csv", "\ufeff" + out.getvalue())
+        z.writestr("라벨링_안내.md", (docs / "라벨링_안내_5차.md").read_text(encoding="utf-8"))
+        z.writestr("라벨_기준_두축.md", (docs / "라벨_기준_두축.md").read_text(encoding="utf-8"))
+        z.writestr("읽어보기.txt", (docs / "읽어보기_5차.txt").read_text(encoding="utf-8"))
+        z.writestr("메일_발송_안내(라벨러에게 보내지 않음).md", (docs / "메일_발송_안내_5차.md").read_text(encoding="utf-8"))
+    return Response(buf.getvalue(), media_type="application/zip",
+                    headers={"Content-Disposition": "attachment; filename=labeling_round5.zip", "Cache-Control": "no-store"})
+
+
+@app.get("/review/packet5_pred.json")
+def review_packet5_pred(_=Depends(require_reviewer)):
+    """5차 10개 제품의 파이프라인 판정(채점용). 라벨러에게 주지 않는다."""
+    pred = {}
+    for pid in PACKET5_PIDS:
+        c = db.get_card(pid)
+        for cl in (c or {}).get("claims") or []:
+            pred[f"{pid}:{cl.get('id')}"] = {"status": cl.get("status", ""), "basis_state": cl.get("basis_state", ""),
+                                             "reviewer_status": cl.get("reviewer_status"),
+                                             "conditions_noted": bool(cl.get("conditions_noted")),
+                                             "evidence": [e.get("quote", "")[:200] for e in (cl.get("evidence") or [])[:3]],
+                                             "text": cl.get("text", "")}
+    return JSONResponse(pred, headers={"Cache-Control": "no-store"})
+
+
 @app.post("/review/bulk_status")
 def review_bulk_status(pid: list[int] = Form([]), status: str = Form(...), _=Depends(require_reviewer)):
     if status not in ("approved", "held"):
