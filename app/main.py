@@ -291,7 +291,10 @@ def index(request: Request):
     # 품목별 수("로봇청소기 23종, 공기청정기 6종"). 품목이 하나면 그 이름만 쓴다
     from collections import Counter as _C
     cat_counts = _C((r["product"].get("category") or "제품") for r in cards if not r["product"].get("is_sample"))
-    cat_line = ", ".join(f"{k} {v}종" for k, v in sorted(cat_counts.items(), key=lambda kv: -kv[1])) or f"제품 {len(cards)}종"
+    _cats = sorted(cat_counts.items(), key=lambda kv: -kv[1])
+    cat_line = ", ".join(f"{k} {v}종" for k, v in _cats[:4]) or f"제품 {len(cards)}종"
+    if len(_cats) > 4:
+        cat_line += f" 외 {len(_cats) - 4}개 품목"
     base = _public_base(request)
     real_cards = [r for r in cards if not r["product"].get("is_sample")]
     hero = {"products": len(real_cards), "cats": len(cat_counts),
