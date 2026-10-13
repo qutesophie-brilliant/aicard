@@ -11,6 +11,15 @@ def display_card(raw):
         claim['display_status'] = public_status(claim)
     from .pipeline.easy import make_easy
     if card.get('product', {}).get('model') == 'VR90F01SAG' and card.get('checked_at') == '2026-10-08':
+        condition_copy = {
+            'c5': '실험실 기능으로 제공되는 오염 구역 집중 청소는 인식 범위나 정확도 등 세부 기능이 달라질 수 있어요.',
+            'c12': '사람이 없는지 감지하려면 제품과 공유기가 벽으로 나뉘지 않은 같은 방에 있어야 해요. 두 기기 사이의 거리는 5m 이내여야 해요.',
+            'c13': '이 기능을 쓰려면 SmartThings 앱을 설치해 제품과 연결하고, 무선 네트워크에도 연결해야 해요. 청소 예약에서 미리 설정해 두어야 해요.',
+        }
+        for claim in card.get('claims', []):
+            # Preserve original condition text for exports and reviewer history.
+            if claim.get('id') in condition_copy and claim.get('conditions') and not claim.get('reviewer_status'):
+                claim['display_conditions'] = condition_copy[claim['id']]
         items = card.get('items', {})
         updates = {
             'conditions': ('음성 인식', '물체 인식은 물체의 모양이나 주변 환경에 영향을 받을 수 있어요. 음성 인식은 주변 소음이 크거나 목소리가 작을 때, 제품이 Wi-Fi에 연결되지 않았을 때 작동하지 않을 수 있어요. 제품 신호 범위 안에 장애물이 있으면 일부 기능의 반응에도 영향을 줄 수 있으므로, 아래 원문의 적용 범위를 함께 확인해 주세요.'),
