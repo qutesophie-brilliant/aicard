@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% block title %}전체 통계 | AI 정보카드{% endblock %}
-{% block desc %}공개한 카드 {{ tot.products }}장에서 ‘AI’ 표시 문구 {{ tot.claims }}개를 회사 자료와 맞춰 본 결과예요. 제품 순위는 매기지 않아요.{% endblock %}
+{% block desc %}공개한 카드 {{ tot.products }}장에서 AI 관련 문구 {{ tot.claims }}개를 회사 자료와 맞춰 본 결과예요. 제품 순위는 매기지 않아요.{% endblock %}
 {% block content %}
 <section class="page-head">
   <h1>카드 {{ tot.products }}장 전체 통계</h1>
@@ -8,12 +8,12 @@
 </section>
 
 <div class="prose">
-  <h2>문구별 확인 결과: ‘AI’ 문구 {{ tot.claims }}개 중 설명 있음 {{ tot.linked }}개</h2>
-  <p>나머지 {{ tot.missing }}개는 공개자료에서 작동 방식을 설명한 문장을 찾지 못했어요. 기능이 없다는 뜻이 아니라, 소비자가 볼 수 있는 자리에 설명이 없다는 뜻이에요.</p>
+  <h2>문구별 확인 결과: AI 관련 문구 {{ tot.claims }}개 중 설명 있음 {{ tot.linked }}개</h2>
+  <p>{{ tot.missing }}개는 이 카드에 사용한 자료에서 작동 설명을 찾지 못했고, {{ tot.mismatch }}개는 설명을 더 확인해야 해요. 설명을 찾지 못했다는 것이 기능이 없다는 뜻은 아니에요.</p>
   <ul class="bars" aria-label="작동 설명 유무">
     <li><b>{{ tot.linked }}</b><span>작동 설명 있음</span><i style="--w: {{ (100 * tot.linked / (tot.claims or 1)) | round(1) }}%"></i></li>
     <li><b>{{ tot.missing }}</b><span>설명을 찾지 못함</span><i class="g" style="--w: {{ (100 * tot.missing / (tot.claims or 1)) | round(1) }}%"></i></li>
-    <li><b>{{ tot.mismatch }}</b><span>표시와 설명이 어긋남</span><i class="r" style="--w: {{ (100 * tot.mismatch / (tot.claims or 1)) | round(1) }}%"></i></li>
+    <li><b>{{ tot.mismatch }}</b><span>설명 대조 필요</span><i class="r" style="--w: {{ (100 * tot.mismatch / (tot.claims or 1)) | round(1) }}%"></i></li>
   </ul>
 
   <h2>작동 설명의 종류</h2>
@@ -24,25 +24,26 @@
     <tr><td>카메라 인식으로 설명</td><td>{{ tot.basis.vision }}개</td></tr>
     <tr><td>센서·규칙으로 설명</td><td>{{ tot.basis.sensor }}개</td></tr>
     <tr><td>외부 서비스로 설명</td><td>{{ tot.basis.service }}개</td></tr>
-    <tr><td>조건·한계만 적음</td><td>{{ tot.basis.none }}개</td></tr>
+    <tr><td>설명 종류 미분류</td><td>{{ tot.basis.unknown }}개</td></tr>
   </table>
-  <p>‘AI’라고 적혀 있어도 작동 설명을 따라가면 센서와 규칙으로 작동한다고 적힌 경우가 더 많아요. 이것도 자료에 적힌 그대로 옮긴 것이고, 저희가 AI인지 아닌지를 판정한 건 아니에요.</p>
+  <p>자료에 적힌 작동 설명을 분류한 결과예요. 카메라나 센서를 쓴다는 설명만으로 학습 기반 기술을 쓰지 않는다고 판단할 수는 없어요.</p>
 
   <h2>소비자 권익 정보의 공백</h2>
   <ul class="gaps">
-    <li><b>{{ tot.optout_missing }}장</b><span>AI 기능을 끄는 방법이 공개자료에 없어요</span></li>
-    <li><b>{{ tot.data_missing }}장</b><span>어떤 데이터를 모아 어디서 처리하는지가 공개자료에 없어요</span></li>
-    <li><b>{{ tot.cond_missing }}장</b><span>AI 기능의 작동 조건·한계가 공개자료에 없어요</span></li>
+    <li><b>{{ tot.optout_missing }}장</b><span>AI 기능을 끄는 방법이 이 카드에 사용한 자료에서 확인하지 못했어요</span></li>
+    <li><b>{{ tot.data_missing }}장</b><span>어떤 데이터를 모아 어디서 처리하는지가 이 카드에 사용한 자료에서 확인하지 못했어요</span></li>
+    <li><b>{{ tot.cond_missing }}장</b><span>AI 기능의 작동 조건·한계가 이 카드에 사용한 자료에서 확인하지 못했어요</span></li>
   </ul>
   <p>공개 카드 {{ tot.products }}장을 기준으로 센 숫자예요. 제품을 고를 때 판매페이지에서 답을 찾기 어려운 항목이 어디인지 보여 줘요.</p>
 
   {% if mismatches %}
-  <h2>표시와 설명이 어긋난 문구 {{ mismatches | length }}개</h2>
-  <p>판매 문구와 회사 자료를 나란히 놓았어요. 어느 쪽이 맞는지는 저희가 정하지 않고, 두 문장을 그대로 보여 줘요.</p>
+  <h2>설명을 더 확인할 문구 {{ mismatches | length }}개</h2>
+  <p>표시 문구와 연결된 원문을 함께 보여 줘요. 같은 기능과 범위를 설명하는지, 기존 분류가 일치하는지 카드에서 확인해 주세요.</p>
   <ol class="mism">
     {% for m in mismatches %}
     <li>
       <p class="mm-claim">“{{ m.claim }}”</p>
+      {% if m.quote %}<blockquote><b>연결된 원문</b><br>{{ m.quote }}</blockquote>{% endif %}
       {% if m.note %}<p class="mm-note">{{ m.note }}</p>{% endif %}
       <p class="mm-from"><a href="/card/{{ m.pid }}#{{ m.anchor }}">{% if m.maker and not m.product.startswith(m.maker) %}{{ m.maker }} {% endif %}{{ m.product }} 카드에서 보기</a></p>
     </li>

@@ -10,7 +10,7 @@
       <div class="hero-copy">
         <p class="hero-kicker">가전 ‘AI’ 표시 확인 서비스</p>
         <h1>‘AI’라고 적혀 있다면,<br>근거부터 확인하세요.</h1>
-        <p class="sub">판매페이지의 ‘AI’ 문구마다 회사가 공개한 설명서·각주에서 작동 설명과 조건을 찾아 한 장의 카드로 보여 줘요. 점수나 등급은 매기지 않아요.</p>
+        <p class="sub">판매페이지의 AI 관련 문구마다 회사가 공개한 설명서·각주에서 작동 설명과 조건을 찾아 한 장의 카드로 보여 줘요. 점수나 등급은 매기지 않아요.</p>
         <form class="urlform" method="post" action="/check">
           <label class="sr" for="hero-url">판매페이지 주소</label>
           <input id="hero-url" type="url" name="url" placeholder="판매페이지 주소를 붙여 넣으세요" required>
@@ -20,8 +20,8 @@
       </div>
       <ul class="hero-stats" aria-label="지금까지 확인한 것">
         <li><b>{{ hero.products }}<small>장</small></b><span>검토자가 원문을 확인한 카드<br>{{ hero.cats }}개 품목</span></li>
-        <li><b>{{ hero.claims }}<small>개</small></b><span>‘AI’라고 적은 문구<br>그중 {{ hero.linked }}개에 작동 설명</span></li>
-        <li><b>{{ hero.optout_missing }}<small>/{{ hero.products }}</small></b><span>AI 기능 끄는 방법이<br>공개자료에 없는 제품</span></li>
+        <li><b>{{ hero.claims }}<small>개</small></b><span>AI 관련 문구<br>그중 {{ hero.linked }}개에 작동 설명</span></li>
+        <li><b>{{ hero.optout_missing }}<small>/{{ hero.products }}</small></b><span>AI 기능 끄는 방법이<br>확인한 자료에서 찾지 못한 제품</span></li>
       </ul>
       <p class="hero-flow">요청 → 자동 초안 → 검토자 확인 → 공개 순으로 쌓여요. 지금 검토 대기 <b>{{ hero.pending }}</b>장, 최근 7일 공개 <b>{{ hero.week }}</b>장.</p>
     </div>
@@ -42,7 +42,7 @@
         </div>
         <a class="pop" href="/card/{{ example.product.id }}">
           <span class="h"><img src="/static/logo.png" alt="">AI 정보카드 · 사람이 확인한 카드</span>
-          <p class="n" aria-label="‘AI’ 문구 {{ example.sum.n_claims }}개 중 {{ example.sum.linked }}개에 작동 설명이 있어요">‘AI’ 문구 <em aria-hidden="true">{{ example.sum.n_claims }}</em>개 중 <em aria-hidden="true">{{ example.sum.linked }}</em>개에 작동 설명이 있어요</p>
+          <p class="n" aria-label="AI 관련 문구 {{ example.sum.n_claims }}개 중 {{ example.sum.linked }}개에 작동 설명이 있어요">AI 관련 문구 <em aria-hidden="true">{{ example.sum.n_claims }}</em>개 중 <em aria-hidden="true">{{ example.sum.linked }}</em>개에 작동 설명이 있어요</p>
           {{ bar(example.card.claims, example.sum) }}
           {% if example.heads %}<span class="warn">{% if example.heads[0].kind == 's4' %}<i class="mark s4" aria-hidden="true"></i>{% else %}<span></span>{% endif %}<span>{{ example.heads[0].text|truncate(80) }}</span></span>{% endif %}
           <span class="lk"><span>카드 전체 보기 →</span><span>{{ example.card.checked_at|kdate }} 확인</span></span>
@@ -68,11 +68,11 @@
       <p class="eyebrow">서비스 제작 동기</p>
       <h2>‘AI’ 표시는 늘었는데,<br>근거는 각주에 숨어 있어요</h2>
       <p class="lede">소비자 10명 중 7명은 어떤 제품이 실제로 AI를 쓰는지 가려내기 어렵다고 답했어요(공정위·소비자원 2025년 조사). 2025년에는 온라인몰 가전의 ‘AI’ 표시 20건이 과장이나 조건 누락으로 시정됐어요. 근거와 조건은 각주와 설명서에 흩어져 있어서 쇼핑 중에 다 찾아 읽기 어려워요.</p>
-      <p class="lede">그래서 카드는 회사가 공개한 자료에 적힌 내용을 그대로 옮겨 적고, 그 설명이 얼마나 자세한지 보여 줘요. 점수나 등급은 없어요.</p>
+      <p class="lede">그래서 카드는 제조사 자료를 요약하고 관련 원문을 연결해, 설명과 사용 조건을 함께 확인할 수 있게 해요. 점수나 등급은 없어요.</p>
     </div>
     <ul class="plain rv">
-      <li><b>회사가 공개한 자료만으로 확인해요</b><span>판매페이지, 각주, 설명서, 공공 데이터베이스에 적힌 내용을 대조해요. 자료에 없는 내용은 AI가 추측해서 채우지 않아요.</span></li>
-      <li><b>설명의 종류와 조건까지 적어요</b><span>‘AI’ 문구마다 작동 설명이 있는지, 그 설명이 학습·모델을 말하는지 센서·규칙을 말하는지, 조건과 한계가 적혀 있는지, 안전·전파 인증이 확인되는지를 적어요.</span></li>
+      <li><b>회사가 공개한 자료만으로 확인해요</b><span>판매페이지, 각주, 설명서, 공공 데이터베이스에 적힌 내용을 대조해요. 자동 초안에 오류가 있을 수 있어 원문을 함께 확인해요.</span></li>
+      <li><b>설명의 종류와 조건까지 적어요</b><span>AI 관련 문구마다 작동 설명이 있는지, 그 설명이 학습·모델을 말하는지 센서·규칙을 말하는지, 조건과 한계가 적혀 있는지, 안전·전파 인증이 확인되는지를 적어요.</span></li>
       <li><b>점수나 등급을 매기지 않아요</b><span>제품의 우열, 표시의 진위, 법 위반 여부는 판단하지 않아요. 카드는 판단에 필요한 내용을 모아서 보여 줘요.</span></li>
       <li><b>공개 전에 사람이 원문을 확인해요</b><span>언어 모델은 자료에서 문장을 찾아 잇는 초안을 만들어요. 검토자가 원문을 확인한 뒤에 공개해요.</span></li>
     </ul>
@@ -87,7 +87,7 @@
       <p class="lede">모든 카드가 같은 질문을 같은 순서로 다루기 때문에, 두 제품을 나란히 놓고 바로 비교할 수 있어요.</p>
     </div>
     <ol class="qlist rv">
-      {% set QDESC = {'what': "‘AI’라고 적은 문구마다 작동 설명이 있는지, 어떤 조건에서 작동하는지.",
+      {% set QDESC = {'what': "AI 관련 문구마다 작동 설명이 있는지, 어떤 조건에서 작동하는지.",
                       'data': "카메라·음성 같은 데이터를 어디서 처리하고 얼마나 보관하는지.",
                       'optout': "AI 기능을 끌 수 있는지, 끄면 어떻게 동작하는지.",
                       'trouble': "오작동 보호장치, 보안 인증, 업데이트 기간, 문의처와 보증.",
@@ -105,7 +105,7 @@
       <div>
         <p class="eyebrow">표시 기호</p>
         <h2 id="how-h">문구마다 세 가지 표시 중<br>하나가 붙어요</h2>
-        <p class="lede">‘AI’라고 적은 문구 하나하나를 같은 회사가 공개한 각주·설명서와 대조한 결과예요. 결과는 기호 대신 글자로 적어 두었어요.</p>
+        <p class="lede">AI 관련 문구 하나하나를 같은 회사가 공개한 각주·설명서와 대조한 결과예요. 결과는 기호 대신 글자로 적어 두었어요.</p>
         <p class="foot">카드가 만들어지는 과정과 정확도는 <a href="/about">서비스 소개</a>에 적어 두었어요.</p>
       </div>
       <ul class="row">
@@ -124,7 +124,7 @@
       <div>
         <p class="eyebrow">제품 카드</p>
         <h2>{{ cat_line }}</h2>
-        <p class="hint">검토자가 원문을 확인한 카드만 올라와요. 막대 한 칸이 ‘AI’ 문구 하나를 뜻해요.</p>
+        <p class="hint">검토자가 원문을 확인한 카드만 올라와요. 막대 한 칸이 AI 관련 문구 하나를 뜻해요.</p>
       </div>
       <div class="search">
         <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true"><circle cx="9" cy="9" r="6.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M14 14l4 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
@@ -146,7 +146,7 @@
         <h3>{{ row.product.name }}</h3>
         {% if row.sum.n_claims %}
         {{ bar(row.card.claims, row.sum) }}
-        <p class="m"><span>‘AI’ 문구 {{ row.sum.n_claims }}개 중 <b>{{ row.sum.linked }}개</b> 작동 설명 있음</span>{% if row.sum.counts['추가 확인 필요'] %}<span class="w"><i class="mark s4"></i>어긋남 {{ row.sum.counts['추가 확인 필요'] }}</span>{% endif %}</p>
+        <p class="m"><span>AI 관련 문구 {{ row.sum.n_claims }}개 중 <b>{{ row.sum.linked }}개</b> 작동 설명 있음</span>{% if row.sum.counts['추가 확인 필요'] %}<span class="w"><i class="mark s4"></i>어긋남 {{ row.sum.counts['추가 확인 필요'] }}</span>{% endif %}</p>
         {% else %}
         <p class="zero">대조군 · ‘AI’를 내세우지 않는 제품</p>
         {% endif %}
@@ -167,7 +167,7 @@
   <div class="wrap cta rv">
     <h2>목록에 없는 제품<br>바로 확인</h2>
     <div>
-      <p class="lede">판매페이지 주소를 붙여 넣거나 상세페이지 캡처를 올리면 ‘AI’ 문구와 각주를 바로 연결해요. 정식 카드가 필요하면 그 자리에서 요청하세요.</p>
+      <p class="lede">판매페이지 주소를 붙여 넣거나 상세페이지 캡처를 올리면 AI 관련 문구와 각주를 바로 연결해요. 정식 카드가 필요하면 그 자리에서 요청하세요.</p>
       <form class="urlform" method="post" action="/check">
         <label class="sr" for="cta-url">판매페이지 주소</label>
         <input id="cta-url" type="url" name="url" placeholder="https://" required>
