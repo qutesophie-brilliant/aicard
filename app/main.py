@@ -1132,7 +1132,8 @@ def review_rebuild(pid: int, background: BackgroundTasks, _=Depends(require_revi
         raise HTTPException(404)
     if product["status"] != "approved":
         db.set_product_status(pid, "draft", "카드 생성 중")
-    background.add_task(_build_in_background, pid)
+    docs = db.list_documents(pid)
+    _enqueue_build(pid, [], product["name"], docs[0]["url"] if docs else "")  # 대기열로(요청 스레드를 잡지 않게)
     return RedirectResponse(f"/review/{pid}", status_code=303)
 
 
