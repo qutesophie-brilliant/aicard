@@ -437,6 +437,9 @@ def _apply(claim: dict[str, Any], cands: list[dict[str, Any]], row: dict[str, An
     for k in row.get("evidence") or []:
         try:
             c = cands[int(k)]
+            # 15회차(LG 개발 세트): '연출된 영상·이미지' 안내, 사양표의 지원 여부 행("O 지원 O 지원"), 플랫폼 광고 줄은 작동 설명이 아니다
+            if _BOILER.search(c["quote"]) or _SPEC_ROW.search(c["quote"]) or _PLATFORM_AD.search(c["quote"]):
+                continue
             ev.append({"doc_id": c["doc_id"], "chunk": c["chunk"], "quote": c["quote"], "kind": c["kind"]})
         except (ValueError, IndexError, TypeError):
             continue
@@ -608,6 +611,9 @@ _COND = re.compile(r"(않을 수|못할 수|못하거나|어려울 수|어렵습
 # 9회차: 어느 제품에나 붙는 안내(연출 이미지, 색상, 구입처, 설치비)는 그 기능의 조건이 아니다
 _BOILER = re.compile(r"(연출(?:된|컷)|이해를 돕기|색상 및 스[펙팩]|제품 색상|구입처|취급\s?여부|모니터에 따라|재고\s?상황|생산월|광고적 표현|사전 예고 없이|설치비|자재|철거)")
 _TESTRES = re.compile(r"(시험 ?결과|실험 ?결과|시험실|실험실|측정 결과|참조규격|시험 ?조건|시험 ?방법|시험 ?내용|시험 ?항목|실험 ?방법|실험치)")
+# 15회차: 사양표의 "O 지원 / X 미지원" 행과 "ThinQ ON과 함께 쓰면 …" 같은 플랫폼 광고 줄(LG 공식몰 공통)
+_SPEC_ROW = re.compile(r"(?:\bO\s*지원\b.*){2,}|(?:지원\s*){3,}|(?:O|X|△)\s*(?:지원|미지원)\s*(?:O|X|△)\s*(?:지원|미지원)")
+_PLATFORM_AD = re.compile(r"(ThinQ ON과 함께|AI로 연결됩니다|SmartThings와 함께 쓰면|앱을 설치하면 더|가전 구독|케어십|구독하면)")
 
 
 def _is_cond(q: str) -> bool:
@@ -866,7 +872,7 @@ def _link_rules(claim: dict[str, Any], cands: list[dict[str, Any]]) -> None:
     # 규칙만으로는 '설명'을 너그럽게 잡기 쉽다(분·시간·% 같은 수치만으로 인정). 센서·방식·학습 데이터처럼
     # 어떻게 작동하는지 말하는 문장이거나, 조건·한계 문장일 때만 관련 문장으로 본다.
     pool = [c for c in cands if (c["kind"] in ("설명서", "사양표", "공공DB", "공식 자료") or c.get("near") or c.get("self") or c.get("adjacent") or c.get("joined"))
-            and not _BOILER.search(c["quote"]) and not _TESTCOND.search(c["quote"])]
+            and not _BOILER.search(c["quote"]) and not _TESTCOND.search(c["quote"]) and not _SPEC_ROW.search(c["quote"]) and not _PLATFORM_AD.search(c["quote"])]
     def _mech(q: str) -> bool:
         return bool(_MECH.search(q) or _PROC_V.search(q) or _SENSOR_SPEC.search(q) or _LEARN_EVID.search(q) or self_describes(q))
     # 같은 기능을 말하는 문장(내용어 겹침·기능 이름 일치·바로 옆 줄)을 먼저, 없으면 작동 설명이 있는 아무 문장
