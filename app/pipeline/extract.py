@@ -230,8 +230,8 @@ def _must_include(kept: list[dict[str, Any]], cand: list[dict[str, Any]], max_cl
         q = c["quote"].strip()
         if re.match(r"^[※\*†①-⑳]|^\d{1,2}\)", q) or re.search(r"(동일합니다|제외한|상위 모델|모델에 한해)", q):
             continue  # 각주·비교 안내는 근거 후보지 표시 문구가 아니다
-        if not MUST.search(q) or MUST_SKIP.search(q) or CERT.search(q):
-            continue
+        if not MUST.search(q) or MUST_SKIP.search(q) or CERT.search(q) or SITE_COMMON.search(q) or COND_ONLY.search(q):
+            continue  # 15회차: 되살리기 경로도 사이트 공통 줄·이미지 설명·후기 요약은 건너뛴다
         if not VERBISH.search(q) or re.search(r"(경우|못하거나|않을 수|어려울 수|주의|권장)", q):
             continue  # 동사 없는 이름 줄, 조건·주의 문장
         if len(re.sub(r"\W", "", q)) < 14 or q.endswith(("/", "(", ",", "·")) or not SENTENCE_END.search(q):
