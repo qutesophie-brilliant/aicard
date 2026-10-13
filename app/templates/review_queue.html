@@ -11,10 +11,11 @@
   {% for r in rows %}
   <article class="qcard{% if r.dup %} dup{% endif %}" id="p{{ r.product.id }}">
     <header>
-      <label><input type="checkbox" name="pid" value="{{ r.product.id }}"{% if r.dup or r.sum.n_claims == 0 %} disabled{% endif %}> <b>{{ r.product.name }}</b> <span class="meta">{{ r.product.maker }} · {{ r.product.model }} · {{ r.product.category }}</span></label>
+      <label><input type="checkbox" name="pid" value="{{ r.product.id }}"{% if r.dup or (r.sum.n_claims == 0 and not r.control) %} disabled{% endif %}> <b>{{ r.product.name }}</b> <span class="meta">{{ r.product.maker }} · {{ r.product.model }} · {{ r.product.category }}</span></label>
       <span class="meta">{% if r.dup %}같은 모델이 이미 공개됨({{ r.dup }}) — 보류 권장 · {% endif %}‘AI’ 문구 {{ r.sum.n_claims }}개 중 {{ r.sum.linked }}개 작동 설명 · 항목 {{ r.sum.covered }}/5 · <a href="/review/{{ r.product.id }}">검토 화면</a> · <a href="/card/{{ r.product.id }}?preview=1">미리보기</a></span>
     </header>
-    {% if r.sum.n_claims == 0 %}<p class="meta">‘AI’ 문구가 없어요. 대조군으로 쓸 제품이면 검토 화면에서 직접 공개하고, 수집이 덜 된 것이면 보류하세요.</p>{% endif %}
+    {% if r.control %}<p class="meta"><b>대조군 후보</b> — 본문 {{ (r.doc_chars/1000)|round|int }}천 자를 받았는데 ‘AI’라고 적은 문구가 없어요. ‘AI’를 내세우지 않는 제품으로 공개할 수 있어요.</p>
+    {% elif r.sum.n_claims == 0 %}<p class="meta">본문이 {{ r.doc_chars }}자뿐이라 수집이 덜 됐어요. 재수집 전에는 공개하지 마세요.</p>{% endif %}
     <ol class="qclaims">
       {% for c in r.claims %}
       <li>

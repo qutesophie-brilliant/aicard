@@ -942,7 +942,9 @@ def review_queue(request: Request):
             kind = BASIS_LABEL.get(cl.get("basis_kind") or "", "") if cl.get("basis_kind") else ""
             claims.append({"text": cl.get("text", ""), "status": st, "kind": kind,
                            "quote": (ev.get("quote") or "")[:220], "kind_src": ev.get("kind") or ""})
-        rows.append({"product": p, "sum": sm, "claims": claims,
+        doc_chars = sum(len(d.get("text") or "") for d in db.list_documents(p["id"]))
+        rows.append({"product": p, "sum": sm, "claims": claims, "doc_chars": doc_chars,
+                     "control": sm["n_claims"] == 0 and doc_chars >= 3000,
                      "dup": approved_models.get((p.get("model") or "").strip().lower())})
     rows.sort(key=lambda r: (bool(r["dup"]), -r["sum"]["n_claims"]))
     return render(request, "review_queue.html", rows=rows)
