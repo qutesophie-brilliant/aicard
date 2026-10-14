@@ -434,11 +434,9 @@ def _apply(claim: dict[str, Any], cands: list[dict[str, Any]], row: dict[str, An
     status = row.get("status") if row.get("status") in STATUSES else "자료 부족"
     claim["llm_status"] = status  # 규칙 보정 전 AI 판정. 검토자가 규칙이 바꾼 건을 가려볼 수 있게 남긴다
     ev = []
-    for k in dict.fromkeys(k for k in (row.get("evidence") if isinstance(row.get("evidence"), list) else []) if type(k) is int):
+    for k in row.get("evidence") or []:
         try:
-            if not 0 <= k < len(cands):
-                continue
-            c = cands[k]
+            c = cands[int(k)]
             # 15회차(LG 개발 세트): '연출된 영상·이미지' 안내, 사양표의 지원 여부 행("O 지원 O 지원"), 플랫폼 광고 줄은 작동 설명이 아니다
             if _BOILER.search(c["quote"]) or _SPEC_ROW.search(c["quote"]) or _PLATFORM_AD.search(c["quote"]):
                 continue
@@ -542,13 +540,12 @@ def _apply(claim: dict[str, Any], cands: list[dict[str, Any]], row: dict[str, An
                    for e in ev if not e.get("cond_only") and not _TESTCOND.search(e["quote"])):
             status, ev, has_cond, basis = "자료 부족", [], False, None
             note = (note + " " if note else "") + "AI가 무엇을 보고 어떻게 맞추는지 적은 회사 설명을 찾지 못했습니다."
-    condition_evidence = [e for e in ev if _is_cond(e["quote"])]
     basis_state, _ = axes_from_status(status)
-    conditions_noted = bool(condition_evidence)
+    conditions_noted = has_cond and basis_state == "있음"
     status = status_from(basis_state, conditions_noted)
     if not conditions_noted:
         conditions = ""
-    if conditions_noted:  # 조건 문장은 인용된 근거 가운데 한계를 적은 문장을 우선 보여 준다
+    if status == "조건 확인":  # 조건 문장은 인용된 근거 가운데 한계를 적은 문장을 우선 보여 준다
         cond_q = next((e["quote"] for e in ev if _is_cond(e["quote"])), "")
         if cond_q and (not conditions.strip() or not _COND.search(conditions)):
             conditions = cond_q
@@ -567,16 +564,15 @@ def _apply(claim: dict[str, Any], cands: list[dict[str, Any]], row: dict[str, An
             ev = [{"doc_id": src.get("doc_id"), "chunk": src.get("chunk"), "quote": src["quote"], "kind": "판매페이지(문구 자체)"}] + ev
             learn_ok = True
     if (status in ("근거 확인", "조건 확인") and learn_claim and not learn_ok):
-        basis_state, conditions_noted = "없음", bool(condition_evidence)
+        basis_state, conditions_noted = "없음", False
         status = status_from(basis_state, conditions_noted)
         ev = []
         note = (note + " " if note else "") + "학습·데이터에 대한 회사 설명을 찾지 못해 '자료 부족'으로 두었습니다."
         basis = None
-    if basis_state != "있음" and condition_evidence:
-        ev = condition_evidence
-        conditions = condition_evidence[0]["quote"]
+    if basis_state != "있음":
+        conditions = ""
     claim.update(status=status, basis_state=basis_state, conditions_noted=conditions_noted,
-                 evidence=ev, conditions=conditions, note=_haeyo(note))
+                 evidence=ev[:3], conditions=conditions, note=_haeyo(note))
     # 검토자가 아직 매기지 않은 경우에만 AI 초안 값을 채운다
     if basis and not claim.get("basis_kind"):
         claim["basis_kind"] = basis
