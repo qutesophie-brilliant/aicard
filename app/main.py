@@ -17,12 +17,11 @@ from fastapi.templating import Jinja2Templates
 
 from . import config, db
 from .pipeline import ingest, llm, ocr
-from .presentation import display_card
 from .pipeline.run import build_card, quick_check, split_fine_print
 from .schema import (BASIS_HELP, BASIS_KINDS, BASIS_LABEL, BASIS_STATE_HELP, BASIS_STATES, CARD_ITEMS, COVERAGE_ITEMS,
                      DATA_SERVER_LABEL, DATA_SERVERS, ITEM_LABEL, ITEM_QUESTION, ITEM_SHORT, ITEM_TILE, QUESTIONS,
                      QUESTION_TEXT, SUPPORT_PERIOD_LABEL, SUPPORT_PERIODS, axes_of, basis_counts, question_text,
-                     effective_status, public_status, global_extra, heads_up, status_from, summarize)
+                     effective_status, global_extra, heads_up, status_from, summarize)
 
 APP_DIR = Path(__file__).resolve().parent
 if os.getenv("PUBLIC_DEPLOY") == "1" and not config.REVIEW_TOKEN:
@@ -37,14 +36,14 @@ templates = Jinja2Templates(directory=APP_DIR / "templates")
 STATUS_CLASS = {"근거 확인": "s1", "조건 확인": "s2", "자료 부족": "s3", "추가 확인 필요": "s4"}
 STATUS_MARK = {"근거 확인": "✓", "조건 확인": "✓", "자료 부족": "–", "추가 확인 필요": "!"}
 # 라벨에서 쓰는 짧은 상태 이름. 소비자에게는 세 가지로 보인다: 근거 있음 / 근거 못 찾음 / 설명 어긋남
-STATUS_SHORT = {"근거 확인": "작동 설명 있음", "조건 확인": "작동 설명 있음", "자료 부족": "설명을 찾지 못함", "추가 확인 필요": "설명 대조 필요"}
+STATUS_SHORT = {"근거 확인": "작동 설명 있음", "조건 확인": "작동 설명 있음", "자료 부족": "작동 설명 없음", "추가 확인 필요": "표시와 설명 어긋남"}
 
 templates.env.globals.update(
     STATUSES=config.STATUSES, STATUS_HELP=config.STATUS_HELP, STATUS_CLASS=STATUS_CLASS,
     STATUS_MARK=STATUS_MARK, CARD_ITEMS=CARD_ITEMS, COVERAGE_ITEMS=COVERAGE_ITEMS,
     ITEM_LABEL=ITEM_LABEL, ITEM_QUESTION=ITEM_QUESTION, ITEM_SHORT=ITEM_SHORT, ITEM_TILE=ITEM_TILE,
     QUESTIONS=QUESTIONS, QUESTION_TEXT=QUESTION_TEXT, STATUS_SHORT=STATUS_SHORT, qtext=question_text,
-    eff=public_status, summarize=summarize, heads_up=heads_up, axes=axes_of,
+    eff=effective_status, summarize=summarize, heads_up=heads_up, axes=axes_of,
     BASIS_STATES=BASIS_STATES, BASIS_STATE_HELP=BASIS_STATE_HELP,
     DATA_SERVERS=DATA_SERVERS, DATA_SERVER_LABEL=DATA_SERVER_LABEL,
     SUPPORT_PERIODS=SUPPORT_PERIODS, SUPPORT_PERIOD_LABEL=SUPPORT_PERIOD_LABEL,
@@ -55,7 +54,7 @@ templates.env.globals.update(
 
 def _haeyo(v: str) -> str:
     """저장된 항목 요약의 고정 문구를 카드 문체(해요체)로 맞춘다."""
-    return (v or "").replace("공개자료에서 확인되지 않았습니다.", "이 카드에 사용한 자료에서는 관련 안내를 찾지 못했어요.")
+    return (v or "").replace("공개자료에서 확인되지 않았습니다.", "공개자료에서 확인되지 않았어요.")
 
 
 def kdate(v: str) -> str:
@@ -216,12 +215,6 @@ def _build_in_background(pid: int) -> None:
 
 # ---------- 공통 ----------
 def render(request: Request, name: str, **ctx: Any) -> HTMLResponse:
-    if name in ("card.html", "compare.html", "check_result.html"):
-        if "card" in ctx:
-            ctx["card"] = display_card(ctx["card"])
-            ctx["sum"] = summarize(ctx["card"])
-        for row in ctx.get("pair", []):
-            row["card"] = display_card(row["card"])
     ctx.setdefault("request", request)
     ctx.setdefault("path", request.url.path)
     ctx.setdefault("is_reviewer", is_reviewer(request))
@@ -281,7 +274,7 @@ def index(request: Request):
     approved = db.list_products("approved")
     cards = []
     for p in approved:
-        c = display_card(db.get_card(p["id"]))
+        c = db.get_card(p["id"])
         if c:
             cards.append({"product": p, "card": c, "sum": summarize(c)})
     cards.sort(key=lambda r: (r["product"].get("is_sample", 0), r["product"]["name"]))
@@ -293,7 +286,7 @@ def index(request: Request):
         ex = real[0]
         example = {"product": ex["product"], "card": ex["card"], "sum": ex["sum"], "heads": heads_up(ex["card"], 1),
                    "claims": sorted(ex["card"]["claims"],
-                                    key=lambda c: (public_status(c) != "추가 확인 필요", len(c["text"])))[:4]}
+                                    key=lambda c: (effective_status(c) != "추가 확인 필요", len(c["text"])))[:4]}
     makers = sorted({r["product"]["maker"] for r in cards if r["product"]["maker"]})
     # 품목별 수("로봇청소기 23종, 공기청정기 6종"). 품목이 하나면 그 이름만 쓴다
     from collections import Counter as _C
@@ -317,7 +310,6 @@ def index(request: Request):
 @app.get("/card/{pid}", response_class=HTMLResponse)
 def card_page(request: Request, pid: int, preview: int = 0):
     product, card, docs = card_view(pid)
-    card = display_card(card)
     from_check = request.query_params.get("from") == "check"
     if product["status"] != "approved" and not preview:
         raise HTTPException(404, "아직 검토가 끝나지 않은 카드입니다.")
@@ -335,7 +327,6 @@ def compare(request: Request, a: int | None = None, b: int | None = None):
         if pid:
             try:
                 product, card, docs = card_view(pid)
-                card = display_card(card)
                 if product["status"] == "approved":
                     pair.append({"product": product, "card": card, "docs": docs, "sum": summarize(card)})
             except HTTPException:
@@ -350,8 +341,8 @@ def about(request: Request):
            "basis": {k: 0 for k, _, _ in BASIS_KINDS}, "basis_global": {k: 0 for k, _, _ in BASIS_KINDS},
            "global_extra": 0, "optout_missing": 0, "data_missing": 0}
     for pr in db.list_products("approved"):
-        c = display_card(db.get_card(pr["id"]))
-        if not c or pr.get("is_sample"):
+        c = db.get_card(pr["id"])
+        if not c:
             continue
         sm = summarize(c)
         tot["products"] += 1
@@ -380,8 +371,8 @@ def findings(request: Request):
     mismatches: list[dict[str, Any]] = []
     cats: dict[str, int] = {}
     for pr in db.list_products("approved"):
-        c = display_card(db.get_card(pr["id"]))
-        if not c or pr.get("is_sample"):
+        c = db.get_card(pr["id"])
+        if not c:
             continue
         sm = summarize(c)
         tot["products"] += 1
@@ -398,13 +389,13 @@ def findings(request: Request):
             if c["items"].get(key, {}).get("status") == "자료 부족":
                 tot[slot] += 1
         for cl in c["claims"]:
-            if public_status(cl) != "추가 확인 필요":
+            if effective_status(cl) != "추가 확인 필요":
                 continue
             mismatches.append({"pid": pr["id"], "product": pr["name"], "maker": pr["maker"],
                                "claim": cl["text"],
                                "note": cl.get("conditions") or cl.get("reviewer_note") or "",
                                "quote": (cl.get("evidence") or [{}])[0].get("quote", ""),
-                               "anchor": f"claim-{pr['id']}-{cl['id']}"})
+                               "anchor": f"claim-{cl['id']}"})
     cat_line = ", ".join(f"{k} {v}장" for k, v in sorted(cats.items(), key=lambda kv: -kv[1]))
     return render(request, "findings.html", tot=tot, mismatches=mismatches, cat_line=cat_line)
 
@@ -414,10 +405,10 @@ def cards_json():
     """공개 카드 전체(승인된 것만)."""
     out = []
     for pr in db.list_products("approved"):
-        c = display_card(db.get_card(pr["id"]))
+        c = db.get_card(pr["id"])
         if c:
             out.append({"id": pr["id"], "product": c["product"], "checked_at": c.get("checked_at"),
-                        "summary": summarize(c), "card": display_card(c)})
+                        "summary": summarize(c), "card": c})
     return JSONResponse(out, media_type="application/json; charset=utf-8")
 
 
@@ -431,7 +422,7 @@ def card_json(pid: int):
     product, card, _ = card_view(pid)
     if product["status"] != "approved":
         raise HTTPException(404)
-    return JSONResponse(display_card(card), media_type="application/json; charset=utf-8")
+    return JSONResponse(card, media_type="application/json; charset=utf-8")
 
 
 @app.post("/api/ingest")
@@ -944,7 +935,7 @@ def review_queue(request: Request):
         if p.get("is_sample") or (p.get("name") or "").startswith("probe"):
             continue
         c = db.get_card(p["id"])
-        if not c or pr.get("is_sample"):
+        if not c:
             continue
         sm = summarize(c)
         claims = []

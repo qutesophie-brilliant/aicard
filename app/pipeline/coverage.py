@@ -29,8 +29,8 @@ PROMPT = """소비자 정보카드의 한 항목을 채우려 합니다.
 판정:
 - status: "근거 확인"(항목에 답이 되는 구체적 정보가 있음) / "조건 확인"(정보가 있고 조건·범위도 명시) /
   "자료 부족"(관련 문장이 없거나 일반적 문구뿐) / "추가 확인 필요"(문장끼리 어긋남)
-- summary: 소비자에게 보여줄 조건·주체·수치·부정 표현을 빠뜨리지 않는 요약. 문서에 있는 사실만, 평가·권고 표현 없이. 자료 부족이면
-  "이 카드에 사용한 자료에서는 관련 안내를 찾지 못했어요." 형태로.
+- summary: 소비자에게 보여줄 2문장 이내 요약. 문서에 있는 사실만, 평가·권고 표현 없이. 자료 부족이면
+  "공개자료에서 확인되지 않았습니다." 형태로.
 - evidence: 근거 번호(최대 3개)
 
 출력(JSON): {{"status":"...", "summary":"...", "evidence":[k,...]}}
@@ -42,8 +42,8 @@ BATCH_PROMPT = """소비자 정보카드의 권익 항목 다섯 개를 채우�
 항목별로 판정하세요.
 - status: "근거 확인"(항목에 답이 되는 구체적 정보가 있음) / "조건 확인"(정보가 있고 조건·범위도 명시) /
   "자료 부족"(관련 문장이 없거나 일반적 문구뿐) / "추가 확인 필요"(문장끼리 어긋남)
-- summary: 소비자에게 보여줄 조건·주체·수치·부정 표현을 빠뜨리지 않는 요약. 문서에 있는 사실만, 평가·권고 표현 없이, 자연스러운 "~해요"체로.
-  자료 부족이면 "이 카드에 사용한 자료에서는 관련 안내를 찾지 못했어요."
+- summary: 소비자에게 보여줄 2문장 이내 요약. 문서에 있는 사실만, 평가·권고 표현 없이, "~입니다/~습니다"체로.
+  자료 부족이면 "공개자료에서 확인되지 않았습니다."
 - evidence: 그 항목 후보 중 근거 번호(최대 3개)
 
 {blocks}
@@ -86,18 +86,16 @@ def _fill_llm_batch(cand_map: dict[str, list[dict[str, Any]]]) -> dict[str, dict
         ev = _pack(cands, row.get("evidence"))
         if status in ("근거 확인", "조건 확인") and not ev:
             status = "자료 부족"
-        summary = str(row.get("summary", "")).strip() or "이 카드에 사용한 자료에서는 관련 안내를 찾지 못했어요."
+        summary = str(row.get("summary", "")).strip() or "공개자료에서 확인되지 않았습니다."
         out[key] = {"status": status, "summary": summary, "evidence": ev}
     return out
 
 
 def _pack(cands: list[dict[str, Any]], ks: list[Any]) -> list[dict[str, Any]]:
     out = []
-    for k in dict.fromkeys(k for k in (ks if isinstance(ks, list) else []) if type(k) is int):
+    for k in ks or []:
         try:
-            if type(k) is not int or not 0 <= k < len(cands):
-                continue
-            c = cands[k]
+            c = cands[int(k)]
             out.append({"doc_id": c["doc_id"], "chunk": c["chunk"], "quote": c["quote"], "kind": c["kind"]})
         except (ValueError, IndexError, TypeError):
             continue
@@ -110,6 +108,6 @@ _KEYWORDS = {k: re.compile("|".join(re.escape(w) for w in v.split())) for k, v i
 def _fill_rules(key: str, cands: list[dict[str, Any]]) -> dict[str, Any]:
     hits = [c for c in cands if len(_KEYWORDS[key].findall(c["quote"])) >= 2]
     if not hits:
-        return {"status": "자료 부족", "summary": "이 카드에 사용한 자료에서는 관련 안내를 찾지 못했어요.", "evidence": []}
+        return {"status": "자료 부족", "summary": "공개자료에서 확인되지 않았습니다.", "evidence": []}
     ev = [{k2: c[k2] for k2 in ("doc_id", "chunk", "quote", "kind")} for c in hits[:3]]
-    return {"status": "근거 확인", "summary": hits[0]["quote"], "evidence": ev}
+    return {"status": "근거 확인", "summary": hits[0]["quote"][:120], "evidence": ev}

@@ -49,7 +49,7 @@ ITEM_TILE = {"conditions": "작동 조건", "data": "내 데이터", "optout": "
 # 모든 카드가 같은 순서로 답하는 질문 다섯 개. (key, 질문, 묶이는 항목)
 QUESTIONS = [
     ("what", "무엇을 ‘AI’라고 하나요?", ["functions", "evidence", "conditions"]),
-    ("data", "어떤 정보를 모으고, 어디서 처리하나요?", ["data"]),
+    ("data", "내 집과 관련된 정보는 어디로 전송되나요?", ["data"]),
     ("optout", "AI 기능을 끌 수 있나요?", ["optout"]),
     ("trouble", "문제가 생기면 어떻게 하나요?", ["safety", "remedy"]),
     ("public", "안전·전파 인증은 확인되나요?", []),
@@ -60,9 +60,9 @@ QUESTION_TEXT = {k: q for k, q, _ in QUESTIONS}
 # 웨어러블·TV는 '내 집'이 맞지 않는다. 품목 이름에 아래 조각이 들어 있으면 그 문구를 쓰고, 없으면 기본 문구를 쓴다.
 QUESTION_BY_CATEGORY = {
     "data": [
-        (("로봇청소기", "청소기", "공기청정기", "에어컨", "제습기", "가습기", "냉풍기"), "어떤 정보를 모으고, 어디서 처리하나요?"),
-        (("세탁기", "건조기", "세탁건조기", "식기세척기", "냉장고", "오븐", "인덕션"), "어떤 정보를 모으고, 어디서 처리하나요?"),
-        (("TV", "티브이", "스피커", "디스플레이", "모니터"), "어떤 정보를 모으고, 어디서 처리하나요?"),
+        (("로봇청소기", "청소기", "공기청정기", "에어컨", "제습기", "가습기", "냉풍기"), "내 집과 관련된 정보는 어디로 전송되나요?"),
+        (("세탁기", "건조기", "세탁건조기", "식기세척기", "냉장고", "오븐", "인덕션"), "내 사용 기록은 어디로 전송되나요?"),
+        (("TV", "티브이", "스피커", "디스플레이", "모니터"), "내 시청·사용 기록은 어디로 전송되나요?"),
         (("워치", "밴드", "이어폰", "반지", "링", "체중계", "혈압계"), "내 몸에서 잰 정보는 어디로 전송되나요?"),
     ],
 }
@@ -83,7 +83,6 @@ BASIS_KINDS = [
     ("vision", "카메라 인식으로 설명", "카메라·영상 인식으로 설명하되 학습이나 모델 언급은 없음"),
     ("sensor", "센서·규칙으로 설명", "거리·초음파·적외선·LiDAR·신호 같은 센서나 규칙으로 설명"),
     ("service", "외부 서비스로 설명", "음성비서·클라우드 AI·제3자 플랫폼의 이름을 들어 설명하고, 기기 안에서 어떻게 작동하는지는 적혀 있지 않음"),
-    ("unknown", "설명 종류 미분류", "작동 설명의 종류를 아직 분류하지 않음"),
     ("none", "조건·한계만 적음", "조건·한계·지원 모델 같은 내용만 있고 어떻게 작동하는지는 적혀 있지 않음"),
 ]
 BASIS_LABEL = {k: label for k, label, _ in BASIS_KINDS}
@@ -112,12 +111,13 @@ def basis_counts(card: dict[str, Any], scope: str = "kr") -> dict[str, int]:
     """작동 설명의 종류 집계. scope='kr'은 국내 공개자료 기준, 'global'은 회사의 해외 공식 자료까지 더한 기준."""
     out = {k: 0 for k, _, _ in BASIS_KINDS}
     for c in card.get("claims", []):
-        if public_status(c) not in ("근거 확인", "조건 확인"):
+        if effective_status(c) not in ("근거 확인", "조건 확인"):
             continue
         k = c.get("basis_kind")
         if scope == "global" and c.get("basis_kind_global"):
             k = c["basis_kind_global"]
-        out[k if k in out else "unknown"] += 1
+        if k in out:
+            out[k] += 1
     return out
 
 
@@ -130,14 +130,14 @@ def heads_up(card: dict[str, Any], limit: int = 4) -> list[dict[str, str]]:
     """'사기 전에 알아 둘 것' — 표시와 설명이 어긋난 문구, 빠진 권익 정보를 최대 limit개 고른다."""
     out: list[dict[str, str]] = []
     for c in card.get("claims", []):
-        if public_status(c) == "추가 확인 필요":
+        if effective_status(c) == "추가 확인 필요":
             ct = (c.get("text") or "").strip()
             ct = ct[:60] + "…" if len(ct) > 60 else ct
-            text = f"“{ct}” — 표시 문구와 연결된 설명을 더 확인해야 해요."
+            text = f"“{ct}” — 표시 문구와 회사의 작동 설명이 맞지 않아요."
             out.append({"kind": "s4", "text": text, "anchor": f"claim-{c['id']}"})
     bc = basis_counts(card)
-    linked = sum(1 for c in card.get("claims", []) if public_status(c) in ("근거 확인", "조건 확인"))
-    if linked and bc["learn"] == 0 and bc["unknown"] == 0 and (bc["sensor"] or bc["vision"] or bc["service"] or bc["none"]):
+    linked = sum(1 for c in card.get("claims", []) if effective_status(c) in ("근거 확인", "조건 확인"))
+    if linked and bc["learn"] == 0 and (bc["sensor"] or bc["vision"] or bc["service"] or bc["none"]):
         how = []
         if bc["sensor"]:
             how.append(f"센서·규칙 {bc['sensor']}개")
@@ -145,20 +145,20 @@ def heads_up(card: dict[str, Any], limit: int = 4) -> list[dict[str, str]]:
             how.append(f"카메라 인식 {bc['vision']}개")
         if bc["service"]:
             how.append(f"외부 서비스 {bc['service']}개")
-        text = f"작동 설명 {linked}개 가운데 이 카드에 연결된 자료에서 학습이나 모델을 언급한 것은 없어요."
+        text = f"작동 설명 {linked}개 가운데 AI 학습이나 모델을 언급한 것은 없어요."
         if len(how) == 1 and (bc["sensor"] + bc["vision"] + bc["service"]) == linked:
-            text = f"작동 설명 {linked}개는 모두 " + how[0].rsplit(" ", 1)[0] + "으로 설명했고, 이 카드에 연결된 자료에서 학습이나 모델을 언급한 설명은 없어요."
+            text = f"작동 설명 {linked}개는 모두 " + how[0].rsplit(" ", 1)[0] + "으로 설명했고, AI 학습이나 모델을 언급한 설명은 없어요."
         elif how:
-            text = f"작동 설명 {linked}개는 " + ", ".join(how) + "로 설명했고, 이 카드에 연결된 자료에서 학습이나 모델을 언급한 설명은 없어요."
+            text = f"작동 설명 {linked}개는 " + ", ".join(how) + "로 설명했고, AI 학습이나 모델을 언급한 설명은 없어요."
         out.append({"kind": "s3", "text": text, "anchor": "q-what"})
     extra = global_extra(card)
     if extra:
         out.append({"kind": "s3", "text": f"문구 {len(extra)}개는 국내 자료에 없는 설명이 회사의 해외 영문 자료에 있어요.", "anchor": f"claim-{extra[0]['id']}"})
     items = card.get("items", {})
     if items.get("optout", {}).get("status") == "자료 부족":
-        out.append({"kind": "s3", "text": "AI 기능을 끄는 방법은 이 카드에 사용한 자료에서 찾지 못했어요.", "anchor": "q-optout"})
+        out.append({"kind": "s3", "text": "AI 기능을 끄는 방법은 회사가 공개한 자료에 없어요.", "anchor": "q-optout"})
     if items.get("data", {}).get("status") == "자료 부족":
-        out.append({"kind": "s3", "text": "어떤 데이터를 모으고 어디서 처리하는지는 이 카드에 사용한 자료에서 찾지 못했어요.", "anchor": "q-data"})
+        out.append({"kind": "s3", "text": "어떤 데이터를 모으고 어디서 처리하는지는 공개자료에 없어요.", "anchor": "q-data"})
     return out[:limit]
 
 
@@ -236,20 +236,10 @@ def effective_status(claim: dict[str, Any]) -> str:
     return status_from(basis, cond)
 
 
-def public_status(claim: dict[str, Any]) -> str:
-    """Keep stored judgments intact; flag inconsistent evidence on public views."""
-    status = effective_status(claim)
-    if status in ("근거 확인", "조건 확인"):
-        ev = claim.get("evidence") or []
-        if claim.get("basis_kind") == "none" or not ev or all(e.get("cond_only") for e in ev):
-            return "추가 확인 필요"
-    return status
-
-
 def summarize(card: dict[str, Any]) -> dict[str, Any]:
     counts = {s: 0 for s in STATUSES}
     for c in card.get("claims", []):
-        s = public_status(c)
+        s = effective_status(c)
         counts[s] = counts.get(s, 0) + 1
     covered = sum(1 for k in COVERAGE_ITEMS
                   if card["items"].get(k, {}).get("status") in ("근거 확인", "조건 확인"))
@@ -259,23 +249,23 @@ def summarize(card: dict[str, Any]) -> dict[str, Any]:
     if n == 0:
         lines.append("이 제품은 판매페이지에서 ‘AI’를 내세우지 않아요. AI를 내세우는 제품과 견줄 수 있도록 같은 질문을 확인했어요.")
     else:
-        lines.append(f"AI 관련 문구 {n}개 중 {linked}개에 회사가 작동 설명을 적어 두었어요.")
+        lines.append(f"‘AI’라고 표시한 문구 {n}개 중 {linked}개에 회사가 작동 설명을 적어 두었어요.")
         rest = []
         if counts["자료 부족"]:
             rest.append(f"{counts['자료 부족']}개는 공개자료에서 설명을 찾지 못했어요")
         if counts["추가 확인 필요"]:
-            rest.append(f"{counts['추가 확인 필요']}개는 설명을 더 확인해야 해요")
+            rest.append(f"{counts['추가 확인 필요']}개는 표시와 설명이 서로 맞지 않아요")
         if rest:
             lines.append(". ".join(rest) + ".")
     missing = [ITEM_SHORT[k] for k in COVERAGE_ITEMS
                if card["items"].get(k, {}).get("status") not in ("근거 확인", "조건 확인")]
     if covered == len(COVERAGE_ITEMS):
-        lines.append("권익 항목 5가지에서 관련 안내를 찾았어요. 각 항목의 모든 질문에 답이 있다는 뜻은 아니에요.")
+        lines.append("소비자 권익 항목 5가지가 모두 공개돼 있어요.")
     elif covered == 0:
-        lines.append("이 카드에 사용한 자료에서는 권익 항목 5가지의 관련 안내를 찾지 못했어요.")
+        lines.append("소비자 권익 항목 5가지를 공개자료에서 찾지 못했어요.")
     else:
         joined = ", ".join(missing)
-        lines.append(f"권익 항목 5가지 중 {covered}가지에서 관련 안내를 찾았어요. "
+        lines.append(f"소비자 권익 항목 5가지 중 {covered}가지가 공개돼 있어요. "
                      f"{joined}{topic_particle(missing[-1])} 찾지 못했어요.")
     return {
         "n_claims": n,

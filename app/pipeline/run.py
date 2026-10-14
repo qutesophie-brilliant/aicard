@@ -32,6 +32,7 @@ def build_card(product_id: int, keep_reviewer_edits: bool = True) -> dict[str, A
     claims = link.link_claims(claims, index)
     card["claims"] = claims
     card["items"] = coverage.fill_coverage(index)
+    card["easy"] = easy.make_easy(card)
     card["checked_at"] = date.today().isoformat()
 
     if old:
@@ -39,12 +40,12 @@ def build_card(product_id: int, keep_reviewer_edits: bool = True) -> dict[str, A
         card["public_db"] = old.get("public_db", card["public_db"])
         _carry_review(old, card)
 
-    card["easy"] = easy.make_easy(card)
     meta = {"provider": llm.provider(), "seconds": round(time.time() - t0, 1),
             "n_docs": len(docs), "n_chunks": sum(len(d["chunks"]) for d in docs),
             "n_claims": len(claims)}
     db.save_card(product_id, card, meta)
-    db.set_product_status(product_id, "pending", "카드 재생성 후 원문 검토 대기")
+    if product["status"] == "draft":
+        db.set_product_status(product_id, "pending", "카드 생성됨, 검토 대기")
     return card
 
 

@@ -204,11 +204,11 @@ body.menu-open .top { position: relative; z-index: 60; }
 .claims li:first-child { border-top: 0; padding-top: 6px; }
 .claims q { font-weight: 600; line-height: 1.5; }
 .claims .cond { margin-top: 7px; color: var(--ink-2); font-size: .93rem; line-height: 1.55; }
-
-
+.claims .cond::before { content: "조건"; font-size: .76rem; font-weight: 700; color: var(--navy); background: var(--navy-soft); padding: 1px 6px; border-radius: 4px; margin-right: 7px; vertical-align: 1px; }
+.claims li.s4 .cond::before { content: "어긋남"; color: var(--amber-ink); background: var(--amber-soft); }
 .claims .cond.none { color: var(--ink-3); }
-
-
+.claims .cond.none::before { content: "설명 없음"; color: var(--ink-3); background: var(--paper-2); }
+.claims .cond.has::before { content: "근거"; }
 .block { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
 .block + .block { margin-top: 10px; }
 .qa > .block:first-of-type { border-top: 0; padding-top: 0; }
@@ -267,7 +267,7 @@ body.menu-open .top { position: relative; z-index: 60; }
 html[data-easy="on"] .easy-only { display: block; }
 html[data-easy="on"] .plain-only { display: none; }
 html[data-easy="on"] .qa .lead { font-size: 1.12rem; line-height: 1.75; }
- /* 쉬운 말에서도 문구별 조건은 보인다(사용성 시험 10/12) */
+html[data-easy="on"] .ev { display: none; } /* 쉬운 말에서도 문구별 조건은 보인다(사용성 시험 10/12) */
 html[data-easy="on"] .claims q { font-weight: 500; }
 
 /* ---- 카드 페이지 둘레 ---- */
@@ -710,7 +710,3 @@ footer.site a { color: var(--ink-3); text-decoration: underline; text-underline-
 @media (max-width: 1000px) { .hero-flow { grid-column: 1; } .hero-band .hero-grid { grid-template-columns: 1fr; gap: 36px; } .hero-stats { grid-template-columns: repeat(3, 1fr); gap: 0 20px; } .hero-stats li { grid-template-columns: 1fr; gap: 6px; } .hero-stats li:last-child { border-bottom: 0; } .hero-stats { border-bottom: 1px solid var(--line-2); } }
 @media (max-width: 760px) { .hero-band { padding: 52px 0 104px; } .hero-stats { grid-template-columns: 1fr; gap: 0; } .hero-stats li { grid-template-columns: auto 1fr; } .hero .stage { margin-top: -64px; } .hero-band h1 br { display: none; } }
 @media (prefers-reduced-motion: no-preference) { .hero-band h1, .hero-band .sub, .hero-band .urlform, .hero-band .alt, .hero-stats li { opacity: 0; animation: rise .7s cubic-bezier(.2,.7,.2,1) forwards; } .hero-band .sub { animation-delay: .12s } .hero-band .urlform { animation-delay: .22s } .hero-band .alt { animation-delay: .3s } .hero-stats li:nth-child(1) { animation-delay: .25s } .hero-stats li:nth-child(2) { animation-delay: .35s } .hero-stats li:nth-child(3) { animation-delay: .45s } }
-
-/* Sources and correction requests remain available in easy mode. */
-.ev > summary, .report > summary { min-height: 44px; padding: 12px 6px; }
-.ev > summary:focus-visible, .report > summary:focus-visible { outline: 3px solid #155e75; outline-offset: 3px; }
