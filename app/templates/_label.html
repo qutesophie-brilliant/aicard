@@ -147,7 +147,7 @@
   <section class="qa" id="q-public">
     <h3>{{ QUESTION_TEXT['public'] }}</h3>
     {% set pdb_done = pdb.rra.found is not none or pdb.kc.found is not none or pdb.energy.found is not none or pdb.recall.found is not none %}
-    <p class="lead">{% if pdb_done %}공공 데이터베이스에 등록된 정보예요. {{ card.checked_at|kdate }}에 조회했어요.{% else %}공공 데이터베이스는 아직 조회하지 않았어요.{% endif %} 이 인증은 전기 안전과 전파 적합성에 관한 것이고, AI 기능을 검증한 것은 아니에요.</p>
+    <p class="lead">{% if pdb_done %}공공 데이터베이스 조회 기록이에요. 확인한 날짜와 출처는 아래 개별 항목을 보세요.{% else %}공공 데이터베이스는 아직 조회하지 않았어요.{% endif %} 이 인증은 전기 안전과 전파 적합성에 관한 것이고, AI 기능을 검증한 것은 아니에요.</p>
     <ul class="pub">
       {% for key, label, val, link in [
           ('rra', '전파 적합성평가', pdb.rra.number, '국립전파연구원'),
