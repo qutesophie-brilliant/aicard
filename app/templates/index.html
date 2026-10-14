@@ -112,7 +112,7 @@
         <li>{{ tag('근거 확인') }}<b>회사가 공개한 자료에 작동 방식 설명이 있어요</b><span>작동 조건이나 한계가 함께 적혀 있으면 문구 아래에 <span class="tag">조건</span> 꼬리표로 그 내용을 붙여요.</span></li>
         <li>{{ tag('자료 부족') }}<b>공개자료에서 설명을 찾지 못했어요</b><span>회사가 공개한 자료 안에서 설명을 찾지 못했다는 뜻이에요. 기능이 없다거나 표시가 거짓이라고 판정한 것은 아니에요.</span></li>
         <li><span class="kind">센서·규칙으로 설명</span><b>작동 설명의 종류도 함께 적어요</b><span>‘작동 설명 있음’ 문구에는 회사가 무엇으로 설명했는지도 꼬리표로 적어요. 학습·모델, 카메라 인식, 센서·규칙, 외부 서비스, 조건·한계만 적음 가운데 하나예요. 작동 설명을 그대로 옮긴 것이고 AI 여부를 판정한 것은 아니에요.</span></li>
-        <li>{{ tag('추가 확인 필요') }}<b>표시 문구와 회사의 작동 설명이 맞지 않아요</b><span>사기 전에 확인이 필요한 문구라서 카드 맨 위 ‘사기 전에 알아 둘 것’에 따로 모아 두어요.</span></li>
+        <li>{{ tag('추가 확인 필요') }}<b>본문과 각주를 더 확인해야 해요</b><span>사기 전에 확인이 필요한 문구라서 카드 맨 위 ‘사기 전에 알아 둘 것’에 따로 모아 두어요.</span></li>
       </ul>
     </div>
   </div>
@@ -146,7 +146,7 @@
         <h3>{{ row.product.name }}</h3>
         {% if row.sum.n_claims %}
         {{ bar(row.card.claims, row.sum) }}
-        <p class="m"><span>‘AI’ 문구 {{ row.sum.n_claims }}개 중 <b>{{ row.sum.linked }}개</b> 작동 설명 있음</span>{% if row.sum.counts['추가 확인 필요'] %}<span class="w"><i class="mark s4"></i>어긋남 {{ row.sum.counts['추가 확인 필요'] }}</span>{% endif %}</p>
+        <p class="m"><span>‘AI’ 문구 {{ row.sum.n_claims }}개 중 <b>{{ row.sum.linked }}개</b> 작동 설명 있음</span>{% if row.sum.counts['추가 확인 필요'] %}<span class="w"><i class="mark s4"></i>추가 확인 {{ row.sum.counts['추가 확인 필요'] }}</span>{% endif %}</p>
         {% else %}
         <p class="zero">대조군 · ‘AI’를 내세우지 않는 제품</p>
         {% endif %}

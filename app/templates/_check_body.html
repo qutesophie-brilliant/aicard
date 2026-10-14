@@ -4,7 +4,7 @@
 <article class="label quick" style="margin-top:14px" aria-label="{{ pname }} 바로 확인 결과">
   <div class="lb-band">
     <span class="lb-brand"><img src="/static/logo.png" alt="">바로 확인 · 사람이 검토하기 전</span>
-    <span class="lb-cat">자동 분석</span>
+    <span class="lb-cat">{{ 'AI로 관련 문장 연결' if card.quick_llm else '규칙으로 관련 문장 연결' }}</span>
   </div>
   <div class="lb-head">
     <div>
@@ -59,7 +59,7 @@
     <form class="form" method="post" action="/check/request" style="margin-top:12px">
       <input type="hidden" name="url" value="{{ url }}">
       <label>제품 이름 <input type="text" name="name" value="{{ pname }}" required></label>
-      <label>궁금한 점 <span class="help">선택. 예: "AI 사물 인식이 진짜인지 궁금해요"</span><input type="text" name="note" maxlength="300"></label>
+      <label>궁금한 점 <span class="help">선택. 예: "사물 인식의 작동 조건을 확인하고 싶어요"</span><input type="text" name="note" maxlength="300"></label>
       <div><button class="btn primary" type="submit">정식 카드 요청</button></div>
     </form>
   </section>

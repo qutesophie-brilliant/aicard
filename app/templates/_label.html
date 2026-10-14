@@ -1,8 +1,8 @@
 {# 정보카드(라벨). 변수: product, card, docs, sum, compact(선택: 윗부분만), h(선택: 제목 태그, 기본 h2)
-   표시 원칙: 상태는 글자 띠로만 적는다. 기호는 '표시와 설명 어긋남'의 ! 하나뿐이다. #}
+   표시 원칙: 상태는 글자 띠로만 적는다. 기호는 '추가 확인 필요'의 ! 하나뿐이다. #}
 {% set h = h|default('h2') %}
 {% set heads = heads_up(card) %}
-{% set ITEM_STATE = {'근거 확인': '적혀 있음', '조건 확인': '적혀 있음', '자료 부족': '적혀 있지 않음', '추가 확인 필요': '표시와 설명 어긋남'} %}
+{% set ITEM_STATE = {'근거 확인': '적혀 있음', '조건 확인': '적혀 있음', '자료 부족': '적혀 있지 않음', '추가 확인 필요': '추가 확인 필요'} %}
 {% macro evidence(evs, docs, word='근거') %}
   {% if evs %}
   <details class="ev">
@@ -45,12 +45,12 @@
     <p class="lb-big">판매페이지에서 ‘AI’를 내세우지 않아요<small>AI를 내세우는 제품과 견줄 수 있도록 같은 다섯 질문을 확인했어요.</small></p>
     {% else %}
     {% set bc = basis_counts(card) %}
-    <p class="lb-big"><span class="sr">‘AI’라고 적은 문구 {{ sum.n_claims }}개 중 {{ sum.linked }}개에 회사가 작동 설명을 적어 두었어요.</span><span aria-hidden="true">‘AI’라고 적은 문구 <em>{{ sum.n_claims }}</em>개 중 <em>{{ sum.linked }}</em>개에<br>회사가 작동 설명을 적어 두었어요</span>{% if not compact and (sum.counts['자료 부족'] or sum.counts['추가 확인 필요']) %}<small class="lb-rest">나머지 {{ sum.n_claims - sum.linked }}개는 {% if sum.counts['자료 부족'] %}설명을 찾지 못한 문구 {{ sum.counts['자료 부족'] }}개{% endif %}{% if sum.counts['자료 부족'] and sum.counts['추가 확인 필요'] %}와 {% endif %}{% if sum.counts['추가 확인 필요'] %}표시와 설명이 어긋난 문구 {{ sum.counts['추가 확인 필요'] }}개{% endif %}예요. 어긋난 문구는 ‘설명 있음’에 넣지 않았어요.</small>{% endif %}{% if sum.linked and not compact and (bc.learn + bc.vision + bc.sensor + bc.service + bc.none) %}<small>{% set parts = [] %}{% if bc.vision %}{% set _ = parts.append('카메라 인식이 ' ~ bc.vision ~ '개') %}{% endif %}{% if bc.sensor %}{% set _ = parts.append('센서·규칙이 ' ~ bc.sensor ~ '개') %}{% endif %}{% if bc.service %}{% set _ = parts.append('외부 서비스가 ' ~ bc.service ~ '개') %}{% endif %}{% if bc.none %}{% set _ = parts.append('작동 방식 없이 조건만 적은 것이 ' ~ bc.none ~ '개') %}{% endif %}{% if bc.learn %}학습·모델을 언급한 설명이 {{ bc.learn }}개 있어요.{% else %}학습이나 모델을 언급한 설명은 없어요.{% endif %}{% if parts %} 설명을 보면 {{ parts|join(', ') }}예요.{% endif %}{% set ge = global_extra(card) %}{% if ge %} 국내 자료 기준이고, 회사의 해외 영문 자료까지 더하면 {{ ge|length }}개 문구의 설명이 달라져요.{% endif %}</small>{% endif %}</p>
+    <p class="lb-big"><span class="sr">‘AI’라고 적은 문구 {{ sum.n_claims }}개 중 {{ sum.linked }}개에 회사가 작동 설명을 적어 두었어요.</span><span aria-hidden="true">‘AI’라고 적은 문구 <em>{{ sum.n_claims }}</em>개 중 <em>{{ sum.linked }}</em>개에<br>회사가 작동 설명을 적어 두었어요</span>{% if not compact and (sum.counts['자료 부족'] or sum.counts['추가 확인 필요']) %}<small class="lb-rest">나머지 {{ sum.n_claims - sum.linked }}개는 {% if sum.counts['자료 부족'] %}설명을 찾지 못한 문구 {{ sum.counts['자료 부족'] }}개{% endif %}{% if sum.counts['자료 부족'] and sum.counts['추가 확인 필요'] %}와 {% endif %}{% if sum.counts['추가 확인 필요'] %}추가 확인이 필요한 문구 {{ sum.counts['추가 확인 필요'] }}개{% endif %}예요. 추가 확인 문구는 ‘설명 있음’에 넣지 않았어요.</small>{% endif %}{% if sum.linked and not compact and (bc.learn + bc.vision + bc.sensor + bc.service + bc.none + bc.unknown) %}<small>{% set parts = [] %}{% if bc.vision %}{% set _ = parts.append('카메라 인식이 ' ~ bc.vision ~ '개') %}{% endif %}{% if bc.sensor %}{% set _ = parts.append('센서·규칙이 ' ~ bc.sensor ~ '개') %}{% endif %}{% if bc.service %}{% set _ = parts.append('외부 서비스가 ' ~ bc.service ~ '개') %}{% endif %}{% if bc.none %}{% set _ = parts.append('작동 방식 없이 조건만 적은 것이 ' ~ bc.none ~ '개') %}{% endif %}{% if bc.learn %}학습·모델을 언급한 설명이 {{ bc.learn }}개 있어요.{% else %}학습·모델로 분류한 설명은 없어요.{% endif %}{% if bc.unknown %} 설명 종류가 미확정인 문구는 {{ bc.unknown }}개예요.{% endif %}{% if parts %} 설명을 보면 {{ parts|join(', ') }}예요.{% endif %}{% set ge = global_extra(card) %}{% if ge %} 국내 자료 기준이고, 회사의 해외 영문 자료까지 더하면 {{ ge|length }}개 문구의 설명이 달라져요.{% endif %}</small>{% endif %}</p>
     {{ bar(card.claims, sum) }}
     <ul class="lb-legend" aria-label="막대 뜻">
       <li><i class="sw s1"></i>작동 설명 있음 <b>{{ sum.linked }}</b></li>
       {% if sum.counts['자료 부족'] or not compact %}<li><i class="sw s3"></i>작동 설명 없음 <b>{{ sum.counts['자료 부족'] }}</b></li>{% endif %}
-      {% if sum.counts['추가 확인 필요'] or not compact %}<li><i class="sw s4"></i>표시와 설명 어긋남 <b>{{ sum.counts['추가 확인 필요'] }}</b></li>{% endif %}
+      {% if sum.counts['추가 확인 필요'] or not compact %}<li><i class="sw s4"></i>추가 확인 필요 <b>{{ sum.counts['추가 확인 필요'] }}</b></li>{% endif %}
     </ul>
     {% endif %}
     {% if heads and not compact %}
@@ -84,6 +84,7 @@
       <li id="claim-{{ product.id }}-{{ c.id }}" class="{{ STATUS_CLASS[s] }}">
         <div class="cl-head">{{ tag(s) }}<q>{{ c.text }}</q>{% if s != '자료 부족' and c.basis_kind in BASIS_LABEL %}<span class="kind kind-{{ c.basis_kind }}" title="국내 공개자료 기준 · {{ BASIS_HELP[c.basis_kind] }}">{{ BASIS_LABEL[c.basis_kind] }}</span>{% endif %}{% if c.basis_kind_global and c.basis_kind_global != c.basis_kind %}<span class="kind kind-global" title="회사의 해외 영문 공식 자료까지 더하면">해외 자료: {{ BASIS_LABEL[c.basis_kind_global] }}</span>{% endif %}</div>
         {% if s == '자료 부족' %}<p class="cond none">회사가 공개한 자료에서 이 문구에 관한 설명을 찾지 못했어요. 기능이 없거나 제품이 나쁘다는 뜻은 아니에요.</p>
+        {% elif s == '추가 확인 필요' %}<p class="cond">본문과 각주의 적용 범위·조건·지원 시점을 더 확인해야 해요. 잘못된 표시로 확정한 것은 아니에요.</p>{% if c.conditions or c.reviewer_note %}<details class="ev"><summary>저장된 판정 메모</summary><p>{{ c.conditions or c.reviewer_note }}</p></details>{% endif %}
         {% elif c.conditions %}<p class="cond">{{ c.conditions }}</p>
         {% elif s == '근거 확인' %}<p class="cond has">회사 자료에 작동 방식 설명이 있어요. 조건이나 한계는 따로 적혀 있지 않아요.</p>{% endif %}
         {% if s != '자료 부족' %}{{ evidence(c.evidence, docs) }}{% endif %}
