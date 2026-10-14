@@ -85,6 +85,9 @@
   const drop = document.getElementById('drop'), fin = document.getElementById('files'), dl = document.getElementById('droplist');
   if (drop && fin) {
     const dt = new DataTransfer();
+    const form = document.getElementById('checkform');
+    const maxFiles = Number(form.dataset.maxFiles), maxMB = Number(form.dataset.maxMb);
+    const fileError = document.getElementById('fileerror');
     const okType = (f) => /^image\//.test(f.type) || f.type === 'application/pdf' || /\.(png|jpe?g|webp|gif|bmp|pdf)$/i.test(f.name);
     function render() {
       fin.files = dt.files;
@@ -98,9 +101,19 @@
       });
     }
     function add(list) {
-      let n = 0;
-      Array.from(list).forEach((f) => { if (okType(f) && dt.files.length < 8) { if (!f.name || f.name === 'image.png') { f = new File([f], '캡처-' + (dt.files.length + 1) + '.png', { type: f.type || 'image/png' }); } dt.items.add(f); n++; } });
-      render(); return n;
+      const incoming = Array.from(list), errors = [];
+      incoming.forEach(f => {
+        if (!okType(f)) errors.push(f.name + ': 이미지나 PDF만 올릴 수 있어요.');
+        if (f.size > maxMB * 1024 * 1024) errors.push(f.name + ': 파일당 ' + maxMB + 'MB까지 올릴 수 있어요.');
+      });
+      if (dt.files.length + incoming.length > maxFiles) errors.push('파일은 한 번에 ' + maxFiles + '개까지 올릴 수 있어요. 선택한 파일은 추가하지 않았어요.');
+      fileError.textContent = errors.join(' '); fileError.hidden = !errors.length;
+      if (errors.length) return 0;
+      incoming.forEach(f => {
+        if (!f.name || f.name === 'image.png') f = new File([f], '캡처-' + (dt.files.length + 1) + '.png', { type: f.type || 'image/png' });
+        dt.items.add(f);
+      });
+      render(); return incoming.length;
     }
     document.getElementById('pick').addEventListener('click', () => { const t = document.createElement('input'); t.type = 'file'; t.multiple = true; t.accept = 'image/*,application/pdf'; t.addEventListener('change', () => add(t.files)); t.click(); });
     ['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add('over'); }));
@@ -111,8 +124,14 @@
       if (e.target && e.target.tagName === 'TEXTAREA' && !Array.from(items).some(okType)) return;
       e.preventDefault(); add(items); drop.scrollIntoView({ block: 'center', behavior: 'smooth' });
     });
-    const form = document.getElementById('checkform');
-    form.addEventListener('submit', () => { if (dt.files.length) { document.getElementById('busy').hidden = false; document.getElementById('go').disabled = true; } });
+    form.addEventListener('submit', e => {
+      if (form.getAttribute('aria-busy') === 'true') { e.preventDefault(); return; }
+      const busy = document.getElementById('busy');
+      busy.textContent = dt.files.length ? '파일의 글자를 읽고 관련 문장을 찾고 있어요. 파일 수와 응답에 따라 시간이 걸릴 수 있어요.' : '자료를 읽고 관련 문장을 찾고 있어요. 잠시 기다려 주세요.';
+      busy.hidden = false; document.getElementById('go').disabled = true; form.setAttribute('aria-busy', 'true');
+    });
+    window.addEventListener('pageshow', () => { document.getElementById('busy').hidden = true; document.getElementById('go').disabled = false; form.removeAttribute('aria-busy'); });
+    const checkError = document.getElementById('checkerror'); if (checkError) checkError.focus();
   }
 
   // 상단 바: 스크롤하면 그림자
