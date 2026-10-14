@@ -84,6 +84,7 @@ BASIS_KINDS = [
     ("sensor", "센서·규칙으로 설명", "거리·초음파·적외선·LiDAR·신호 같은 센서나 규칙으로 설명"),
     ("service", "외부 서비스로 설명", "음성비서·클라우드 AI·제3자 플랫폼의 이름을 들어 설명하고, 기기 안에서 어떻게 작동하는지는 적혀 있지 않음"),
     ("none", "조건·한계만 적음", "조건·한계·지원 모델 같은 내용만 있고 어떻게 작동하는지는 적혀 있지 않음"),
+    ("unknown", "설명 종류 미확정", "작동 설명은 있지만 설명 종류가 아직 분류되지 않음"),
 ]
 BASIS_LABEL = {k: label for k, label, _ in BASIS_KINDS}
 BASIS_HELP = {k: h for k, _, h in BASIS_KINDS}
@@ -116,8 +117,7 @@ def basis_counts(card: dict[str, Any], scope: str = "kr") -> dict[str, int]:
         k = c.get("basis_kind")
         if scope == "global" and c.get("basis_kind_global"):
             k = c["basis_kind_global"]
-        if k in out:
-            out[k] += 1
+        out[k if k in out else "unknown"] += 1
     return out
 
 
@@ -133,11 +133,11 @@ def heads_up(card: dict[str, Any], limit: int = 4) -> list[dict[str, str]]:
         if effective_status(c) == "추가 확인 필요":
             ct = (c.get("text") or "").strip()
             ct = ct[:60] + "…" if len(ct) > 60 else ct
-            text = f"“{ct}” — 표시 문구와 회사의 작동 설명이 맞지 않아요."
+            text = f"“{ct}” — 본문과 각주의 적용 범위·조건·지원 시점을 더 확인해야 해요."
             out.append({"kind": "s4", "text": text, "anchor": f"claim-{c['id']}"})
     bc = basis_counts(card)
     linked = sum(1 for c in card.get("claims", []) if effective_status(c) in ("근거 확인", "조건 확인"))
-    if linked and bc["learn"] == 0 and (bc["sensor"] or bc["vision"] or bc["service"] or bc["none"]):
+    if linked and bc["learn"] == 0 and bc["unknown"] == 0 and (bc["sensor"] or bc["vision"] or bc["service"] or bc["none"]):
         how = []
         if bc["sensor"]:
             how.append(f"센서·규칙 {bc['sensor']}개")
@@ -156,9 +156,9 @@ def heads_up(card: dict[str, Any], limit: int = 4) -> list[dict[str, str]]:
         out.append({"kind": "s3", "text": f"문구 {len(extra)}개는 국내 자료에 없는 설명이 회사의 해외 영문 자료에 있어요.", "anchor": f"claim-{extra[0]['id']}"})
     items = card.get("items", {})
     if items.get("optout", {}).get("status") == "자료 부족":
-        out.append({"kind": "s3", "text": "AI 기능을 끄는 방법은 회사가 공개한 자료에 없어요.", "anchor": "q-optout"})
+        out.append({"kind": "s3", "text": "AI 기능을 끄는 방법은 이 카드에 사용한 자료에서 찾지 못했어요.", "anchor": "q-optout"})
     if items.get("data", {}).get("status") == "자료 부족":
-        out.append({"kind": "s3", "text": "어떤 데이터를 모으고 어디서 처리하는지는 공개자료에 없어요.", "anchor": "q-data"})
+        out.append({"kind": "s3", "text": "데이터 수집·처리 위치에 관한 설명은 이 카드에 사용한 자료에서 찾지 못했어요.", "anchor": "q-data"})
     return out[:limit]
 
 
@@ -254,7 +254,7 @@ def summarize(card: dict[str, Any]) -> dict[str, Any]:
         if counts["자료 부족"]:
             rest.append(f"{counts['자료 부족']}개는 공개자료에서 설명을 찾지 못했어요")
         if counts["추가 확인 필요"]:
-            rest.append(f"{counts['추가 확인 필요']}개는 표시와 설명이 서로 맞지 않아요")
+            rest.append(f"{counts['추가 확인 필요']}개는 본문과 각주를 더 확인해야 해요")
         if rest:
             lines.append(". ".join(rest) + ".")
     missing = [ITEM_SHORT[k] for k in COVERAGE_ITEMS

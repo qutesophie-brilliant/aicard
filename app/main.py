@@ -14,6 +14,7 @@ from fastapi import BackgroundTasks, Depends, FastAPI, File, Form, HTTPException
 from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from starlette.concurrency import run_in_threadpool
 
 from . import config, db
 from .pipeline import ingest, llm, ocr
@@ -36,7 +37,7 @@ templates = Jinja2Templates(directory=APP_DIR / "templates")
 STATUS_CLASS = {"근거 확인": "s1", "조건 확인": "s2", "자료 부족": "s3", "추가 확인 필요": "s4"}
 STATUS_MARK = {"근거 확인": "✓", "조건 확인": "✓", "자료 부족": "–", "추가 확인 필요": "!"}
 # 라벨에서 쓰는 짧은 상태 이름. 소비자에게는 세 가지로 보인다: 근거 있음 / 근거 못 찾음 / 설명 어긋남
-STATUS_SHORT = {"근거 확인": "작동 설명 있음", "조건 확인": "작동 설명 있음", "자료 부족": "작동 설명 없음", "추가 확인 필요": "표시와 설명 어긋남"}
+STATUS_SHORT = {"근거 확인": "작동 설명 있음", "조건 확인": "작동 설명 있음", "자료 부족": "작동 설명 없음", "추가 확인 필요": "추가 확인 필요"}
 
 templates.env.globals.update(
     STATUSES=config.STATUSES, STATUS_HELP=config.STATUS_HELP, STATUS_CLASS=STATUS_CLASS,
@@ -49,6 +50,8 @@ templates.env.globals.update(
     SUPPORT_PERIODS=SUPPORT_PERIODS, SUPPORT_PERIOD_LABEL=SUPPORT_PERIOD_LABEL,
     BASIS_KINDS=BASIS_KINDS, BASIS_LABEL=BASIS_LABEL, BASIS_HELP=BASIS_HELP, basis_counts=basis_counts, global_extra=global_extra,
     provider=llm.provider, llm_available=llm.available,
+    CHECK_MAX_FILES=config.CHECK_MAX_FILES, CHECK_MAX_FILE_MB=config.CHECK_MAX_FILE_MB,
+    CHECK_OCR_AI=config.CHECK_OCR_LLM and llm.available(), CHECK_CONNECT_AI=config.CHECK_LLM and llm.available(),
 )
 
 
@@ -563,6 +566,43 @@ def check_page(request: Request, q: str = ""):
                   error=None, url="", q=q.strip()[:80])
 
 
+_check_ocr_gate = threading.BoundedSemaphore(1)
+
+
+def _read_check_uploads(payloads: list[tuple[str, str, bytes]]) -> tuple[list[str], list[str]]:
+    """OCR runs outside the async request loop; bound peak memory on the 512MB instance."""
+    if not _check_ocr_gate.acquire(blocking=False):
+        raise ValueError("다른 파일의 글자를 읽고 있어요. 잠시 뒤 다시 시도해 주세요.")
+    try:
+        from PIL import Image
+        imgs: list[bytes] = []
+        texts: list[str] = []
+        notes: list[str] = []
+        engines = {"llm": "AI 문자 인식", "tesseract": "서버 내 문자 인식", "pdf": "PDF 텍스트 추출", "none": "읽을 수 있는 글자 없음"}
+        def keep(r):
+            texts.append(r.text)
+            notes.extend(r.notes)
+            notes.append("글자 읽기: " + engines.get(r.engine, "문자 인식"))
+        for filename, ctype, data in payloads:
+            if ctype == "application/pdf" or filename.lower().endswith(".pdf"):
+                try:
+                    keep(ocr.read_pdf(data, allow_llm=config.CHECK_OCR_LLM))
+                except Exception as e:
+                    raise ValueError(f"PDF를 읽지 못했어요. 손상되거나 암호가 설정된 파일인지 확인해 주세요. ({filename})") from e
+            else:
+                try:
+                    with Image.open(io.BytesIO(data)) as image:
+                        image.verify()
+                except Exception as e:
+                    raise ValueError(f"이미지를 읽지 못했어요. JPG·PNG 캡처로 다시 올려 주세요. ({filename})") from e
+                imgs.append(data)
+        if imgs:
+            keep(ocr.read_images(imgs, allow_llm=config.CHECK_OCR_LLM))
+        return texts, list(dict.fromkeys(notes))
+    finally:
+        _check_ocr_gate.release()
+
+
 @app.post("/check", response_class=HTMLResponse)
 async def check_url(request: Request, url: str = Form(""), text: str = Form(""),
                     files: list[UploadFile] = File(default=[])):
@@ -591,28 +631,23 @@ async def check_url(request: Request, url: str = Form(""), text: str = Form(""),
         if len(uploads) > config.CHECK_MAX_FILES:
             return render(request, "check.html", base=base, bookmarklet=bm, url=url, q="",
                           error=f"파일은 한 번에 {config.CHECK_MAX_FILES}개까지 올릴 수 있어요.")
-        imgs: list[bytes] = []
-        pdf_texts: list[str] = []
+        payloads: list[tuple[str, str, bytes]] = []
         for f in uploads:
-            data = await f.read()
+            data = await f.read(config.CHECK_MAX_FILE_MB * 1024 * 1024 + 1)
             if len(data) > config.CHECK_MAX_FILE_MB * 1024 * 1024:
                 return render(request, "check.html", base=base, bookmarklet=bm, url=url, q="",
                               error=f"파일 하나는 {config.CHECK_MAX_FILE_MB}MB까지만 올릴 수 있어요. ({f.filename})")
             ctype = (f.content_type or "").lower()
-            if ctype == "application/pdf" or f.filename.lower().endswith(".pdf"):
-                r = ocr.read_pdf(data, allow_llm=config.CHECK_OCR_LLM)
-                pdf_texts.append(r.text); notes.extend(r.notes)
-            elif ctype.startswith("image/") or f.filename.lower().endswith((".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp")):
-                imgs.append(data)
-            else:
+            if not (ctype == "application/pdf" or ctype.startswith("image/") or f.filename.lower().endswith((".pdf", ".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp"))):
                 return render(request, "check.html", base=base, bookmarklet=bm, url=url, q="",
                               error=f"이미지(JPG·PNG)나 PDF만 올릴 수 있어요. ({f.filename})")
-        if imgs:
-            r = ocr.read_images(imgs, allow_llm=config.CHECK_OCR_LLM)
-            notes.extend(r.notes)
-            text = "\n".join([text] + pdf_texts + [r.text]).strip()
-        else:
-            text = "\n".join([text] + pdf_texts).strip()
+            payloads.append((f.filename, ctype, data))
+        try:
+            read_texts, read_notes = await run_in_threadpool(_read_check_uploads, payloads)
+        except ValueError as e:
+            return render(request, "check.html", base=base, bookmarklet=bm, url=url, q="", error=str(e))
+        notes.extend(read_notes)
+        text = "\n".join([text] + read_texts).strip()
         if len(text) < 20:
             return render(request, "check.html", base=base, bookmarklet=bm, url=url, q="",
                           error="올린 파일에서 읽을 수 있는 글자를 찾지 못했어요. 글자가 또렷하게 보이는 캡처인지 확인해 주세요.")
@@ -625,10 +660,10 @@ async def check_url(request: Request, url: str = Form(""), text: str = Form(""),
             name = (text.splitlines()[0] if text.splitlines() else "붙여 넣은 설명")[:60]
     elif url.startswith("http"):
         try:
-            ing = ingest.from_url(url, ocr_images=False)
+            ing = await run_in_threadpool(ingest.from_url, url, ocr_images=False)
         except Exception:  # 쇼핑몰이 서버 접근을 막은 경우가 대부분
             return render(request, "check.html", base=base, bookmarklet=bm, url=url, q="",
-                          error="이 쇼핑몰은 서버가 페이지를 읽어 가는 걸 막고 있어요. 상세페이지를 캡처한 이미지나 PDF를 올리거나, 글을 복사해 붙여 넣어 주세요. PC라면 ‘쇼핑몰이 막아도 되는 방법’의 버튼으로 한 번에 보낼 수 있어요.")
+                          error="이 쇼핑몰은 서버가 페이지를 읽어 가는 걸 막고 있어요. 상세페이지를 캡처한 이미지나 PDF를 올리거나, 글을 복사해 붙여 넣어 주세요. PC라면 ‘주소 입력이 안 될 때’의 버튼으로 한 번에 보낼 수 있어요.")
         sales, fine = split_fine_print(ing.text)
         name = (ing.title or url).split("|")[0].strip()[:60]
     else:
@@ -636,7 +671,7 @@ async def check_url(request: Request, url: str = Form(""), text: str = Form(""),
                       error="판매페이지 주소를 넣거나, 캡처 이미지·PDF를 올리거나, 설명 글을 붙여 넣어 주세요.")
     use_llm = config.CHECK_LLM and _rate_ok(ip + ":llm", limit=config.CHECK_LLM_PER_HOUR)
     try:
-        card, docs = quick_check(name, url, sales, fine, use_llm=use_llm)
+        card, docs = await run_in_threadpool(quick_check, name, url, sales, fine, use_llm=use_llm)
     except ValueError as e:
         return render(request, "check.html", base=base, bookmarklet=bm, url=url, q="", error=str(e))
     return render(request, "check_result.html", card=card, docs=docs, pname=name, url=url, s=_check_summary(card), notes=notes)
@@ -663,7 +698,7 @@ async def api_check(request: Request):
                             f'<p class="lede">이 제품은 이미 검토자가 확인한 카드가 있어요. <a href="/card/{hit["id"]}?from=check">카드 보기</a></p>')
     use_llm = config.CHECK_LLM and _rate_ok(ip + ":llm", limit=config.CHECK_LLM_PER_HOUR)
     try:
-        card, docs = quick_check(name, url, data.get("sales_text", ""), data.get("fine_text", ""), use_llm=use_llm)
+        card, docs = await run_in_threadpool(quick_check, name, url, data.get("sales_text", ""), data.get("fine_text", ""), use_llm=use_llm)
     except ValueError as e:
         raise HTTPException(400, str(e))
     return templates.TemplateResponse(request, "_check_body.html",
