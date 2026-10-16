@@ -2,7 +2,7 @@
 import re
 from urllib.parse import urlsplit
 
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, Comment
 
 
 class ProductBodyUnavailable(ValueError):
@@ -80,8 +80,16 @@ def product_body(html: str, url: str) -> BeautifulSoup:
 def product_text(body: BeautifulSoup) -> str:
     """Preserve paragraph boundaries without splitting every inline span or line wrap."""
     copy = BeautifulSoup(str(body), "html.parser")
+    # Source-code line wraps inside a text node are layout whitespace, not paragraphs.
+    for node in list(copy.find_all(string=True)):
+        if isinstance(node, Comment):
+            node.extract()
+        else:
+            node.replace_with(re.sub(r"\s+", " ", str(node)))
     for br in copy.select("br"):
-        br.replace_with(" ")
+        # Specification cells use BR as a row boundary. Joining their delivery
+        # notes to the feature sentence makes the downstream noise filter drop both.
+        br.replace_with("\n" if br.find_parent("td") else " ")
     for node in copy.select("p,li,dt,dd,h1,h2,h3,h4,h5,h6,div,td,tr"):
         node.append("\n")
     lines = [re.sub(r"\s+", " ", line).strip() for line in copy.get_text(" ").splitlines()]

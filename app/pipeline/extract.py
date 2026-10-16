@@ -261,15 +261,17 @@ _FUNC_CUE = re.compile(r"(코스|모드|인식|감지|분석|세탁|건조|절�
                        r"음성|비서|에이전트|경로|지도|장애물|사물|정온|절감|소음)")
 
 
-def _rules_extract(source_chunks: list[dict[str, Any]], max_claims: int) -> list[dict[str, Any]]:
+def _rules_extract(source_chunks: list[dict[str, Any]], max_claims: int, *, complete_quotes: bool = False) -> list[dict[str, Any]]:
     out = []
     seen: set[str] = set()
     for c in source_chunks:
         q = c["quote"]
         if not AI_PATTERN.search(q):
             continue
-        if _NOISE_LINE.search(q) or not _FUNC_CUE.search(q) or len(q) > 200:
+        if _NOISE_LINE.search(q) or not _FUNC_CUE.search(q) or len(q) > (500 if complete_quotes else 200):
             continue
+        if complete_quotes and not CORE_AI.search(q):
+            continue  # Quick-check counts explicit AI wording, not every nearby automatic feature.
         key = re.sub(r"\W", "", q)[:30]
         if key in seen:
             continue
@@ -286,7 +288,7 @@ def _rules_extract(source_chunks: list[dict[str, Any]], max_claims: int) -> list
         elif re.search(r"(환불|보상|문의|고객센터|A/S|AS|피해)", q):
             item = "remedy"
         label = (AI_PATTERN.search(q).group(0)[:8])
-        out.append({"text": q[:160], "item": item, "label": label,
+        out.append({"text": q if complete_quotes else q[:160], "item": item, "label": label,
                     "source": {"doc_id": c["doc_id"], "chunk": c["chunk"], "quote": q}})
         if len(out) >= max_claims * 3:
             break

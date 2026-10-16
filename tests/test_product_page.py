@@ -119,6 +119,40 @@ class ProductPageTests(unittest.TestCase):
         self.assertIn("AI가 사용자의 출수 패턴을 학습하여 온도를 제안합니다.", result.text)
         self.assertNotIn("닫기", result.text)
 
+    def test_spec_cell_delivery_line_does_not_erase_ai_copy(self):
+        from app.pipeline.product_page import product_text
+        from app.pipeline.run import split_fine_print, quick_check
+        html = '<div class="spec-sum"><div class="spec"><td class="desc_info">인공지능으로 완성되는 AI 퀀텀 사운드<br>※ 배송 비용은 설치 지역에 따라 달라집니다.</td></div></div>'
+        text = product_text(product_body(html, 'https://www.navimro.com/g/1/'))
+        sales, fine = split_fine_print(text)
+        card, _ = quick_check('제품 A', '', sales, fine)
+        self.assertEqual(['인공지능으로 완성되는 AI 퀀텀 사운드'], [c['text'] for c in card['claims']])
+
+    def test_quick_preserves_full_sentence_and_ignores_adjacent_non_ai_feature(self):
+        from app.pipeline.run import quick_check
+        text = 'AI가 화면의 주요 콘텐츠를 인식해, 설정을 변경할 필요 없이 화질을 자동으로 조정합니다.'
+        card, _ = quick_check('제품 A', '', text + '\n용기 위치를 자동으로 감지하여 화구를 선택합니다.')
+        self.assertEqual([text], [c['text'] for c in card['claims']])
+
+    def test_quick_keeps_long_complete_quote(self):
+        from app.pipeline.run import quick_check
+        text = 'AI가 사용자의 출수 패턴을 학습하여 ' + '온도와 용량을 확인하고 ' * 10 + '설정을 제안합니다.'
+        self.assertGreater(len(text), 160)
+        card, _ = quick_check('제품 A', '', text)
+        self.assertEqual(text, card['claims'][0]['text'])
+
+    def test_html_source_line_wrap_is_not_sentence_boundary(self):
+        from app.pipeline.product_page import product_text
+        html='<div class="product-description"><p>AI가 주요 장면을 분석해\n    화질을 조절합니다.</p><p>Wi-Fi 연결이 필요합니다.</p></div>'
+        text=product_text(product_body(html,'https://example.com/product/1'))
+        self.assertIn('AI가 주요 장면을 분석해 화질을 조절합니다.',text)
+        self.assertIn('\nWi-Fi 연결',text)
+
+    def test_quick_product_title_is_not_a_second_claim(self):
+        from app.pipeline.run import quick_check
+        card, _=quick_check('LG 퓨리케어 AI 냉동얼음정수기','','LG 퓨리케어 AI 냉동얼음정수기\nAI가 출수 패턴을 학습하여 용량을 제안합니다.')
+        self.assertEqual(['AI가 출수 패턴을 학습하여 용량을 제안합니다.'],[c['text'] for c in card['claims']])
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -73,7 +73,7 @@ def build_card_dry(product_id: int) -> tuple[dict[str, Any], dict[str, Any]]:
 def quick_check(name: str, url: str, sales_text: str, fine_text: str = "", use_llm: bool = False) -> tuple[dict[str, Any], dict[int, dict[str, Any]]]:
     """저장하지 않는 즉석 확인. 기본은 LLM 없이 규칙 판정만(use_llm=True면 문구 추출·근거 연결에 LLM을 쓴다). (카드, 문서 사전)을 돌려준다."""
     import contextlib
-    from . import ingest
+    from . import ingest, quick_text
     docs: list[dict[str, Any]] = []
     for did, kind, title, text in ((1, "판매페이지", "판매페이지 본문", sales_text), (2, "사양표", "판매페이지 각주·사양", fine_text)):
         text = (text or "").strip()
@@ -81,7 +81,7 @@ def quick_check(name: str, url: str, sales_text: str, fine_text: str = "", use_l
             continue
         ing = ingest.from_text(title, text)
         docs.append({"id": did, "product_id": 0, "kind": kind, "title": f"{title} ({name})", "url": url,
-                     "text": ing.text, "chunks": ing.chunks})
+                     "text": ing.text, "chunks": ing.chunks if use_llm else quick_text.chunks(ing.text)})
     if not docs:
         raise ValueError("본문 글자를 받지 못했습니다.")
     with (contextlib.nullcontext() if use_llm else llm.rules_only()):
@@ -90,7 +90,12 @@ def quick_check(name: str, url: str, sales_text: str, fine_text: str = "", use_l
         card["sources"] = [{"doc_id": d["id"], "kind": d["kind"], "title": d["title"], "url": d["url"],
                             "n_chunks": len(d["chunks"])} for d in docs]
         source_chunks = index.by_kind(CLAIM_SOURCE_KINDS) or index.by_kind(tuple(set(d["kind"] for d in docs)))
-        claims = extract.extract_claims(source_chunks)
+        if not use_llm:
+            compact_name = re.sub(r"\s+", "", name)
+            source_chunks = [c for c in source_chunks if not (
+                re.sub(r"\s+", "", c["quote"]) in compact_name
+                and not extract.VERBISH.search(c["quote"]))]
+        claims = extract.extract_claims(source_chunks) if use_llm else extract._rules_extract(source_chunks, 14, complete_quotes=True)
         claims = link.link_claims(claims, index)
         # Quick-check joins nearby fragments. Do not count a repeated slogan plus
         # table labels as an additional related explanation.
