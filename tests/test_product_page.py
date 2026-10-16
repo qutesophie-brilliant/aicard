@@ -75,11 +75,12 @@ class ProductPageTests(unittest.TestCase):
         <p>사용자의 출수 패턴을 학습해 자주 사용하는 온도와 용량을 제안합니다.</p>
         <div class="bullet-list">* AI 기능 사용에는 Wi-Fi 연결과 앱 등록이 필요합니다.</div>
         <article class="cap-section"><div title="동영상 해설">이 동영상은 AI 스피커가 우주를 비행하는 장면입니다.</div></article>
+        <div class="visual-area"><div class="hidden">그림 속에 있는 AI 아이콘입니다.</div></div>
         </section><section class="wcms-usp-scope mo">모바일 전용 복제 문구</section>'''
         text = product_body(html, "https://www.lge.co.kr/water-purifiers/model").get_text()
         self.assertIn("출수 패턴을 학습", text)
         self.assertIn("Wi-Fi 연결", text)
-        for junk in ("우주를 비행", "모바일 전용", "새로운 제품을 만나"):
+        for junk in ("우주를 비행", "모바일 전용", "새로운 제품을 만나", "AI 아이콘"):
             self.assertNotIn(junk, text)
 
 
