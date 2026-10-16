@@ -43,6 +43,31 @@ class DraftPrecheckTests(unittest.TestCase):
     def test_judgment_or_approval_patch_rejected(self):
         self.payload["status"]="approved"
         with self.assertRaises(ValueError):draft_precheck.apply(self.pid,self.payload)
+    def test_ai_explanation_correction_preserves_judgment_and_human_fields(self):
+        self.card['claims'][0].update(status='자료 부족',basis='없음',conditions_noted=False)
+        db.save_card(self.pid,self.card,{})
+        self.payload['expected_sha256']=draft_precheck.digest(self.card)
+        q=self.card['claims'][0]['source']
+        self.payload['claim_context_updates']={'c1':{'note':'원문은 밝기 조절을 설명합니다. 최종 판정은 사람 검토가 필요합니다.','evidence':[{'doc_id':q['doc_id'],'quote':q['quote']}]}}
+        draft_precheck.apply(self.pid,self.payload)
+        after=db.get_card(self.pid)['claims'][0]
+        for key in ('status','basis','conditions_noted','reviewer_status'):
+            self.assertEqual(self.card['claims'][0].get(key),after.get(key))
+        self.assertEqual('pending',db.get_product(self.pid)['status'])
+        self.assertEqual('AI',db.get_card_meta(self.pid)['ai_prechecks'][0]['actor'])
+        with db.connect() as con:
+            log=json.loads(con.execute("SELECT detail FROM review_log WHERE action='ai_precheck'").fetchone()[0])
+            self.assertEqual(self.card,log['before'])
+    def test_ai_context_cannot_change_labels_or_use_another_products_quote(self):
+        q=self.card['claims'][0]['source']
+        self.payload['claim_context_updates']={'c1':{'note':'확인','status':'근거 확인','evidence':[{'doc_id':q['doc_id'],'quote':q['quote']}]}}
+        with self.assertRaises(ValueError):draft_precheck.apply(self.pid,self.payload)
+        self.payload['claim_context_updates']['c1'].pop('status')
+        other=db.create_product('다른 제품','회사','OTHER','품목')
+        did=db.add_document(other,'판매페이지','본문','https://example.com/other',q['quote'],[q['quote']])
+        self.payload['claim_context_updates']['c1']['evidence'][0]['doc_id']=did
+        with self.assertRaises(ValueError):draft_precheck.apply(self.pid,self.payload)
+        self.assertEqual(self.card,db.get_card(self.pid))
     def test_route_requires_existing_reviewer_auth(self):
         from fastapi.testclient import TestClient
         from app import main,config

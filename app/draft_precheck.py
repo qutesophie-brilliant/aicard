@@ -47,7 +47,7 @@ def refresh_sources(pid,payload):
 
 
 def apply(pid, payload):
-    allowed={"expected_sha256","claim_text_updates","remove_claim_ids","restore_claims","item_updates","easy_updates","note"}
+    allowed={"expected_sha256","claim_text_updates","claim_context_updates","remove_claim_ids","restore_claims","item_updates","easy_updates","note"}
     if not isinstance(payload,dict) or set(payload)-allowed:
         raise ValueError("허용되지 않은 초안 수정 항목입니다.")
     if not isinstance(payload.get("note"),str) or not payload["note"].strip():
@@ -83,6 +83,28 @@ def apply(pid, payload):
             raise ValueError("문구 ID가 올바르지 않습니다.")
         if set(removals)&set(updates):raise ValueError("같은 문구를 삭제하고 수정할 수 없습니다.")
         docs={d["id"]:d for d in con.execute("SELECT * FROM documents WHERE product_id=?",(pid,))}
+        contexts=payload.get("claim_context_updates",{})
+        if not isinstance(contexts,dict) or any(cid not in by_id or cid in removals for cid in contexts):
+            raise ValueError("문구 설명 수정 ID가 올바르지 않습니다.")
+        for cid,context in contexts.items():
+            # Explanations and source links may be corrected by AI, but the
+            # original judgment axes and every human-review field stay intact.
+            if not isinstance(context,dict) or set(context)!={"note","evidence"}:
+                raise ValueError("문구 설명과 인용만 수정할 수 있습니다.")
+            if not isinstance(context['note'],str) or not 1<=len(context['note'])<=1000 or not isinstance(context['evidence'],list) or not 1<=len(context['evidence'])<=8:
+                raise ValueError("문구 설명·인용 형식이 올바르지 않습니다.")
+            evidence=[]
+            for ev in context['evidence']:
+                if not isinstance(ev,dict) or set(ev)!={'doc_id','quote'} or not isinstance(ev['quote'],str) or not 5<=len(ev['quote'])<=1500:
+                    raise ValueError("인용 형식이 올바르지 않습니다.")
+                doc=docs.get(ev['doc_id'])
+                if doc is None or _norm(ev['quote']) not in _norm(doc['text']):
+                    raise ValueError("인용이 같은 제품의 원문에 없습니다.")
+                prefix=_norm(ev['quote'])[:20]
+                idx=next((i for i,q in enumerate(json.loads(doc['chunks_json'])) if prefix in _norm(q)),None)
+                if idx is None:raise ValueError("인용 시작 위치를 찾을 수 없습니다.")
+                evidence.append({'doc_id':ev['doc_id'],'quote':ev['quote'],'chunk':idx,'kind':doc['kind']})
+            by_id[cid]['note']=context['note'];by_id[cid]['evidence']=evidence
         for cid,text in updates.items():
             if not isinstance(text,str) or not 5<=len(text)<=500:raise ValueError("문구 길이가 올바르지 않습니다.")
             cl=by_id[cid];src=cl.get("source") or {};doc=docs.get(src.get("doc_id"))
