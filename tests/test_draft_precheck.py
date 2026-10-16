@@ -53,6 +53,32 @@ class DraftPrecheckTests(unittest.TestCase):
             response=client.post(f"/review/{self.pid}/ai-precheck",json=self.payload)
             self.assertEqual(200,response.status_code)
             self.assertFalse(response.json()["human_reviewed"])
+    def test_ai_item_correction_requires_same_product_verbatim_evidence(self):
+        self.card['items']['data']={'status':'자료 부족','summary':'초안','evidence':[]}
+        db.save_card(self.pid,self.card,{})
+        self.payload['expected_sha256']=draft_precheck.digest(self.card)
+        self.payload['item_updates']={'data':{'status':'조건 확인','summary':'출처를 대조한 AI 초안입니다.','evidence':[{'doc_id':self.card['claims'][0]['source']['doc_id'],'quote':self.card['claims'][0]['source']['quote']}]}}
+        draft_precheck.apply(self.pid,self.payload)
+        self.assertFalse(db.get_card(self.pid)['items']['data'].get('reviewed',False))
+        self.assertEqual('pending',db.get_product(self.pid)['status'])
+        self.payload['expected_sha256']=draft_precheck.digest(db.get_card(self.pid))
+        self.payload['item_updates']['data']['evidence'][0]['quote']='원문에 없는 저장 기간 100년입니다.'
+        with self.assertRaises(ValueError):draft_precheck.apply(self.pid,self.payload)
+    def test_ai_item_cannot_claim_human_review(self):
+        self.card['items']['data']={'status':'자료 부족','summary':'초안','evidence':[]};db.save_card(self.pid,self.card,{})
+        self.payload['expected_sha256']=draft_precheck.digest(self.card)
+        self.payload['item_updates']={'data':{'status':'자료 부족','summary':'초안','evidence':[],'reviewed':True}}
+        with self.assertRaises(ValueError):draft_precheck.apply(self.pid,self.payload)
+    def test_restore_requires_an_exact_prior_ai_precheck_record(self):
+        old={**self.card['claims'][0],'id':'c2'}
+        self.card['claims'].append(old);db.save_card(self.pid,self.card,{})
+        p={'expected_sha256':draft_precheck.digest(self.card),'remove_claim_ids':['c2'],'note':'후보 제외'}
+        draft_precheck.apply(self.pid,p)
+        p={'expected_sha256':draft_precheck.digest(db.get_card(self.pid)),'restore_claims':[old],'note':'후보 복원'}
+        draft_precheck.apply(self.pid,p)
+        self.assertEqual(2,len(db.get_card(self.pid)['claims']))
+        p['expected_sha256']=draft_precheck.digest(db.get_card(self.pid));p['restore_claims']=[{**old,'id':'c999'}]
+        with self.assertRaises(ValueError):draft_precheck.apply(self.pid,p)
     def source_payload(self):
         with db.connect() as con:con.execute("DELETE FROM cards WHERE product_id=?",(self.pid,))
         db.set_product_status(self.pid,"draft","")

@@ -47,7 +47,7 @@ def refresh_sources(pid,payload):
 
 
 def apply(pid, payload):
-    allowed={"expected_sha256","claim_text_updates","remove_claim_ids","easy_updates","note"}
+    allowed={"expected_sha256","claim_text_updates","remove_claim_ids","restore_claims","item_updates","easy_updates","note"}
     if not isinstance(payload,dict) or set(payload)-allowed:
         raise ValueError("허용되지 않은 초안 수정 항목입니다.")
     if not isinstance(payload.get("note"),str) or not payload["note"].strip():
@@ -65,6 +65,18 @@ def apply(pid, payload):
             raise ValueError("사람의 수정 기록이 있어 자동으로 덮어쓰지 않습니다.")
         card=copy.deepcopy(before)
         by_id={c["id"]:c for c in card.get("claims",[])}
+        restores=payload.get("restore_claims",[])
+        if not isinstance(restores,list):raise ValueError("복원 문구 형식이 올바르지 않습니다.")
+        if restores:
+            prior=[]
+            for log in con.execute("SELECT detail FROM review_log WHERE product_id=? AND action='ai_precheck'",(pid,)):
+                prior.extend(json.loads(log[0]).get('before',{}).get('claims',[]))
+            valid={digest(c) for c in prior}
+            for cl in restores:
+                if not isinstance(cl,dict) or cl.get('id') in by_id or digest(cl) not in valid:
+                    raise ValueError("이 초안의 AI 사전점검 기록에 있는 문구만 복원할 수 있습니다.")
+                cl=copy.deepcopy(cl);card['claims'].append(cl);by_id[cl['id']]=cl
+                card['deleted_claims']=[t for t in card.get('deleted_claims',[]) if t!=cl['text']]
         removals=payload.get("remove_claim_ids",[])
         updates=payload.get("claim_text_updates",{})
         if not isinstance(removals,list) or not isinstance(updates,dict) or any(x not in by_id for x in list(removals)+list(updates)):
@@ -81,6 +93,26 @@ def apply(pid, payload):
         if not card["claims"]:raise ValueError("모든 문구를 지우는 수정은 이 경로에서 지원하지 않습니다.")
         if removals:
             card["deleted_claims"]=(card.get("deleted_claims") or [])+[by_id[x]["text"] for x in removals]
+        item_updates=payload.get('item_updates',{})
+        if not isinstance(item_updates,dict) or set(item_updates)-set(card.get('items',{})):
+            raise ValueError("권익 항목이 올바르지 않습니다.")
+        for key,item in item_updates.items():
+            if not isinstance(item,dict) or set(item)!={'status','summary','evidence'} or item['status'] not in {'근거 확인','조건 확인','자료 부족'}:
+                raise ValueError("자동 초안 항목 형식이 올바르지 않습니다.")
+            if not isinstance(item['summary'],str) or not 1<=len(item['summary'])<=1000 or not isinstance(item['evidence'],list) or len(item['evidence'])>8:
+                raise ValueError("항목 설명·인용 형식이 올바르지 않습니다.")
+            if item['status']!='자료 부족' and not item['evidence']:raise ValueError("근거 인용 없이 확인 상태를 표시할 수 없습니다.")
+            evidence=[]
+            for ev in item['evidence']:
+                if not isinstance(ev,dict) or set(ev)!={'doc_id','quote'} or not isinstance(ev['quote'],str) or not 5<=len(ev['quote'])<=1500:
+                    raise ValueError("인용 형식이 올바르지 않습니다.")
+                doc=docs.get(ev['doc_id'])
+                if doc is None or _norm(ev['quote']) not in _norm(doc['text']):raise ValueError("인용이 같은 제품의 원문에 없습니다.")
+                chunks=json.loads(doc['chunks_json']);prefix=_norm(ev['quote'])[:20]
+                idx=next((i for i,q in enumerate(chunks) if prefix in _norm(q)),None)
+                if idx is None:raise ValueError("인용 시작 위치를 찾을 수 없습니다.")
+                evidence.append({'doc_id':ev['doc_id'],'quote':ev['quote'],'chunk':idx,'kind':doc['kind']})
+            card['items'][key]={'status':item['status'],'summary':item['summary'],'evidence':evidence}
         easy=payload.get("easy_updates",{})
         if not isinstance(easy,dict) or set(easy)-{"headline","items"}:raise ValueError("쉬운 말 수정 항목이 올바르지 않습니다.")
         if "headline" in easy:
