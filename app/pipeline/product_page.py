@@ -28,7 +28,7 @@ def product_body(html: str, url: str) -> BeautifulSoup:
     Unknown layouts need a product description node, rather than a body/main fallback.
     """
     soup = BeautifulSoup(html, "html.parser")
-    for node in list(soup.select("script,style,noscript,nav,header,footer,svg,[role=navigation],[role=menu]")):
+    for node in list(soup.select("script,style,noscript,nav,header,footer,svg,button,[role=button],[role=navigation],[role=menu]")):
         if node.parent is not None:
             node.decompose()
     for node in list(soup.find_all(True)):
@@ -75,3 +75,14 @@ def product_body(html: str, url: str) -> BeautifulSoup:
     if len(re.sub(r"\s+", "", text)) < 30:
         raise ProductBodyUnavailable(_UNAVAILABLE)
     return selected
+
+
+def product_text(body: BeautifulSoup) -> str:
+    """Preserve paragraph boundaries without splitting every inline span or line wrap."""
+    copy = BeautifulSoup(str(body), "html.parser")
+    for br in copy.select("br"):
+        br.replace_with(" ")
+    for node in copy.select("p,li,dt,dd,h1,h2,h3,h4,h5,h6,div,td,tr"):
+        node.append("\n")
+    lines = [re.sub(r"\s+", " ", line).strip() for line in copy.get_text(" ").splitlines()]
+    return "\n".join(line for line in lines if line)

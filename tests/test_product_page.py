@@ -83,6 +83,41 @@ class ProductPageTests(unittest.TestCase):
         for junk in ("우주를 비행", "모바일 전용", "새로운 제품을 만나", "AI 아이콘"):
             self.assertNotIn(junk, text)
 
+    def test_quick_rights_match_topics_not_shared_words(self):
+        from app.pipeline.run import quick_check
+        text = '''AI 맞춤출수는 사용 패턴을 학습해 온도를 제안합니다.
+        설치 후 제품 불량 발생 시 제조사에서 A/S 처리합니다.
+        시험 데이터는 얼음의 저장량을 측정한 값입니다.
+        외부에서 원격제어 사용 시 데이터 사용 환경이 필요합니다.
+        닫기 레시피 모드 종류를 선택해 주세요.
+        UV LED 살균 기능으로 시험균주 감소 정도를 비교합니다.'''
+        card, _ = quick_check("제품 A", "", text)
+        self.assertFalse(card["items"]["optout"]["evidence"])
+        self.assertFalse(card["items"]["safety"]["evidence"])
+        self.assertTrue(card["items"]["remedy"]["evidence"])
+        for ev in card["items"]["data"]["evidence"]:
+            self.assertNotIn("A/S", ev["quote"])
+            self.assertNotIn("저장량", ev["quote"])
+            self.assertNotIn("데이터 사용 환경", ev["quote"])
+
+    def test_quick_rights_keeps_explicit_privacy_and_optout(self):
+        from app.pipeline.run import quick_check
+        text = '''AI 카메라가 장애물을 인식합니다.
+        영상 데이터는 기기 내부에서 처리하며 클라우드로 전송하지 않습니다.
+        AI 인식 기능은 앱 설정에서 비활성화할 수 있습니다.
+        소프트웨어 보안 업데이트는 5년 동안 지원합니다.'''
+        card, _ = quick_check("제품 A", "", text)
+        for key in ("data", "optout", "safety"):
+            self.assertTrue(card["items"][key]["evidence"])
+
+    def test_inline_layout_wraps_do_not_fragment_product_sentences(self):
+        html = '''<title>제품 A</title><div class="product-description"><p>AI가 사용자의 <span>출수 패턴을</span><br>학습하여 온도를 제안합니다.</p><button>닫기</button><p>* Wi-Fi 연결이 필요합니다.</p></div>'''
+        response = httpx.Response(200, text=html, request=httpx.Request("GET", "https://example.com/item"))
+        with patch.object(ingest, "_fetch", return_value=response):
+            result = ingest.from_url("https://example.com/item", ocr_images=False, product_only=True)
+        self.assertIn("AI가 사용자의 출수 패턴을 학습하여 온도를 제안합니다.", result.text)
+        self.assertNotIn("닫기", result.text)
+
 
 if __name__ == "__main__":
     unittest.main()

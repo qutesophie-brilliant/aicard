@@ -108,7 +108,8 @@ def quick_check(name: str, url: str, sales_text: str, fine_text: str = "", use_l
                 claim.update(status="자료 부족", basis_state="없음", conditions_noted=False, conditions="")
         card["claims"] = claims
         with llm.rules_only():
-            card["items"] = coverage.fill_coverage(index)
+            from . import quick_coverage
+            card["items"] = quick_coverage.fill(index)
             card["easy"] = easy.make_easy(card)
         card["checked_at"] = date.today().isoformat()
     card["quick_llm"] = bool(use_llm)

@@ -131,7 +131,7 @@ def from_url(url: str, ocr_images: bool = True, product_only: bool = False) -> I
         soup = product_page.product_body(r.text, str(r.url))
     for tag in soup(["script", "style", "noscript", "header", "footer", "nav", "svg"]):
         tag.decompose()
-    body_text = soup.get_text("\n")
+    body_text = product_page.product_text(soup) if product_only else soup.get_text("\n")
     body_text = "\n".join(l.strip() for l in body_text.splitlines() if l.strip())
     notes: list[str] = (["상품 설명 영역의 글자로 확인했어요. 메뉴·추천상품은 제외했으며, 이미지 속 글자는 읽지 않았어요."]
                         if product_only and not ocr_images else [])
