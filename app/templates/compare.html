@@ -80,8 +80,10 @@
         {% for key, label in [('rra', '전파 적합성평가'), ('kc', 'KC 안전인증'), ('energy', '에너지소비효율'), ('recall', '리콜·안전 점검')] %}{% set e = pdb[key] %}
         <li><b>{{ label }}</b><div>
           {% if e.found %}<p>확인 {% if e.number %}<code>{{ e.number }}</code>{% elif e.grade %}{{ e.grade }}{% endif %}</p>
-          {% elif e.found == False %}<p class="none">{{ '대상 품목 아님' if key == 'energy' else ('리콜 이력 없음' if key == 'recall' else '결과 없음') }}</p>
-          {% elif e.detail %}<p class="none">번호를 찾지 못함</p>{% else %}<p class="none">조회 전</p>{% endif %}
+          {% elif e.found == False %}<p class="none">조회 범위 내 일치 기록 없음</p>
+          {% elif e.detail %}<p class="none">확인 범위 참고</p>{% else %}<p class="none">조회 전</p>{% endif %}
+          {% if e.detail %}<small>{{ e.detail }}</small>{% endif %}
+          {% if e.url %}<a href="{{ e.url }}" target="_blank" rel="noopener">공식 조회 출처</a>{% endif %}
         </div></li>
         {% endfor %}
       </ul>

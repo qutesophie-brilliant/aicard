@@ -6,6 +6,16 @@ from unittest.mock import patch
 from app import db,draft_precheck
 
 class DraftPrecheckTests(unittest.TestCase):
+    def test_public_db_copy_is_audited_without_human_approval(self):
+        self.payload['public_db_updates']={'kc':{'found':True,'number':'TEST','detail':'2026-10-17 모델 A 조회. 본체 모델 일치.','url':'https://www.safetykorea.kr/release/certificationsearch'}}
+        draft_precheck.apply(self.pid,self.payload)
+        c=db.get_card(self.pid)
+        self.assertTrue(c['public_db']['kc']['found'])
+        self.assertIsNone(c['claims'][0]['reviewer_status'])
+        self.assertEqual('pending',db.get_product(self.pid)['status'])
+    def test_public_db_untrusted_link_rejected(self):
+        self.payload['public_db_updates']={'kc':{'found':True,'detail':'조회 기록','url':'javascript:alert(1)'}}
+        with self.assertRaises(ValueError):draft_precheck.apply(self.pid,self.payload)
     def setUp(self):
         self.tmp=tempfile.TemporaryDirectory()
         self.path=patch.object(db,"DB_PATH",Path(self.tmp.name)/"test.sqlite3");self.path.start();db.init_db()

@@ -1043,6 +1043,42 @@ def review_packet5_pred(_=Depends(require_reviewer)):
     return JSONResponse(pred, headers={"Cache-Control": "no-store"})
 
 
+@app.post("/review/release-plan")
+async def release_plan_create(request: Request, _=Depends(require_reviewer)):
+    from . import release_review
+    try:
+        return release_review.create(await request.json())
+    except (ValueError, TypeError) as e:
+        raise HTTPException(409, str(e))
+
+
+@app.get("/review/release/{plan_id}", response_class=HTMLResponse)
+def release_plan_view(request: Request, plan_id: str, error: str = "", _=Depends(require_reviewer)):
+    from . import release_review
+    try:
+        plan=release_review.get(plan_id)
+    except ValueError as e:
+        raise HTTPException(404,str(e))
+    response=render(request,"release_review.html",plan=plan,error=error)
+    response.headers['Cache-Control']='no-store'
+    response.headers['Referrer-Policy']='same-origin'
+    return response
+
+
+@app.post("/review/release/{plan_id}/approve")
+def release_plan_approve(request: Request, plan_id: str, csrf: str = Form(""), ack: str = Form(""), _=Depends(require_reviewer)):
+    from . import release_review
+    from urllib.parse import urlencode
+    origin=request.headers.get('origin')
+    if origin and origin.rstrip('/')!=str(request.base_url).rstrip('/'):
+        raise HTTPException(403,'같은 사이트의 최종 확인 화면에서 승인해 주세요.')
+    try:
+        release_review.approve(plan_id,csrf,ack)
+    except ValueError as e:
+        return RedirectResponse(f'/review/release/{plan_id}?'+urlencode({'error':str(e)}),status_code=303)
+    return RedirectResponse(f'/review/release/{plan_id}',status_code=303)
+
+
 @app.post("/review/bulk_status")
 def review_bulk_status(pid: list[int] = Form([]), status: str = Form(...), _=Depends(require_reviewer)):
     if status not in ("approved", "held"):

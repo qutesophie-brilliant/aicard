@@ -47,7 +47,7 @@ def refresh_sources(pid,payload):
 
 
 def apply(pid, payload):
-    allowed={"expected_sha256","claim_text_updates","claim_context_updates","remove_claim_ids","restore_claims","item_updates","easy_updates","note"}
+    allowed={"expected_sha256","claim_text_updates","claim_context_updates","remove_claim_ids","restore_claims","item_updates","easy_updates","public_db_updates","note"}
     if not isinstance(payload,dict) or set(payload)-allowed:
         raise ValueError("허용되지 않은 초안 수정 항목입니다.")
     if not isinstance(payload.get("note"),str) or not payload["note"].strip():
@@ -145,6 +145,21 @@ def apply(pid, payload):
             if not isinstance(easy["items"],dict) or set(easy["items"])-set(old):raise ValueError("쉬운 말 항목이 올바르지 않습니다.")
             if any(not isinstance(v,str) or len(v)>500 for v in easy["items"].values()):raise ValueError("쉬운 말 형식이 올바르지 않습니다.")
             old.update(easy["items"])
+        public=payload.get('public_db_updates',{})
+        if not isinstance(public,dict) or set(public)-{'kc','rra','energy','recall'}:
+            raise ValueError('공공 DB 항목이 올바르지 않습니다.')
+        from urllib.parse import urlsplit
+        official_hosts={'www.safetykorea.kr','safetykorea.kr','www.rra.go.kr','rra.go.kr','eep.energy.or.kr'}
+        for key,entry in public.items():
+            if not isinstance(entry,dict) or set(entry)-{'found','number','grade','detail','url'} or 'found' not in entry or (entry['found'] is not None and type(entry['found']) is not bool):
+                raise ValueError('공공 DB 조회 상태가 올바르지 않습니다.')
+            if any(not isinstance(v,str) or len(v)>2000 for k,v in entry.items() if k!='found'):
+                raise ValueError('공공 DB 조회 설명 형식이 올바르지 않습니다.')
+            url=entry.get('url','')
+            if url and (urlsplit(url).scheme!='https' or urlsplit(url).hostname not in official_hosts):
+                raise ValueError('공식 공공 DB의 HTTPS 주소만 연결할 수 있습니다.')
+            if not entry.get('detail','').strip():raise ValueError('조회일과 모델·검색 범위를 설명해야 합니다.')
+            card.setdefault('public_db',{}).setdefault(key,{}).update(entry)
         meta=json.loads(row["pipeline_meta"] or "{}")
         entry={"actor":"AI","at":db.now(),"note":payload["note"][:2000],"human_reviewed":False,"before_sha256":digest(before),"after_sha256":digest(card)}
         meta.setdefault("ai_prechecks",[]).append(entry)

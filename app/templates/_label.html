@@ -159,19 +159,20 @@
         <b>{{ label }}</b>
         <div>
           {% if e.found %}<p>{% if key in ('kc', 'rra') %}등록을 확인했어요 {% if val %}<code>{{ val }}</code>{% endif %}{% else %}{{ val or '확인했어요' }}{% endif %}</p>
-          {% elif e.found == False %}<p class="none">{{ '효율등급 표시 대상 품목이 아니에요' if key == 'energy' else ('리콜 이력을 찾지 못했어요' if key == 'recall' else '조회 결과가 없어요') }}</p>
-          {% elif e.detail %}<p class="none">인증번호를 찾지 못해 조회하지 못했어요</p>
+          {% elif e.found == False %}<p class="none">조회 범위에서 일치 기록을 찾지 못했어요</p>
+          {% elif e.detail %}<p class="none">확인 범위를 아래에 적었어요</p>
           {% else %}<p class="none">아직 조회하지 않았어요</p>{% endif %}
-          {% if e.detail and key != 'energy' %}<small>{{ e.detail }}</small>{% endif %}
+          {% if e.detail %}<small>{{ e.detail }}</small>{% endif %}
           {% if e.url %}<a href="{{ e.url }}" target="_blank" rel="noopener">{{ e.link_label or link }}에서 보기</a>{% endif %}
         </div>
       </li>
       {% endfor %}
     </ul>
+    <p class="meta">조회 결과가 없다는 이유만으로 미인증 제품이거나 리콜이 없다고 단정할 수는 없어요. 모델명·조회일·검색 범위를 함께 확인해 주세요.</p>
   </section>
 
   <div class="lb-foot">
-    <span class="stamp"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5L20 7"/></svg>사람이 원문 확인{% if product.approved_at %} · {{ product.approved_at|kdate }}{% endif %}</span>
+    <span class="stamp"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5L20 7"/></svg>{% if product.approved_at %}사람이 공개 승인 · {{ product.approved_at|kdate }}{% else %}공개 전 검토 대기{% endif %}</span>
     <p class="lb-src">대조한 자료: {% set seen = [] %}{% for s in card.sources %}{% if s.kind not in seen %}{% if seen %}, {% endif %}{% if s.url %}<a href="{{ s.url }}" target="_blank" rel="noopener">{{ s.kind }}</a>{% else %}{{ s.kind }}{% endif %}{% set _ = seen.append(s.kind) %}{% endif %}{% endfor %}{% if pdb.rra.found %}, 국립전파연구원 적합성평가{% endif %}{% if pdb.kc.found %}, 제품안전정보센터{% endif %}.{% if product.approved_at %} 검토자가 원문을 확인한 뒤 공개했어요.{% else %} 아직 검토자가 원문을 확인하지 않은 초안이에요.{% endif %}</p>
   </div>
   <details class="report plain-only">
