@@ -11,7 +11,7 @@ import httpx
 from bs4 import BeautifulSoup
 
 from .. import config
-from . import llm
+from . import llm, product_page
 
 UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
       "(KHTML, like Gecko) Chrome/124.0 Safari/537.36")
@@ -117,7 +117,7 @@ def _fetch(url: str) -> httpx.Response:
         return r
 
 
-def from_url(url: str, ocr_images: bool = True) -> Ingested:
+def from_url(url: str, ocr_images: bool = True, product_only: bool = False) -> Ingested:
     r = _fetch(url)
     ctype = r.headers.get("content-type", "")
     if "pdf" in ctype or url.lower().endswith(".pdf"):
@@ -126,12 +126,15 @@ def from_url(url: str, ocr_images: bool = True) -> Ingested:
         return from_image(url.rsplit("/", 1)[-1], r.content)
 
     soup = BeautifulSoup(r.text, "html.parser")
+    title = (soup.title.string.strip() if soup.title and soup.title.string else url)
+    if product_only:
+        soup = product_page.product_body(r.text, str(r.url))
     for tag in soup(["script", "style", "noscript", "header", "footer", "nav", "svg"]):
         tag.decompose()
-    title = (soup.title.string.strip() if soup.title and soup.title.string else url)
     body_text = soup.get_text("\n")
     body_text = "\n".join(l.strip() for l in body_text.splitlines() if l.strip())
-    notes: list[str] = []
+    notes: list[str] = (["상품 설명 영역의 글자로 확인했어요. 메뉴·추천상품은 제외했으며, 이미지 속 글자는 읽지 않았어요."]
+                        if product_only and not ocr_images else [])
 
     # 메타·사양표 보강
     meta_desc = soup.find("meta", attrs={"name": "description"})

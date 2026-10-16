@@ -660,11 +660,14 @@ async def check_url(request: Request, url: str = Form(""), text: str = Form(""),
             name = (text.splitlines()[0] if text.splitlines() else "붙여 넣은 설명")[:60]
     elif url.startswith("http"):
         try:
-            ing = await run_in_threadpool(ingest.from_url, url, ocr_images=False)
+            ing = await run_in_threadpool(ingest.from_url, url, ocr_images=False, product_only=True)
+        except ingest.product_page.ProductBodyUnavailable as e:
+            return render(request, "check.html", base=base, bookmarklet=bm, url=url, q="", error=str(e))
         except Exception:  # 쇼핑몰이 서버 접근을 막은 경우가 대부분
             return render(request, "check.html", base=base, bookmarklet=bm, url=url, q="",
-                          error="이 쇼핑몰은 서버가 페이지를 읽어 가는 걸 막고 있어요. 상세페이지를 캡처한 이미지나 PDF를 올리거나, 글을 복사해 붙여 넣어 주세요. PC라면 ‘주소 입력이 안 될 때’의 버튼으로 한 번에 보낼 수 있어요.")
+                          error="페이지를 가져오지 못했어요. 쇼핑몰의 접근 제한이나 일시적인 연결 문제일 수 있어요. 상세페이지를 캡처한 이미지나 PDF를 올리거나, 제품 설명을 복사해 붙여 넣어 주세요. PC라면 ‘주소 입력이 안 될 때’의 버튼으로 보낼 수도 있어요.")
         sales, fine = split_fine_print(ing.text)
+        notes.extend(ing.notes)
         name = (ing.title or url).split("|")[0].strip()[:60]
     else:
         return render(request, "check.html", base=base, bookmarklet=bm, url=url, q="",

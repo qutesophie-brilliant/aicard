@@ -1,5 +1,6 @@
 """파이프라인 오케스트레이션: 문서 → 주장 → 근거 연결 → 항목 채우기 → 쉬운 말 → 카드 저장."""
 import time
+import re
 from datetime import date
 from typing import Any
 
@@ -91,6 +92,20 @@ def quick_check(name: str, url: str, sales_text: str, fine_text: str = "", use_l
         source_chunks = index.by_kind(CLAIM_SOURCE_KINDS) or index.by_kind(tuple(set(d["kind"] for d in docs)))
         claims = extract.extract_claims(source_chunks)
         claims = link.link_claims(claims, index)
+        # Quick-check joins nearby fragments. Do not count a repeated slogan plus
+        # table labels as an additional related explanation.
+        for claim in claims:
+            phrase = re.sub(r"\s+", "", claim["text"])
+            original = claim.get("evidence", [])
+            def distinct(e):
+                q = re.sub(r"\s+", "", e["quote"])
+                if phrase not in q or "문구 자체" in e.get("kind", ""):
+                    return True
+                remainder = q.replace(phrase, "")
+                return bool(link.self_describes(remainder) or link._is_cond(remainder))
+            claim["evidence"] = [e for e in original if distinct(e)]
+            if original and not claim["evidence"]:
+                claim.update(status="자료 부족", basis_state="없음", conditions_noted=False, conditions="")
         card["claims"] = claims
         with llm.rules_only():
             card["items"] = coverage.fill_coverage(index)
