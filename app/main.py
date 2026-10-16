@@ -1070,7 +1070,12 @@ def release_plan_approve(request: Request, plan_id: str, csrf: str = Form(""), a
     from . import release_review
     from urllib.parse import urlencode
     origin=request.headers.get('origin')
-    if origin and origin.rstrip('/')!=str(request.base_url).rstrip('/'):
+    allowed_origins={str(request.base_url).rstrip('/')}
+    # Render terminates TLS before forwarding to this HTTP worker. Keep the
+    # exact host/port and CSRF check while accepting its HTTPS public origin.
+    if request.url.scheme=='http':
+        allowed_origins.add('https://'+request.url.netloc)
+    if origin and origin.rstrip('/') not in allowed_origins:
         raise HTTPException(403,'같은 사이트의 최종 확인 화면에서 승인해 주세요.')
     try:
         release_review.approve(plan_id,csrf,ack)
