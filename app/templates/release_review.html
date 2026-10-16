@@ -15,12 +15,14 @@
 {% if plan.held %}<h2>이번에 공개하지 않을 카드</h2><table><thead><tr><th>카드</th><th>보류 이유</th><th>원문 확인</th></tr></thead><tbody>{% for row in plan.held %}<tr><td>{{ row.id }} · {{ row.product.model }}</td><td>{{ row.reason }}</td><td><a href="/review/{{ row.id }}" target="_blank" rel="noopener">검토 화면</a></td></tr>{% endfor %}</tbody></table>{% endif %}
 <h2>승인 가능한 카드</h2>
 <p>원문으로 해결한 판정안은 아래에 반영해 두었습니다. 필요한 경우 펼쳐서 확인할 수 있으며, 승인 전까지는 공개되지 않습니다.</p>
+<details><summary>{{ plan.ready|length }}장 목록 · 판정 보완안과 공공 DB 근거 펼쳐보기</summary>
 {% for row in plan.ready %}<article id="card-{{ row.id }}">
 <p class="meta">{{ row.product.maker }} · {{ row.product.category }} · 카드 {{ row.id }}</p><h3>{{ row.product.name }}</h3><p>{{ row.product.model }} · AI 표시 문구 {{ row.claim_count }}개</p><p>{{ row.reason }}</p>
 <nav><a href="/card/{{ row.id }}?preview=1" target="_blank" rel="noopener">현재 카드 미리보기</a><a href="/review/{{ row.id }}" target="_blank" rel="noopener">원문과 전체 항목</a></nav>
 {% if row.decisions %}<details><summary>해결한 판정 {{ row.decisions|length }}개와 원문</summary>{% for d in row.decisions %}<section class="claim"><p><b>{{ d.claim_id }} · {{ d.text }}</b></p><p>최초 자동판정: {{ d.before_status }} → <span class="status">승인할 판정: {{ d.proposed_status }}</span></p><div class="columns"><p>{{ d.reason }}</p><div>{% for ev in d.evidence %}<blockquote>{{ ev.quote }}</blockquote>{% endfor %}</div></div></section>{% endfor %}</details>{% endif %}
 <details><summary>공공 DB 조회 결과</summary>{% for key,label in [('kc','KC 안전 인증'),('rra','전파 적합성평가'),('energy','에너지소비효율'),('recall','리콜')] %}{% set entry=row.public_db.get(key,{}) %}<div class="db"><b>{{ label }} · {% if entry.get('found') == True %}일치 기록 확인{% elif entry.get('found') == False %}조회 범위 내 일치 기록 없음{% else %}미확인{% endif %}</b><p>{{ entry.get('number','') }} {{ entry.get('grade','') }}</p><p>{{ entry.get('detail','') }}</p>{% if entry.get('url') %}<a href="{{ entry.url }}" target="_blank" rel="noopener">공식 조회 출처</a>{% endif %}</div>{% endfor %}</details>
 </article>{% endfor %}
+</details>
 {% if not plan.approved_at and plan.ready %}<form class="approve" method="post" action="/review/release/{{ plan.id }}/approve"><h2>최종 공개 승인</h2><p>이 버튼은 위의 승인 가능한 {{ plan.ready|length }}장만 공개하고, 원문에 따른 재검토 판정안을 반영합니다. 최초 자동판정과 AI 보완 기록은 보존됩니다.</p><input type="hidden" name="csrf" value="{{ plan.csrf }}"><label><input type="checkbox" name="ack" value="yes" required>AI 사전점검안, 보류 목록과 공공 DB 조회 범위를 확인했으며, 승인 가능한 {{ plan.ready|length }}장의 공개를 승인합니다.</label><button class="btn" type="submit">{{ plan.ready|length }}장 최종 승인하고 공개</button><p class="muted">확인안 작성 후 카드나 원문이 변경되면 승인을 중단합니다. 변경된 내용을 모르고 공개하는 일을 막기 위한 절차입니다.</p></form>{% endif %}
 <p class="meta">확인안 작성: {{ plan.created_at }} · AI의 사전점검과 사람의 최종 승인 기록을 구분합니다.</p>
 </main>
