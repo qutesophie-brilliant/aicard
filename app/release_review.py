@@ -3,12 +3,19 @@ import copy
 import json
 import re
 import secrets
+from datetime import datetime,timezone,timedelta
 from . import db
 from .draft_precheck import digest, sources_digest
 from .schema import BASIS_STATES, status_from
 
 # Research snapshots and already published cards never enter this workflow.
 FROZEN = {268,274,281,284,295,307,314,318,324,329}
+
+def korea_time(value):
+    if not value:return ''
+    instant=datetime.fromisoformat(value)
+    if instant.tzinfo is None:instant=instant.replace(tzinfo=timezone.utc)
+    return instant.astimezone(timezone(timedelta(hours=9))).strftime('%Y-%m-%d %H:%M (한국시간)')
 
 
 def _table(con):
@@ -67,6 +74,7 @@ def get(plan_id):
         _table(con);r=con.execute('SELECT * FROM release_review_plans WHERE id=?',(plan_id,)).fetchone()
         if not r:raise ValueError('최종 확인안을 찾지 못했습니다.')
         out=dict(r);out['payload']=json.loads(out['payload']);out['ready']=[x for x in out['payload']['cards'] if x['recommendation']=='ready'];out['held']=[x for x in out['payload']['cards'] if x['recommendation']=='hold']
+        out['created_at_kst']=korea_time(out['created_at']);out['approved_at_kst']=korea_time(out['approved_at'])
         return out
 
 

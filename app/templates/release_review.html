@@ -9,8 +9,8 @@
 <h1>{{ plan.payload.title }}</h1>
 <p>{{ plan.payload.summary }}</p>
 {% if error %}<p class="error" role="alert">{{ error }}</p>{% endif %}
-{% if plan.approved_at %}<p class="notice" role="status">{{ plan.approved_at }}에 공개 가능한 {{ plan.ready|length }}장을 승인했습니다. 보류 목록은 공개하지 않았습니다.</p>{% endif %}
-<div class="counts"><div class="count">승인 가능한 카드<b>{{ plan.ready|length }}장</b>최종 버튼을 누르면 공개됩니다.</div><div class="count">보류 권고<b>{{ plan.held|length }}장</b>이번 승인에 포함하지 않습니다.</div><div class="count">기존 연구 결과<b>유지</b>연구용 고정 카드는 수정하지 않습니다.</div></div>
+{% if plan.approved_at %}<p class="notice" role="status">{{ plan.approved_at_kst }}에 공개 가능한 {{ plan.ready|length }}장을 승인했습니다. 보류 목록은 공개하지 않았습니다.</p>{% endif %}
+<div class="counts"><div class="count">{{ '공개 승인 완료' if plan.approved_at else '승인 가능한 카드' }}<b>{{ plan.ready|length }}장</b>{{ '최종 승인을 완료했습니다.' if plan.approved_at else '최종 버튼을 누르면 공개됩니다.' }}</div><div class="count">보류 권고<b>{{ plan.held|length }}장</b>이번 승인에 포함하지 않습니다.</div><div class="count">기존 연구 결과<b>유지</b>연구용 고정 카드는 수정하지 않습니다.</div></div>
 <p class="notice">‘조회 결과 없음’은 해당 검색어·조회일·검색 범위에서 일치 기록을 찾지 못했다는 뜻입니다. 제품 미인증이나 안전성 보장을 뜻하지 않습니다. 인증은 확인된 본체·부품과 모델 범위에만 적용됩니다.</p>
 {% if plan.held %}<h2>이번에 공개하지 않을 카드</h2><table><thead><tr><th>카드</th><th>보류 이유</th><th>원문 확인</th></tr></thead><tbody>{% for row in plan.held %}<tr><td>{{ row.id }} · {{ row.product.model }}</td><td>{{ row.reason }}</td><td><a href="/review/{{ row.id }}" target="_blank" rel="noopener">검토 화면</a></td></tr>{% endfor %}</tbody></table>{% endif %}
 <h2>승인 가능한 카드</h2>
@@ -24,6 +24,6 @@
 </article>{% endfor %}
 </details>
 {% if not plan.approved_at and plan.ready %}<form class="approve" method="post" action="/review/release/{{ plan.id }}/approve"><h2>최종 공개 승인</h2><p>이 버튼은 위의 승인 가능한 {{ plan.ready|length }}장만 공개하고, 원문에 따른 재검토 판정안을 반영합니다. 최초 자동판정과 AI 보완 기록은 보존됩니다.</p><input type="hidden" name="csrf" value="{{ plan.csrf }}"><label><input type="checkbox" name="ack" value="yes" required>AI 사전점검안, 보류 목록과 공공 DB 조회 범위를 확인했으며, 승인 가능한 {{ plan.ready|length }}장의 공개를 승인합니다.</label><button class="btn" type="submit">{{ plan.ready|length }}장 최종 승인하고 공개</button><p class="muted">확인안 작성 후 카드나 원문이 변경되면 승인을 중단합니다. 변경된 내용을 모르고 공개하는 일을 막기 위한 절차입니다.</p></form>{% endif %}
-<p class="meta">확인안 작성: {{ plan.created_at }} · AI의 사전점검과 사람의 최종 승인 기록을 구분합니다.</p>
+<p class="meta">확인안 작성: {{ plan.created_at_kst }} · AI의 사전점검과 사람의 최종 승인 기록을 구분합니다.</p>
 </main>
 {% endblock %}

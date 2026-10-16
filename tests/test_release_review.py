@@ -52,6 +52,9 @@ class ReleaseReviewTests(unittest.TestCase):
     def test_invalid_axis_rejected(self):
         p=self.payload();p['cards'][0]['decisions'][0].update(basis='없음',conditions_noted=True)
         with self.assertRaises(ValueError):self.plan(p)
+    def test_server_timestamp_displayed_in_korean_time(self):
+        self.assertEqual('2026-10-17 04:43 (한국시간)',release_review.korea_time('2026-10-16 19:43:25'))
+        self.assertEqual('',release_review.korea_time(None))
     def test_routes_private_render_and_final_explicit_action(self):
         from fastapi.testclient import TestClient
         from app import main,config
