@@ -76,11 +76,12 @@ class ProductPageTests(unittest.TestCase):
         <div class="bullet-list">* AI 기능 사용에는 Wi-Fi 연결과 앱 등록이 필요합니다.</div>
         <article class="cap-section"><div title="동영상 해설">이 동영상은 AI 스피커가 우주를 비행하는 장면입니다.</div></article>
         <div class="visual-area"><div class="hidden">그림 속에 있는 AI 아이콘입니다.</div></div>
+        <div class="pdp-product-table-wrap">다른 제품 비교: AI 공기청정기 114㎡ 모델의 추천 기능입니다.</div>
         </section><section class="wcms-usp-scope mo">모바일 전용 복제 문구</section>'''
         text = product_body(html, "https://www.lge.co.kr/water-purifiers/model").get_text()
         self.assertIn("출수 패턴을 학습", text)
         self.assertIn("Wi-Fi 연결", text)
-        for junk in ("우주를 비행", "모바일 전용", "새로운 제품을 만나", "AI 아이콘"):
+        for junk in ("우주를 비행", "모바일 전용", "새로운 제품을 만나", "AI 아이콘", "다른 제품 비교"):
             self.assertNotIn(junk, text)
 
     def test_quick_rights_match_topics_not_shared_words(self):

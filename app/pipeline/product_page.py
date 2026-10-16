@@ -62,7 +62,7 @@ def product_body(html: str, url: str) -> BeautifulSoup:
         nodes = [max(nodes, key=lambda n: len(n.get_text(" ", strip=True)))]
         # Accessible video scene descriptions describe staged visuals, not
         # necessarily a product claim. Keep actual copy and footnote dialogs.
-        for node in list(nodes[0].select('.cap-section, [title="동영상 해설"], .caption-wrap, .visual-area > .hidden')):
+        for node in list(nodes[0].select('.cap-section, [title="동영상 해설"], .caption-wrap, .visual-area > .hidden, .pdp-product-table-wrap')):
             if node.parent is not None:
                 node.decompose()
     ids = {id(n) for n in nodes}

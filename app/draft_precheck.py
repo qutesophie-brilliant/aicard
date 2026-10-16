@@ -14,6 +14,38 @@ def _norm(s):
     return re.sub(r"\s+", "", s or "")
 
 
+def sources_digest(docs):
+    return digest([{k:d[k] for k in ("id","kind","text")} for d in sorted(docs,key=lambda d:d["id"])])
+
+
+def refresh_sources(pid,payload):
+    """Correct source scope only before the queue worker has claimed this draft."""
+    from .pipeline import ingest
+    if not isinstance(payload,dict) or set(payload)!={"expected_model","expected_sources_sha256","sales_text","fine_text","note"}:
+        raise ValueError("출처 수정 항목이 올바르지 않습니다.")
+    if any(not isinstance(payload[k],str) for k in payload) or not payload["sales_text"].strip() or len(payload["sales_text"])+len(payload["fine_text"])>250000:
+        raise ValueError("본문 형식이 올바르지 않습니다.")
+    with db.connect() as con:
+        con.execute("BEGIN IMMEDIATE")
+        p=con.execute("SELECT * FROM products WHERE id=?",(pid,)).fetchone()
+        jobs=con.execute("SELECT status FROM build_queue WHERE product_id=?",(pid,)).fetchall()
+        docs=[dict(d) for d in con.execute("SELECT * FROM documents WHERE product_id=?",(pid,))]
+        card=con.execute("SELECT 1 FROM cards WHERE product_id=?",(pid,)).fetchone()
+        if not p or p["status"]!="draft" or p["approved_at"] or p["model"]!=payload["expected_model"] or card or not jobs or any(j["status"]!="new" for j in jobs):
+            raise ValueError("아직 생성하지 않은 대기열 초안만 출처를 정리할 수 있습니다.")
+        if sources_digest(docs)!=payload["expected_sources_sha256"]:raise ValueError("출처가 변경되었습니다.")
+        if {d["kind"] for d in docs}-{"판매페이지","사양표"} or len({d['kind'] for d in docs})!=len(docs):
+            raise ValueError("별도 문서가 있어 자동으로 바꾸지 않습니다.")
+        for d in docs:
+            text=payload['sales_text' if d['kind']=='판매페이지' else 'fine_text']
+            chunks=ingest.chunk_text(text)
+            con.execute("UPDATE documents SET text=?,chunks_json=? WHERE id=?",(text,json.dumps(chunks,ensure_ascii=False),d['id']))
+        con.execute("INSERT INTO review_log(product_id,action,detail,at) VALUES(?,?,?,?)",
+                    (pid,"ai_source_precheck",json.dumps({"before":docs,"note":payload["note"],"actor":"AI"},ensure_ascii=False),db.now()))
+        con.execute("UPDATE products SET reviewer_note=?,updated_at=? WHERE id=?",("AI 사전점검으로 출처 범위를 정리했습니다. 초안 생성 후 사람의 원문 검토가 필요합니다.",db.now(),pid))
+    return {"id":pid,"status":"draft","human_reviewed":False}
+
+
 def apply(pid, payload):
     allowed={"expected_sha256","claim_text_updates","remove_claim_ids","easy_updates","note"}
     if not isinstance(payload,dict) or set(payload)-allowed:

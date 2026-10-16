@@ -53,5 +53,21 @@ class DraftPrecheckTests(unittest.TestCase):
             response=client.post(f"/review/{self.pid}/ai-precheck",json=self.payload)
             self.assertEqual(200,response.status_code)
             self.assertFalse(response.json()["human_reviewed"])
+    def source_payload(self):
+        with db.connect() as con:con.execute("DELETE FROM cards WHERE product_id=?",(self.pid,))
+        db.set_product_status(self.pid,"draft","")
+        db.enqueue_build(self.pid,[],"제품 A","https://example.com")
+        return {"expected_model":"MODEL","expected_sources_sha256":draft_precheck.sources_digest(db.list_documents(self.pid)),"sales_text":"AI가 화면의 밝기를 조절합니다.","fine_text":"","note":"제품 비교표 제외"}
+    def test_queued_sources_can_be_replaced_and_backed_up(self):
+        p=self.source_payload();draft_precheck.refresh_sources(self.pid,p)
+        self.assertEqual(p['sales_text'],db.list_documents(self.pid)[0]['text'])
+        self.assertEqual('draft',db.get_product(self.pid)['status'])
+        with db.connect() as con:self.assertIsNotNone(con.execute("SELECT 1 FROM review_log WHERE action='ai_source_precheck'").fetchone())
+    def test_running_sources_cannot_be_changed(self):
+        p=self.source_payload();db.next_build()
+        with self.assertRaises(ValueError):draft_precheck.refresh_sources(self.pid,p)
+    def test_queued_sources_require_same_model_and_version(self):
+        p=self.source_payload();p['expected_model']='OTHER'
+        with self.assertRaises(ValueError):draft_precheck.refresh_sources(self.pid,p)
 
 if __name__=="__main__":unittest.main()

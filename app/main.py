@@ -1123,6 +1123,15 @@ async def review_ai_precheck(pid: int, request: Request, _=Depends(require_revie
         raise HTTPException(409,str(e))
 
 
+@app.post("/review/{pid}/source-precheck")
+async def review_source_precheck(pid: int, request: Request, _=Depends(require_reviewer)):
+    from . import draft_precheck
+    try:
+        return draft_precheck.refresh_sources(pid,await request.json())
+    except (ValueError,TypeError) as e:
+        raise HTTPException(409,str(e))
+
+
 @app.post("/review/{pid}/item")
 def review_item(pid: int, key: str = Form(...), status: str = Form(...), summary: str = Form(""),
                 server: str = Form(""), support_period: str = Form(""),
