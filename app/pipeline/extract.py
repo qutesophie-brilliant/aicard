@@ -270,7 +270,7 @@ def _rules_extract(source_chunks: list[dict[str, Any]], max_claims: int, *, comp
             continue
         if _NOISE_LINE.search(q) or not _FUNC_CUE.search(q) or len(q) > (500 if complete_quotes else 200):
             continue
-        if complete_quotes and not CORE_AI.search(q):
+        if complete_quotes and (not CORE_AI.search(q) or FOOTNOTE_INLINE.match(q)):
             continue  # Quick-check counts explicit AI wording, not every nearby automatic feature.
         key = re.sub(r"\W", "", q)[:30]
         if key in seen:

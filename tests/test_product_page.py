@@ -153,6 +153,13 @@ class ProductPageTests(unittest.TestCase):
         card, _=quick_check('LG 퓨리케어 AI 냉동얼음정수기','','LG 퓨리케어 AI 냉동얼음정수기\nAI가 출수 패턴을 학습하여 용량을 제안합니다.')
         self.assertEqual(['AI가 출수 패턴을 학습하여 용량을 제안합니다.'],[c['text'] for c in card['claims']])
 
+    def test_quick_inline_footnote_is_not_an_advertising_claim(self):
+        from app.pipeline.run import quick_check
+        text='AI가 출수 패턴을 학습하여 용량을 제안합니다.\n[AI 맞춤출수] * AI 기능은 사용 패턴을 학습하여 온도와 용량을 추천합니다'
+        card, docs=quick_check('제품 A','',text)
+        self.assertFalse(any(c['text'].startswith('[AI') for c in card['claims']))
+        self.assertIn('[AI 맞춤출수]',docs[1]['text'])
+
 
 if __name__ == "__main__":
     unittest.main()
