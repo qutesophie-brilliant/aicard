@@ -5,6 +5,9 @@ COPY . .
 RUN python -c "import zipfile; zipfile.ZipFile('deploy_bundle.zip').extractall('.')" && rm -f deploy_bundle.zip
 # These tracked reporting files remain authoritative after the legacy bundle overlay.
 COPY app/templates/about.html app/templates/about.html
+COPY app/templates/base.html app/templates/base.html
+COPY app/templates/index.html app/templates/index.html
+COPY app/static/style.css app/static/style.css
 COPY README.md README.md
 COPY eval/heldout7/result_20261015.txt eval/heldout7/result_20261015.txt
 RUN apt-get update && apt-get install -y --no-install-recommends tesseract-ocr tesseract-ocr-kor && rm -rf /var/lib/apt/lists/*

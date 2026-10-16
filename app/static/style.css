@@ -713,3 +713,12 @@ footer.site a { color: var(--ink-3); text-decoration: underline; text-underline-
 
 /* Keep hidden search results and inactive UI out of the layout. */
 [hidden] { display: none !important; }
+
+/* Service introduction: early discovery and readable evidence navigation. */
+.about-entry{display:inline-flex;align-items:center;gap:12px;margin:0 0 18px;color:inherit;font-size:15px;font-weight:650;text-decoration:underline;text-underline-offset:5px;min-height:32px}
+.about-toc{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0 30px;padding:18px 0;border-top:1px solid var(--line,#d5dcd8);border-bottom:1px solid var(--line,#d5dcd8)}
+.about-toc a{display:inline-flex;align-items:center;min-height:44px;padding:8px 15px;border-radius:6px;background:#e8ece5;color:#092956;font-size:15px;font-weight:600;text-decoration:none}
+.about-toc a:hover{background:#d7e4dd}.about-toc a:focus-visible,.about-entry:focus-visible{outline:3px solid #097d7b;outline-offset:4px}
+.prose h2[id]{scroll-margin-top:100px}.prose>p{line-height:1.9}.prose>ul:not(.figures):not(.how)>li{margin-bottom:14px;line-height:1.85}.prose a{overflow-wrap:anywhere}
+@media(max-width:600px){.about-toc{gap:6px;padding:12px 0}.about-toc a{font-size:14px;padding:8px 11px}.prose table.map{font-size:14px}.prose table.map th,.prose table.map td{padding:10px 8px}}
+body.menu-open .topbar{z-index:60;background:var(--paper)}
