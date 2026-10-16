@@ -1112,6 +1112,17 @@ def review_claim_delete(pid: int, claim_id: str = Form(...), _=Depends(require_r
     return RedirectResponse(f"/review/{pid}", status_code=303)
 
 
+@app.post("/review/{pid}/ai-precheck")
+async def review_ai_precheck(pid: int, request: Request, _=Depends(require_reviewer)):
+    """Keep AI draft copy edits distinct from human review and publication."""
+    from . import draft_precheck
+    try:
+        payload=await request.json()
+        return draft_precheck.apply(pid,payload)
+    except (ValueError,TypeError) as e:
+        raise HTTPException(409,str(e))
+
+
 @app.post("/review/{pid}/item")
 def review_item(pid: int, key: str = Form(...), status: str = Form(...), summary: str = Form(""),
                 server: str = Form(""), support_period: str = Form(""),
