@@ -8,8 +8,9 @@
 </section>
 {% if error %}<div class="notice" role="alert" tabindex="-1" id="checkerror">{{ error }}</div>{% endif %}
 <form class="check-form" method="post" action="/check" enctype="multipart/form-data" id="checkform" data-max-files="{{ CHECK_MAX_FILES }}" data-max-mb="{{ CHECK_MAX_FILE_MB }}">
-  <label>판매페이지 주소 <span class="help">공식몰이나 오픈마켓 상세페이지 주소</span>
-    <input type="url" name="url" value="{{ url }}" placeholder="https://">
+  <p class="help" id="check-scope"><strong>상품명이나 상세 설명에서 ‘AI·인공지능’ 기능을 소개한 제품을 확인해요.</strong> 해당 제품의 공식몰이나 오픈마켓 상세페이지 주소를 넣어 주세요. 일반 상품의 성능·품질을 평가하는 서비스는 아니에요.</p>
+  <label>판매페이지 주소
+    <input aria-describedby="check-scope" type="url" name="url" value="{{ url }}" placeholder="https://">
   </label>
 
   <div class="drop" id="drop" tabindex="0" role="group" aria-label="캡처 이미지나 PDF 올리기">
