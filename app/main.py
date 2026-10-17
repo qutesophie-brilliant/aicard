@@ -670,6 +670,9 @@ async def check_url(request: Request, url: str = Form(""), text: str = Form(""),
         if not name:
             name = (text.splitlines()[0] if text.splitlines() else "붙여 넣은 설명")[:60]
     elif url.startswith("http"):
+        if not _rate_ok(ip + ":ocr", limit=config.CHECK_OCR_PER_HOUR):
+            return render(request, "check.html", base=base, bookmarklet=bm, url=url, q="",
+                          error="이미지 확인 요청이 많아요. 잠시 뒤 다시 시도해 주세요.")
         try:
             ing = await run_in_threadpool(_read_check_url, url)
         except ingest.product_page.ProductBodyUnavailable as e:

@@ -3,6 +3,7 @@ import hashlib
 import re
 from urllib.parse import urljoin, urlsplit
 from . import product_page, ocr
+from .. import config
 
 def capture_images(html, url, capture, fetch_bytes=None, reader=None, limit=6):
     import httpx
@@ -33,25 +34,36 @@ def capture_images(html, url, capture, fetch_bytes=None, reader=None, limit=6):
                 if len(data)>8*1024*1024: raise ValueError('Image exceeds 8 MB')
             return bytes(data)
     fetch_bytes=fetch_bytes or download
-    reader=reader or (lambda b:ocr.read_images([b],allow_llm=False))
-    audit=[]
+    audit=[]; payloads=[]; loaded=[]; total_bytes=0
     for _,src in candidates[:limit]:
         row={'url':src,'text':'','engine':'none'}
+        audit.append(row)
         try:
             data=fetch_bytes(src)
             import io
             from PIL import Image
             with Image.open(io.BytesIO(data)) as im:
                 if im.width * im.height > 16_000_000: raise ValueError('Image exceeds OCR pixel budget')
-            result=reader(data); text=merge_ocr_lines(result.text)
-            row.update(text=text,engine=result.engine,image_sha256=hashlib.sha256(data).hexdigest())
+            total_bytes += len(data)
+            if total_bytes > 32*1024*1024: raise ValueError('Images exceed combined byte budget')
+            row['image_sha256']=hashlib.sha256(data).hexdigest()
+            payloads.append(data);loaded.append(row)
+        except Exception as e: row['error']=type(e).__name__+': '+str(e)[:160]
+    if payloads:
+        if reader is not None:
+            results=[reader(data) for data in payloads]
+            texts=[r.text for r in results]; engines=[r.engine for r in results]
+        else:
+            result=ocr.read_images(payloads,allow_llm=config.CHECK_OCR_LLM)
+            texts=result.texts; engines=[result.engine]*len(payloads)
+        for i,row in enumerate(loaded):
+            text=merge_ocr_lines(texts[i] if i<len(texts) else '')
+            row.update(text=text,engine=engines[i])
             if text.strip():
                 capture['sections'].append({'section_id':len(capture['sections']),'feature_scope':'',
-                    'text':text,'chunks':chunk_text(text,ocr=True),'source_url':src,
-                    'snapshot_sha256':row['image_sha256'],'source_type':'image_ocr','ocr_engine':result.engine})
-        except Exception as e: row['error']=type(e).__name__+': '+str(e)[:160]
-        audit.append(row)
+                    'text':text,'chunks':chunk_text(text,ocr=True),'source_url':row['url'],
+                    'snapshot_sha256':row['image_sha256'],'source_type':'image_ocr','ocr_engine':row['engine']})
     capture['images']=audit
     capture['coverage'].update(image_candidates=len(candidates),image_attempted=len(audit),
-        sections=len(capture['sections']),image_text_read=any(r['text'] for r in audit),image_unread=sum(not r['text'] for r in audit)+max(0,len(candidates)-limit))
+        sections=len(capture['sections']),image_text_read=any(r['text'] for r in audit),image_unread=sum(not r['text'] for r in audit)+max(0,len(candidates)-len(audit)))
     return capture
