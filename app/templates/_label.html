@@ -165,7 +165,7 @@
           {% elif e.found == False %}<p class="none">조회 범위에서 일치 기록을 찾지 못했습니다</p>
           {% elif e.detail %}<p class="none">확인 범위를 아래에 적었습니다</p>
           {% else %}<p class="none">아직 조회하지 않았습니다</p>{% endif %}
-          {% if e.detail %}<small>{{ e.detail }}</small>{% endif %}
+          {% if e.detail %}<small>{{ e.detail|haeyo }}</small>{% endif %}
           {% if e.url %}<a href="{{ e.url }}" target="_blank" rel="noopener">{{ e.link_label or link }}에서 보기</a>{% endif %}
         </div>
       </li>

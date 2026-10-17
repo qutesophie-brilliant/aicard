@@ -51,7 +51,7 @@ def fill(index):
                 break
         out[key] = {
             "status": "근거 확인" if hits else "자료 부족",
-            "summary": "이 페이지에 관련 문장이 있어요." if hits else "이 페이지에서는 관련 문장을 찾지 못했어요.",
+            "summary": "읽어 온 자료에서 관련 문장을 찾았습니다." if hits else "읽어 온 자료에서 관련 문장을 찾지 못했습니다.",
             "evidence": [{k:c[k] for k in ("doc_id", "chunk", "quote", "kind")} for c in hits],
         }
     return out
