@@ -741,3 +741,30 @@ body.menu-open .topbar{z-index:60;background:var(--paper)}
 .wait-example figcaption {font-size:.9rem;line-height:1.75;margin-bottom:14px}
 .wait-example img {display:block;width:100%;height:auto;border:1px solid #d6dfdd;border-radius:10px}
 .wait-example a {font-size:.9rem;text-underline-offset:4px}
+
+/* Clear result hierarchy, with details available on demand. */
+.check-route {margin:18px 0 8px;max-width:720px;line-height:1.8;color:var(--ink-2)}
+.review-state {margin:0;padding:14px 24px;background:#eef4f1;color:#244d42;font-size:.88rem;line-height:1.7;border-bottom:1px solid var(--line)}
+.review-state.automatic {background:#f3f1e9;color:#66532b}
+.quick .lb-band {background:#365e68}
+.summary-detail {margin:18px 0 0;padding:14px 0;border-top:1px solid var(--line);line-height:1.8}
+.summary-detail summary {cursor:pointer;font-weight:600;min-height:44px;display:list-item;padding:10px 0}
+.summary-detail small {display:block;font-size:.9rem;line-height:1.8;margin-top:10px}
+.capture-scope {margin:16px 24px}
+.label .lb-head>div,.pick label,.pair>div {min-width:0}
+.lb-name,.lb-meta,.review-state,.claims q,.ev blockquote {overflow-wrap:anywhere}
+.qa {scroll-margin-top:100px}
+@media(max-width:760px) {
+ .page-head {padding-top:40px}
+ .page-head .lede {font-size:1rem;line-height:1.8}
+ .review-state {padding:14px 16px}
+ .lb-head {flex-wrap:wrap;gap:18px}
+ .lb-tools {display:flex;flex-wrap:wrap;gap:8px}
+ .lb-tools .btn,.check-form button,.pick button,details.ev summary {min-height:44px}
+ .lb-head .lb-tools {margin-left:0}
+ .pick select {width:100%;max-width:100%;min-width:0}
+ .check-url-action .btn {width:100%}
+ .wait-example {max-width:100%}
+ .check-wait>div {min-width:0}
+ .capture-scope {margin:16px}
+}

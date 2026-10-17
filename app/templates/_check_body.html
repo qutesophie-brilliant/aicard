@@ -3,16 +3,17 @@
 {% macro no() %}<span class="st s3">관련 문장 없음</span>{% endmacro %}
 <article class="label quick" style="margin-top:14px" aria-label="{{ pname }} 바로 확인 결과">
   <div class="lb-band">
-    <span class="lb-brand"><img src="/static/logo.png" alt="">바로 확인 · 사람이 검토하기 전</span>
+    <span class="lb-brand"><img src="/static/logo.png" alt="">바로 확인 · 자동 분석</span>
     <span class="lb-cat">{{ 'AI로 관련 문장 연결' if card.quick_llm else '규칙으로 관련 문장 연결' }}</span>
   </div>
+  <p class="review-state automatic">사람이 검토하기 전의 결과입니다. 정식 카드의 판정과 구분해 확인해 주세요.</p>
   <div class="lb-head">
     <div>
       <h2 class="lb-name">{{ pname }}</h2>
       <p class="lb-meta">{% if url %}<a href="{{ url }}" target="_blank" rel="noopener">{{ url|replace('https://','')|truncate(60) }}</a><span class="sep">·</span>{% endif %}{{ card.checked_at|kdate }} 읽어 온 자료의 범위에서 확인</p>
     </div>
   </div>
-  {% if notes %}<p class="lb-note">{% for n in notes %}{{ n }}{% if not loop.last %} {% endif %}{% endfor %}</p>{% endif %}
+  {% if notes %}<details class="summary-detail capture-scope"><summary>읽어 온 자료와 확인 범위</summary><ul>{% for n in notes %}<li>{{ n }}</li>{% endfor %}</ul></details>{% endif %}
   <div class="lb-verdict">
     {% if s.n == 0 %}
     <p class="lb-big">읽어 온 자료에서 ‘AI’라고 표시한 문구를 찾지 못했어요<small>확인한 범위의 결과예요. 읽지 못한 이미지나 별도 화면에 관련 설명이 있을 수 있으며, 제품에 AI 기능이 없다는 뜻은 아니에요.</small></p>

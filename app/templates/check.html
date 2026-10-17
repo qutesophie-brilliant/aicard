@@ -4,11 +4,12 @@
 {% block content %}
 <section class="page-head">
   <h1>{% if q %}‘{{ q }}’ 카드는 아직 없어요{% else %}바로 확인{% endif %}</h1>
-  <p class="lede">판매페이지 주소를 넣거나 상세페이지 캡처를 올리면 ‘AI’라고 표시한 문구를 찾고, 같은 페이지의 각주와 작은 글씨에서 관련 문장을 연결해 보여 줘요. 사람이 검토하기 전의 자동 분석이라 ‘작동 설명 있음·없음’ 판정은 하지 않아요. 이미 검토자가 확인한 제품의 주소라면 그 카드로 바로 가요.</p>
+  <p class="lede">제품의 AI 설명과 사용 조건을 확인해 보세요. 판매페이지 주소를 넣거나 상세페이지 캡처를 올리면 관련 문장을 찾아 보여 드려요.</p>
+  <p class="check-route">새 자료는 <strong>자동 분석</strong>으로 확인해요. 이미 검토한 제품은 <strong>정식 카드</strong>로 바로 연결돼요.</p>
 </section>
 {% if error %}<div class="notice" role="alert" tabindex="-1" id="checkerror">{{ error }}{% if upload_fallback %}<p><a class="btn primary" href="#drop">상세페이지 캡처 올리기</a></p><p>상품 설명과 각주가 보이도록 캡처한 뒤, 아래에서 파일을 골라 주세요.</p>{% endif %}</div>{% endif %}
 <form class="check-form" method="post" action="/check" enctype="multipart/form-data" id="checkform" data-max-files="{{ CHECK_MAX_FILES }}" data-max-mb="{{ CHECK_MAX_FILE_MB }}">
-  <p class="help" id="check-scope"><strong>상품명이나 상세 설명에서 ‘AI·인공지능’ 기능을 소개한 제품을 확인해요.</strong> 해당 제품의 공식몰이나 오픈마켓 상세페이지 주소를 넣어 주세요. 일반 상품의 성능·품질을 평가하는 서비스는 아니에요.</p>
+  <p class="help" id="check-scope"><strong>상품명이나 상세 설명에서 ‘AI·인공지능’ 기능을 소개한 제품을 확인해요.</strong> 공식몰이나 오픈마켓의 상품 상세페이지 주소를 넣어 주세요.</p>
   <label>판매페이지 주소
     <input aria-describedby="check-scope" type="url" name="url" value="{{ url }}" placeholder="https://">
   </label>
@@ -40,7 +41,7 @@
 </section>
 
 <section class="prose" aria-label="바로 확인의 처리 방식">
-  <h2>무엇을 자동으로 하나요?</h2>
+  <h2>자동 분석은 어디까지 확인하나요?</h2><p>입력한 자료에서 AI 문구와 관련 설명을 찾아 연결해요. 사람이 검토하기 전의 결과로, 제품의 성능·품질이나 ‘작동 설명 있음·없음’을 판정하지 않아요.</p>
   <p><b>글자 읽기</b> — {% if CHECK_OCR_AI %}이미지·스캔 PDF의 글자는 외부 AI 문자 인식으로 읽어요. 연결하지 못하면 서버 내 문자 인식으로 대신 읽어요.{% else %}이미지·스캔 PDF의 글자는 서버 내 문자 인식으로 읽어요.{% endif %} 글자가 포함된 PDF는 텍스트를 직접 추출해요. 실제 사용한 방식은 결과에 표시해요.</p>
   <p><b>관련 문장 연결</b> — {% if CHECK_CONNECT_AI %}AI로 연결하며, 한도에 도달하면 규칙으로 대신 연결해요.{% else %}현재는 규칙으로 ‘AI’ 문구와 같은 페이지의 관련 문장을 연결해요.{% endif %} 사람이 검토하기 전의 결과이며, 정식 카드로 자동 공개하지 않아요.</p>
   <p class="meta">올린 파일과 바로 확인 결과는 서비스에 저장하지 않아요. 외부 AI 문자 인식에 보낼 수 있으므로 이름·주소·전화번호를 가린 뒤 올려 주세요.</p>

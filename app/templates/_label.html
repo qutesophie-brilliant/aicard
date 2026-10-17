@@ -19,10 +19,11 @@
 
 <article class="label{% if compact %} compact{% endif %}" id="label-{{ product.id }}" aria-label="{{ product.name }} AI 정보카드">
   <div class="lb-band">
-    <span class="lb-brand"><img src="/static/logo.png" alt="">AI 정보카드</span>
+    <span class="lb-brand"><img src="/static/logo.png" alt="">AI 정보카드 · {{ '검토 중 초안' if preview else '정식 카드' }}</span>
     <span class="lb-cat">{{ product.category or '제품' }}</span>
   </div>
 
+  <p class="review-state">{{ '검토 중인 초안입니다. 공개 전 확인이 필요합니다.' if preview else '검토자가 공개자료를 원문과 대조한 카드입니다. 제품 성능을 인증한 것은 아닙니다.' }}</p>
   <div class="lb-head">
     <div>
       <{{ h }} class="lb-name">{% if compact %}<a href="/card/{{ product.id }}" style="color:inherit">{{ product.name }}</a>{% else %}{{ product.name }}{% endif %}</{{ h }}>
@@ -45,13 +46,14 @@
     <p class="lb-big">판매페이지에서 ‘AI’를 내세우지 않아요<small>AI를 내세우는 제품과 견줄 수 있도록 같은 다섯 질문을 확인했어요.</small></p>
     {% else %}
     {% set bc = basis_counts(card) %}
-    <p class="lb-big"><span class="sr">‘AI’라고 적은 문구 {{ sum.n_claims }}개 중 {{ sum.linked }}개에 회사가 작동 설명을 적어 두었어요.</span><span aria-hidden="true">‘AI’라고 적은 문구 <em>{{ sum.n_claims }}</em>개 중 <em>{{ sum.linked }}</em>개에<br>회사가 작동 설명을 적어 두었어요</span>{% if not compact and (sum.counts['자료 부족'] or sum.counts['추가 확인 필요']) %}<small class="lb-rest">나머지 {{ sum.n_claims - sum.linked }}개는 {% if sum.counts['자료 부족'] %}설명을 찾지 못한 문구 {{ sum.counts['자료 부족'] }}개{% endif %}{% if sum.counts['자료 부족'] and sum.counts['추가 확인 필요'] %}와 {% endif %}{% if sum.counts['추가 확인 필요'] %}추가 확인이 필요한 문구 {{ sum.counts['추가 확인 필요'] }}개{% endif %}예요. 추가 확인 문구는 ‘설명 있음’에 넣지 않았어요.</small>{% endif %}{% if sum.linked and not compact and (bc.learn + bc.vision + bc.sensor + bc.service + bc.none + bc.unknown) %}<small>{% set parts = [] %}{% if bc.vision %}{% set _ = parts.append('카메라 인식이 ' ~ bc.vision ~ '개') %}{% endif %}{% if bc.sensor %}{% set _ = parts.append('센서·규칙이 ' ~ bc.sensor ~ '개') %}{% endif %}{% if bc.service %}{% set _ = parts.append('외부 서비스가 ' ~ bc.service ~ '개') %}{% endif %}{% if bc.none %}{% set _ = parts.append('작동 방식 없이 조건만 적은 것이 ' ~ bc.none ~ '개') %}{% endif %}{% if bc.learn %}학습·모델을 언급한 설명이 {{ bc.learn }}개 있어요.{% else %}학습·모델로 분류한 설명은 없어요.{% endif %}{% if bc.unknown %} 설명 종류가 미확정인 문구는 {{ bc.unknown }}개예요.{% endif %}{% if parts %} 설명을 보면 {{ parts|join(', ') }}예요.{% endif %}{% set ge = global_extra(card) %}{% if ge %} 국내 자료 기준이고, 회사의 해외 영문 자료까지 더하면 {{ ge|length }}개 문구의 설명이 달라져요.{% endif %}</small>{% endif %}</p>
+    <p class="lb-big"><span class="sr">‘AI’라고 적은 문구 {{ sum.n_claims }}개 중 {{ sum.linked }}개에 회사가 작동 설명을 적어 두었어요.</span><span aria-hidden="true">‘AI’라고 적은 문구 <em>{{ sum.n_claims }}</em>개 중 <em>{{ sum.linked }}</em>개에<br>회사가 작동 설명을 적어 두었어요</span>{% if not compact and (sum.counts['자료 부족'] or sum.counts['추가 확인 필요']) %}<small class="lb-rest">나머지 {{ sum.n_claims - sum.linked }}개는 {% if sum.counts['자료 부족'] %}설명을 찾지 못한 문구 {{ sum.counts['자료 부족'] }}개{% endif %}{% if sum.counts['자료 부족'] and sum.counts['추가 확인 필요'] %}와 {% endif %}{% if sum.counts['추가 확인 필요'] %}추가 확인이 필요한 문구 {{ sum.counts['추가 확인 필요'] }}개{% endif %}예요. 추가 확인 문구는 ‘설명 있음’에 넣지 않았어요.</small>{% endif %}</p>
     {{ bar(card.claims, sum) }}
     <ul class="lb-legend" aria-label="막대 뜻">
       <li><i class="sw s1"></i>작동 설명 있음 <b>{{ sum.linked }}</b></li>
       {% if sum.counts['자료 부족'] or not compact %}<li><i class="sw s3"></i>작동 설명 없음 <b>{{ sum.counts['자료 부족'] }}</b></li>{% endif %}
       {% if sum.counts['추가 확인 필요'] or not compact %}<li><i class="sw s4"></i>추가 확인 필요 <b>{{ sum.counts['추가 확인 필요'] }}</b></li>{% endif %}
     </ul>
+    {% if not compact %}<details class="summary-detail"><summary>설명 유형과 집계 기준 보기</summary>{% if sum.linked and not compact and (bc.learn + bc.vision + bc.sensor + bc.service + bc.none + bc.unknown) %}<small>{% set parts = [] %}{% if bc.vision %}{% set _ = parts.append('카메라 인식이 ' ~ bc.vision ~ '개') %}{% endif %}{% if bc.sensor %}{% set _ = parts.append('센서·규칙이 ' ~ bc.sensor ~ '개') %}{% endif %}{% if bc.service %}{% set _ = parts.append('외부 서비스가 ' ~ bc.service ~ '개') %}{% endif %}{% if bc.none %}{% set _ = parts.append('작동 방식 없이 조건만 적은 것이 ' ~ bc.none ~ '개') %}{% endif %}{% if bc.learn %}학습·모델을 언급한 설명이 {{ bc.learn }}개 있어요.{% else %}학습·모델로 분류한 설명은 없어요.{% endif %}{% if bc.unknown %} 설명 종류가 미확정인 문구는 {{ bc.unknown }}개예요.{% endif %}{% if parts %} 설명을 보면 {{ parts|join(', ') }}예요.{% endif %}{% set ge = global_extra(card) %}{% if ge %} 국내 자료 기준이고, 회사의 해외 영문 자료까지 더하면 {{ ge|length }}개 문구의 설명이 달라져요.{% endif %}</small>{% endif %}</details>{% endif %}
     {% endif %}
     {% if heads and not compact %}
     <div class="lb-heads">
@@ -71,7 +73,7 @@
   </ul>
 
   {% if not compact %}
-  <p class="meta" style="padding:0 24px">아래 내용은 제조사가 공개한 설명을 정리한 것이에요. 각 항목의 원문을 펼쳐 내용과 조건을 확인할 수 있어요.</p>
+  <p class="meta" style="padding:0 24px">궁금한 항목을 선택한 뒤, 설명과 사용 조건을 읽고 ‘확인한 원문’을 펼쳐 보세요.</p>
   {# ---- 질문 1 ---- #}
   <section class="qa" id="q-what">
     <h3>{{ QUESTION_TEXT['what'] }}</h3>
