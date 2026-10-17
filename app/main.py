@@ -344,6 +344,11 @@ def compare(request: Request, a: int | None = None, b: int | None = None):
                     pair.append({"product": product, "card": card, "docs": docs, "sum": summarize(card)})
             except HTTPException:
                 pass
+    from .release_dates import release_for
+    for product in approved:
+        product["release"] = release_for(product)
+    for row in pair:
+        row["release"] = release_for(row["product"])
     return render(request, "compare.html", approved=approved, pair=pair, a=a, b=b)
 
 
