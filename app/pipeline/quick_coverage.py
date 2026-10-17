@@ -18,6 +18,9 @@ _REMEDY = re.compile(r"고객\s*센터|서비스\s*센터|A\s*/\s*S|보증|환�
 
 
 def _matches(key: str, text: str) -> bool:
+    from .extract import SCENE_DESCRIPTION, SITE_COMMON
+    if SCENE_DESCRIPTION.search(text) or SITE_COMMON.search(text):
+        return False
     if key == "data":
         return bool(_DATA_SUBJECT.search(text))
     if key == "optout":
@@ -26,7 +29,11 @@ def _matches(key: str, text: str) -> bool:
         return bool(_SAFETY.search(text))
     if key == "remedy":
         return bool(_REMEDY.search(text))
-    return len(coverage._KEYWORDS[key].findall(text)) >= 2
+    # Stock, delivery and return restrictions do not describe AI operation.
+    if re.search(r'재고|생산월|매장|반품|교환|철거|회수|추가\s*비용|살균\s*효과', text):
+        return False
+    from .condition_type import condition_type
+    return condition_type(text) != 'test' and bool(_AI_CONTEXT.search(text)) and len(coverage._KEYWORDS[key].findall(text)) >= 2
 
 
 def fill(index):

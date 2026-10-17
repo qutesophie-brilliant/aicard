@@ -603,6 +603,16 @@ def _read_check_uploads(payloads: list[tuple[str, str, bytes]]) -> tuple[list[st
         _check_ocr_gate.release()
 
 
+def _read_check_url(url: str):
+    # URL image OCR shares the upload gate to bound server memory.
+    if not _check_ocr_gate.acquire(blocking=False):
+        raise ingest.product_page.ProductBodyUnavailable("다른 자료의 글자를 읽고 있어요. 잠시 뒤 다시 시도해 주세요.")
+    try:
+        return ingest.from_url(url, ocr_images=True, product_only=True)
+    finally:
+        _check_ocr_gate.release()
+
+
 @app.post("/check", response_class=HTMLResponse)
 async def check_url(request: Request, url: str = Form(""), text: str = Form(""),
                     files: list[UploadFile] = File(default=[])):
@@ -654,18 +664,20 @@ async def check_url(request: Request, url: str = Form(""), text: str = Form(""),
         name = (uploads[0].filename.rsplit(".", 1)[0] or "올린 자료")[:60]
         notes = [f"올린 파일 {len(uploads)}개에서 글자를 읽어 확인했어요."] + list(dict.fromkeys(notes))
 
+    source_capture = None
     if text:
         sales, fine = split_fine_print(text)
         if not name:
             name = (text.splitlines()[0] if text.splitlines() else "붙여 넣은 설명")[:60]
     elif url.startswith("http"):
         try:
-            ing = await run_in_threadpool(ingest.from_url, url, ocr_images=False, product_only=True)
+            ing = await run_in_threadpool(_read_check_url, url)
         except ingest.product_page.ProductBodyUnavailable as e:
             return render(request, "check.html", base=base, bookmarklet=bm, url=url, q="", error=str(e))
         except Exception:  # 쇼핑몰이 서버 접근을 막은 경우가 대부분
             return render(request, "check.html", base=base, bookmarklet=bm, url=url, q="",
                           error="페이지를 가져오지 못했어요. 쇼핑몰의 접근 제한이나 일시적인 연결 문제일 수 있어요. 상세페이지를 캡처한 이미지나 PDF를 올리거나, 제품 설명을 복사해 붙여 넣어 주세요. PC라면 ‘주소 입력이 안 될 때’의 버튼으로 보낼 수도 있어요.")
+        source_capture = ing.source_capture
         sales, fine = split_fine_print(ing.text)
         notes.extend(ing.notes)
         name = (ing.title or url).split("|")[0].strip()[:60]
@@ -674,7 +686,7 @@ async def check_url(request: Request, url: str = Form(""), text: str = Form(""),
                       error="판매페이지 주소를 넣거나, 캡처 이미지·PDF를 올리거나, 설명 글을 붙여 넣어 주세요.")
     use_llm = config.CHECK_LLM and _rate_ok(ip + ":llm", limit=config.CHECK_LLM_PER_HOUR)
     try:
-        card, docs = await run_in_threadpool(quick_check, name, url, sales, fine, use_llm=use_llm)
+        card, docs = await run_in_threadpool(quick_check, name, url, sales, fine, use_llm=use_llm, source_capture=source_capture)
     except ValueError as e:
         return render(request, "check.html", base=base, bookmarklet=bm, url=url, q="", error=str(e))
     return render(request, "check_result.html", card=card, docs=docs, pname=name, url=url, s=_check_summary(card), notes=notes)

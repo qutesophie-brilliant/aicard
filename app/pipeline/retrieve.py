@@ -27,11 +27,18 @@ class ChunkIndex:
 
     def __init__(self, docs: list[dict[str, Any]]):
         self.entries: list[tuple[int, int, str, str]] = []
+        self.source_metadata = {d['id']: {k: d[k] for k in
+            ('feature_scope', 'snapshot_sha256', 'section_id') if k in d} | {'source_url': d.get('url', '')}
+            for d in docs}
         for d in docs:
             for i, c in enumerate(d["chunks"]):
                 self.entries.append((d["id"], i, c, d["kind"]))
         corpus = [tokenize(e[2]) for e in self.entries] or [["_"]]
         self.bm25 = BM25Okapi(corpus)
+
+    def condition_context(self):
+        return [{'doc_id': d, 'chunk': i, 'quote': t, 'kind': k,
+                 **self.source_metadata.get(d, {})} for d, i, t, k in self.entries]
 
     def search(self, query: str, k: int = 6, exclude: tuple[int, int] | None = None,
                prefer_kinds: tuple[str, ...] = ()) -> list[dict[str, Any]]:

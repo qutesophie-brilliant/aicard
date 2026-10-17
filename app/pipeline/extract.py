@@ -169,6 +169,7 @@ SITE_COMMON = re.compile(r"(AI로 연결됩니다|AI Home\b|AI 리뷰 요약|AI 
                          r"구독하면|케어십|가전 구독|상담 예약|매장 찾기)")
 FOOTNOTE_INLINE = re.compile(r"^\s*\[[^\]]{1,30}\]\s*[\*※]")
 COND_ONLY = re.compile(r"^(?:사용\s?환경|제품|모델|설치\s?환경|주변\s?환경)[^.]{0,30}(?:따라|의해)[^.]{0,30}(?:차이가|다를 수|달라질 수)")
+SCENE_DESCRIPTION = re.compile(r'(?:이미지|화면)(?:의)?\s*(?:왼쪽|오른쪽|상단|하단|중앙)|(?:텍스트|문구)(?:가|와 함께).{0,25}(?:적혀|표시되어|이미지)|이미지.{0,15}(?:보입니다|있습니다)')
 FRAG_START = re.compile(r"^\S{1,8}(니다|습니다|어요|세요|죠)\.\s")  # "작습니다. 고정밀 …"처럼 앞 문장 꼬리가 붙은 조각
 
 
@@ -179,13 +180,13 @@ def _postfilter(rows: list[dict[str, Any]], max_claims: int, product_has_ai: boo
         if len(re.sub(r"\W", "", t)) < 8 or FRAG_START.match(t):
             continue  # 조각
         # 5차 개선: 각주·시험 안내 줄("- 시험 내용 : …", "※ … 지원합니다")은 소비자에게 보여 주는 표시 문구가 아니라 근거 자료다.
-        if FOOTNOTE_LINE.match(t) or TESTNOTE.search(t):
+        if FOOTNOTE_LINE.match(t) or TESTNOTE.search(t) or re.search(r'^[^*※]{0,30}세요[.!?]\s*[*※]', t):
             continue
         # 15회차(LG 개발 세트): 사이트 공통 요소는 그 제품의 표시 문구가 아니다 — 플랫폼 배너("당신의 집, 이제 AI로 연결됩니다"),
         # AI 리뷰 요약·AI 챗 안내, 추천 위젯, 이미지 대체 설명("…개념적으로 표현한 시각화 장면입니다"), 후기 요약("…평이 많아요"),
         # 조건 안내만 있는 줄("사용환경에 따라 동작 조건은 차이가 있을 수 있습니다"), 각주가 본문에 섞여 들어온 줄("[인공지능 DD] * …")
         # (각주가 본문에 섞인 "[AI 절약모드] * …" 줄은 4차 라벨러가 3:4로 갈려 그대로 둔다)
-        if SITE_COMMON.search(t) or COND_ONLY.search(t):
+        if SITE_COMMON.search(t) or COND_ONLY.search(t) or SCENE_DESCRIPTION.search(t):
             continue
         # 5차 개선: 서술어 없이 기능 이름만 이어 붙인 제목 줄("물걸레 온수 세척 기능 인공지능 관리 재세척")은 표시 문구로 보지 않는다
         if not STRONG.search(t):

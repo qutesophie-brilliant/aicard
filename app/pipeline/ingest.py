@@ -23,6 +23,7 @@ class Ingested:
     text: str
     chunks: list[str]
     notes: list[str] = field(default_factory=list)
+    source_capture: dict = field(default_factory=dict)
 
 
 # ---------- 청크 ----------
@@ -125,6 +126,8 @@ def from_url(url: str, ocr_images: bool = True, product_only: bool = False) -> I
     if ctype.startswith("image/"):
         return from_image(url.rsplit("/", 1)[-1], r.content)
 
+    if product_only:
+        return from_product_html(r.text, str(r.url), ocr_images=ocr_images)
     soup = BeautifulSoup(r.text, "html.parser")
     title = (soup.title.string.strip() if soup.title and soup.title.string else url)
     if product_only:
@@ -176,7 +179,28 @@ def from_url(url: str, ocr_images: bool = True, product_only: bool = False) -> I
     elif imgs and not llm.available():
         notes.append(f"이미지 {len(imgs)}장이 있으나 LLM 키가 없어 OCR을 건너뛰었습니다.")
 
-    return Ingested(title=title, text=body_text, chunks=chunk_text(body_text), notes=notes)
+    capture = {}
+    if product_only:
+        from .source_capture import capture_product_html
+        capture = capture_product_html(r.text, str(r.url))
+        if capture['coverage']['unresolved_panel_targets']:
+            notes.append('별도 화면의 세부정보 중 원문을 읽지 못한 항목이 있습니다. 조건이 없다는 뜻은 아닙니다.')
+    return Ingested(title=title, text=body_text, chunks=chunk_text(body_text), notes=notes,
+                    source_capture=capture)
+
+
+def from_product_html(html: str, url: str, ocr_images: bool = False) -> Ingested:
+    """Use an explicitly supplied rendered product snapshot, without hidden fetches."""
+    from .source_capture import capture_product_html
+    capture = capture_product_html(html, url)
+    if ocr_images:
+        from .product_images import capture_images
+        capture_images(html, url, capture)
+    soup = BeautifulSoup(html, 'html.parser')
+    title = soup.title.get_text(' ', strip=True) if soup.title else url
+    return Ingested(title=title, text=capture['text'], chunks=chunk_text(capture['text']),
+                    source_capture=capture,
+                    notes=['제품 설명과 포함된 세부정보를 확인했습니다.'] + ([f"이미지 {sum(bool(i['text']) for i in capture.get('images', []))}장의 글자를 OCR로 읽었습니다. 읽지 못한 이미지가 있을 수 있습니다."] if ocr_images else ['이미지 속 글자는 읽지 않았습니다.']))
 
 
 # ---------- 이미지 상세페이지 ----------

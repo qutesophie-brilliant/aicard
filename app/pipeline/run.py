@@ -70,7 +70,7 @@ def build_card_dry(product_id: int) -> tuple[dict[str, Any], dict[str, Any]]:
     return card, meta
 
 
-def quick_check(name: str, url: str, sales_text: str, fine_text: str = "", use_llm: bool = False) -> tuple[dict[str, Any], dict[int, dict[str, Any]]]:
+def quick_check(name: str, url: str, sales_text: str, fine_text: str = "", use_llm: bool = False, source_capture: dict | None = None) -> tuple[dict[str, Any], dict[int, dict[str, Any]]]:
     """저장하지 않는 즉석 확인. 기본은 LLM 없이 규칙 판정만(use_llm=True면 문구 추출·근거 연결에 LLM을 쓴다). (카드, 문서 사전)을 돌려준다."""
     import contextlib
     from . import ingest, quick_text
@@ -82,6 +82,9 @@ def quick_check(name: str, url: str, sales_text: str, fine_text: str = "", use_l
         ing = ingest.from_text(title, text)
         docs.append({"id": did, "product_id": 0, "kind": kind, "title": f"{title} ({name})", "url": url,
                      "text": ing.text, "chunks": ing.chunks if use_llm else quick_text.chunks(ing.text)})
+    if source_capture:
+        from .source_capture import section_documents
+        docs = section_documents(source_capture, 10000)
     if not docs:
         raise ValueError("본문 글자를 받지 못했습니다.")
     with (contextlib.nullcontext() if use_llm else llm.rules_only()):
@@ -117,6 +120,9 @@ def quick_check(name: str, url: str, sales_text: str, fine_text: str = "", use_l
             card["items"] = quick_coverage.fill(index)
             card["easy"] = easy.make_easy(card)
         card["checked_at"] = date.today().isoformat()
+    if source_capture:
+        card['source_coverage'] = source_capture['coverage']
+        card['image_sources'] = source_capture.get('images', [])
     card["quick_llm"] = bool(use_llm)
     return card, {d["id"]: d for d in docs}
 

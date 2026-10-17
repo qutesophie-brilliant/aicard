@@ -107,6 +107,7 @@ def _join_fragment(index: ChunkIndex, src: dict[str, Any], max_lines: int = 3) -
 
 def link_claims(claims: list[dict[str, Any]], index: ChunkIndex) -> list[dict[str, Any]]:
     cand_map: dict[str, list[dict[str, Any]]] = {}
+    condition_context = index.condition_context()
     # 9회차: 조건·한계 문장은 근거 문장과 떨어져 있거나 후보에 들지 않는 일이 많았다(조건 표시 일치 55%의 주원인).
     # 제품 문서 전체에서 조건·한계를 적은 문장을 모아 두고, 근거가 정해진 뒤 그 근거와 같은 기능의 조건을 붙인다.
     cond_pool = [t for t in index.by_kind(("판매페이지", "사양표", "설명서", "공식 자료"))
@@ -314,6 +315,8 @@ def link_claims(claims: list[dict[str, Any]], index: ChunkIndex) -> list[dict[st
                 qs.add(k); uniq.append(c)
         cand_map[claim["id"]] = uniq[:22]  # 13회차: 이어 읽기·내용어 후보가 늘어 18 → 22
         claim["_cond_pool"] = cond_pool
+        claim["_condition_context"] = condition_context
+        claim["_condition_context_complete"] = True
         claim.setdefault("reviewer_status", None)
         claim.setdefault("reviewer_note", "")
 
@@ -327,6 +330,8 @@ def link_claims(claims: list[dict[str, Any]], index: ChunkIndex) -> list[dict[st
             _link_rules(claim, cand_map[claim["id"]])
     for claim in claims:
         claim.pop("_cond_pool", None)
+        claim.pop("_condition_context", None)
+        claim.pop("_condition_context_complete", None)
     return claims
 
 
@@ -345,9 +350,10 @@ def _link_group(group: list[dict[str, Any]], cand_map: dict[str, list[dict[str, 
             return
         for claim in group:
             _link_rules(claim, cand_map[claim["id"]])
+            claim["inference_mode"] = "rules_fallback"
+            claim["inference_error"] = "llm_call_failed"
+            claim["needs_review"] = True
             claim["note"] = "AI 판정 호출이 실패해 규칙 판정으로 대신했습니다. 검토가 필요합니다. (" + str(e)[:80] + ")"
-            if claim["status"] in ("근거 확인", "조건 확인"):
-                claim.update(status="추가 확인 필요", basis_state="어긋남", conditions_noted=False)
 
 
 def _similar(a: str, b: str) -> float:
@@ -405,13 +411,16 @@ def _link_llm_batch(claims: list[dict[str, Any]], cand_map: dict[str, list[dict[
         row = data.get(claim["id"]) if isinstance(data.get(claim["id"]), dict) else None
         if row is None:
             _link_rules(claim, cands)
+            claim["inference_mode"] = "rules_fallback"
+            claim["inference_error"] = "missing_claim"
+            claim["needs_review"] = True
             claim["note"] = "AI 판정에서 이 문구가 빠져 규칙 판정으로 대신했습니다. 검토가 필요합니다."
-            if claim["status"] in ("근거 확인", "조건 확인"):
-                claim.update(status="추가 확인 필요", basis_state="어긋남", conditions_noted=False)
             continue
         row2 = data2.get(claim["id"]) if data2 and isinstance(data2.get(claim["id"]), dict) else None
         if row2 is None:
             _apply(claim, cands, row)
+            claim["inference_mode"] = "llm_single_vote"
+            claim["needs_review"] = True
             continue
         a, b = copy.deepcopy(claim), copy.deepcopy(claim)
         _apply(a, cands, row)
@@ -425,8 +434,10 @@ def _link_llm_batch(claims: list[dict[str, Any]], cand_map: dict[str, list[dict[
             split = True
         claim.clear()
         claim.update(pick)
+        claim["inference_mode"] = "llm_two_votes"
         if split:
             claim["llm_split"] = True
+            claim["needs_review"] = True
             claim["note"] = (claim.get("note", "") + " " if claim.get("note") else "") + "두 번 판정한 결과가 갈려 더 보수적인 쪽으로 두었어요."
 
 
@@ -434,17 +445,26 @@ def _apply(claim: dict[str, Any], cands: list[dict[str, Any]], row: dict[str, An
     status = row.get("status") if row.get("status") in STATUSES else "자료 부족"
     claim["llm_status"] = status  # 규칙 보정 전 AI 판정. 검토자가 규칙이 바꾼 건을 가려볼 수 있게 남긴다
     ev = []
-    for k in row.get("evidence") or []:
+    raw_indices = row.get("evidence")
+    for k in raw_indices if isinstance(raw_indices, list) else []:
         try:
-            c = cands[int(k)]
+            # JSON numbers must be integer candidate IDs, never Python negative
+            # indexes, booleans, numeric strings, or truncated floating points.
+            if type(k) is not int or not 0 <= k < len(cands):
+                continue
+            c = cands[k]
             # 15회차(LG 개발 세트): '연출된 영상·이미지' 안내, 사양표의 지원 여부 행("O 지원 O 지원"), 플랫폼 광고 줄은 작동 설명이 아니다
             if _BOILER.search(c["quote"]) or _SPEC_ROW.search(c["quote"]) or _PLATFORM_AD.search(c["quote"]):
                 continue
-            ev.append({"doc_id": c["doc_id"], "chunk": c["chunk"], "quote": c["quote"], "kind": c["kind"]})
+            if not any((e["doc_id"], e["chunk"]) == (c["doc_id"], c["chunk"]) for e in ev):
+                ev.append({"doc_id": c["doc_id"], "chunk": c["chunk"], "quote": c["quote"], "kind": c["kind"]})
         except (ValueError, IndexError, TypeError):
             continue
-    if status in ("근거 확인", "조건 확인") and not ev:
+    if status in ("근거 확인", "조건 확인", "추가 확인 필요") and not ev:
         status = "자료 부족"
+        if row.get("status") == "추가 확인 필요":
+            claim["needs_review"] = True
+            claim["inference_error"] = "ungrounded_conflict"
     basis = row.get("basis") if row.get("basis") in ("learn", "vision", "sensor", "service", "none") else None
     if status == "자료 부족":
         basis = None
@@ -573,6 +593,8 @@ def _apply(claim: dict[str, Any], cands: list[dict[str, Any]], row: dict[str, An
         conditions = ""
     claim.update(status=status, basis_state=basis_state, conditions_noted=conditions_noted,
                  evidence=ev[:3], conditions=conditions, note=_haeyo(note))
+    from .condition_grounding import refine_conditions
+    refine_conditions(claim, cands)
     # 검토자가 아직 매기지 않은 경우에만 AI 초안 값을 채운다
     if basis and not claim.get("basis_kind"):
         claim["basis_kind"] = basis
@@ -742,7 +764,7 @@ def _names_feature(claim_text: str, q: str) -> bool:
 
 def _shares_noun(claim_text: str, q: str) -> bool:
     """문구와 후보가 같은 내용어(진동·소음·냉매 …)를 공유하는가. 'AI·환경·상황' 같은 일반어는 빼고 본다."""
-    words = {w for w in re.findall(r"[가-힣]{2,}", claim_text)}
+    words = {_strip_particle(w) for w in re.findall(r"[가-힣]{2,}", claim_text)}
     words = {w for w in words if w not in _NOUN_STOP and not any(w.startswith(sw) for sw in ("환경", "상황", "스스로", "효과", "알아서"))}
     nq = q.replace(" ", "")
     return any(w in nq for w in words)
@@ -868,26 +890,28 @@ _EVID = re.compile(r"(센서|카메라|라이다|LiDAR|ToF|구조광|레이저|�
 
 
 def _link_rules(claim: dict[str, Any], cands: list[dict[str, Any]]) -> None:
-    """키 없는 데모 모드. 설명서·사양표 문장 중 수치·부품 표현이 있으면 근거로 본다."""
-    # 규칙만으로는 '설명'을 너그럽게 잡기 쉽다(분·시간·% 같은 수치만으로 인정). 센서·방식·학습 데이터처럼
-    # 어떻게 작동하는지 말하는 문장이거나, 조건·한계 문장일 때만 관련 문장으로 본다.
+    """같은 기능의 설명을 고른 뒤 LLM 경로와 같은 근거 검사를 적용한다."""
     pool = [c for c in cands if (c["kind"] in ("설명서", "사양표", "공공DB", "공식 자료") or c.get("near") or c.get("self") or c.get("adjacent") or c.get("joined"))
             and not _BOILER.search(c["quote"]) and not _TESTCOND.search(c["quote"]) and not _SPEC_ROW.search(c["quote"]) and not _PLATFORM_AD.search(c["quote"])]
     def _mech(q: str) -> bool:
         return bool(_MECH.search(q) or _PROC_V.search(q) or _SENSOR_SPEC.search(q) or _LEARN_EVID.search(q) or self_describes(q))
-    # 같은 기능을 말하는 문장(내용어 겹침·기능 이름 일치·바로 옆 줄)을 먼저, 없으면 작동 설명이 있는 아무 문장
-    related = [c for c in pool if _shares_noun(claim["text"], c["quote"]) or _names_feature(claim["text"], c["quote"]) or c.get("near") or c.get("self") or c.get("adjacent")]
-    ev = [c for c in related if _mech(c["quote"])][:3] or [c for c in related if _is_cond(c["quote"])][:2]
-    if not ev:
-        ev = [c for c in pool if _mech(c["quote"])][:2]
-    cond = next((c["quote"] for c in cands if _COND.search(c["quote"])), "")
-    basis_state = "있음" if ev else "없음"
-    conditions_noted = bool(ev and cond)
-    status = status_from(basis_state, conditions_noted)
-    claim.update(status=status, basis_state=basis_state, conditions_noted=conditions_noted,
-                 evidence=[{k: c[k] for k in ("doc_id", "chunk", "quote", "kind")} for c in ev],
-                 conditions=cond[:140],
-                 note="규칙 기반 판정입니다. LLM 판정이 켜지면 문맥 판정으로 바뀝니다.")
+    def related(c: dict[str, Any]) -> bool:
+        q = c["quote"]
+        named = _feature_names(claim["text"])
+        other = _feature_names(q)
+        if named and other and not _names_feature(claim["text"], q):
+            return False
+        return bool(_shares_noun(claim["text"], q) or _names_feature(claim["text"], q)
+                    or c.get("self") or c.get("joined")
+                    or (not other and (c.get("near") or c.get("adjacent"))))
+    ev = [c for c in pool if related(c) and _mech(c["quote"])
+          and _has_mechanism(claim["text"], [c])][:3]
+    # No fallback to an unrelated mechanism or to a condition-only sentence.
+    _apply(claim, cands, {"status": "근거 확인" if ev else "자료 부족",
+                        "evidence": [cands.index(c) for c in ev], "conditions": "",
+                        "note": "규칙 기반 판정입니다. 원문 검토가 필요합니다."})
+    claim.pop("llm_status", None)
+    claim["inference_mode"] = "rules"
 
 
 _FEAT_TOKEN = re.compile(r"(?:(?<![A-Za-z])AI(?![A-Za-z])|인공지능)\s*([A-Za-z가-힣][A-Za-z가-힣0-9]{0,9})(?:\s*([가-힣]{2,6}))?")

@@ -129,6 +129,36 @@ def read_images(imgs: list[bytes], allow_llm: bool = True) -> OcrResult:
             return res
         except Exception as e:
             res.notes.append(f"로컬 글자 인식 실패({str(e)[:40]})")
+    if os.name == 'nt':
+        try:
+            import asyncio
+            from winrt.windows.media.ocr import OcrEngine
+            from winrt.windows.globalization import Language
+            from winrt.windows.graphics.imaging import SoftwareBitmap, BitmapPixelFormat, BitmapAlphaMode
+            from winrt.windows.storage.streams import DataWriter
+            from PIL import Image
+            async def recognize():
+                engine = OcrEngine.try_create_from_language(Language('ko'))
+                if engine is None: raise RuntimeError('Korean OCR unavailable')
+                texts = []
+                for data in imgs:
+                    with Image.open(io.BytesIO(data)) as source:
+                        im = source.convert('RGBA')
+                        writer = DataWriter(); bitmap = None
+                        try:
+                            writer.write_bytes(im.tobytes('raw', 'BGRA'))
+                            bitmap = SoftwareBitmap.create_copy_with_alpha_from_buffer(writer.detach_buffer(), BitmapPixelFormat.BGRA8, im.width, im.height, BitmapAlphaMode.IGNORE)
+                            result = await engine.recognize_async(bitmap)
+                            texts.append('\n'.join(line.text for line in result.lines))
+                        finally:
+                            if bitmap is not None: bitmap.close()
+                            writer.close(); im.close()
+                return texts
+            res.texts = asyncio.run(recognize()); res.engine = 'windows_ocr'
+            res.notes.append('Windows 한국어 OCR로 이미지의 글자를 읽었어요. 오인식이 있을 수 있어요.')
+            return res
+        except (ImportError, RuntimeError, OSError):
+            res.notes.append('Windows OCR을 사용할 수 없어요.')
     res.engine = "none"
     res.notes.append("이미지에서 글자를 읽을 수 있는 장치가 없어요.")
     return res

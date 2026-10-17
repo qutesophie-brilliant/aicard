@@ -34,7 +34,7 @@
       {% for c in card.claims %}
       <li id="qc-{{ loop.index }}">
         <div class="cl-head">{% if c.evidence %}{{ yes() }}{% else %}{{ no() }}{% endif %}<q>{{ c.text }}</q></div>
-        {% if c.evidence %}<details class="ev"><summary>관련 문장 {{ c.evidence|length }}건</summary>{% for e in c.evidence %}<blockquote>{{ e.quote }}<cite>{{ e.kind }}</cite></blockquote>{% endfor %}</details>{% endif %}
+        {% if c.evidence %}<details class="ev"><summary>관련 문장 {{ c.evidence|length }}건</summary>{% for e in c.evidence %}<blockquote>{% if e.condition_type == "test" %}<strong>시험 조건 · </strong>{% elif e.condition_type == "test_result_limit" %}<strong>시험 결과의 한계 · </strong>{% elif e.condition_type == "operating" %}<strong>사용 조건 · </strong>{% endif %}{{ e.quote }}<cite>{{ e.kind }}</cite></blockquote>{% endfor %}</details>{% endif %}
       </li>
       {% else %}
       <li><p class="none">‘AI’라고 표시한 문구를 찾지 못했어요.</p></li>
@@ -48,7 +48,7 @@
     <div class="block" id="qi-{{ key }}">
       <h4>{{ ITEM_SHORT[key] }} {% if it.evidence %}{{ yes() }}{% else %}{{ no() }}{% endif %}</h4>
       <p class="{% if not it.evidence %}none{% endif %}">{{ '이 페이지에 관련 문장이 있어요.' if it.evidence else '이 페이지에서는 관련 문장을 찾지 못했어요.' }}</p>
-      {% if it.evidence %}<details class="ev"><summary>관련 문장 {{ it.evidence|length }}건</summary>{% for e in it.evidence %}<blockquote>{{ e.quote }}<cite>{{ e.kind }}</cite></blockquote>{% endfor %}</details>{% endif %}
+      {% if it.evidence %}<details class="ev"><summary>관련 문장 {{ it.evidence|length }}건</summary>{% for e in it.evidence %}<blockquote>{% if e.condition_type == "test" %}<strong>시험 조건 · </strong>{% elif e.condition_type == "test_result_limit" %}<strong>시험 결과의 한계 · </strong>{% elif e.condition_type == "operating" %}<strong>사용 조건 · </strong>{% endif %}{{ e.quote }}<cite>{{ e.kind }}</cite></blockquote>{% endfor %}</details>{% endif %}
     </div>
     {% endfor %}
   </section>
