@@ -3,7 +3,7 @@
 {% block title %}담는 중 | AI 정보카드{% endblock %}
 {% block content %}
 <section class="hero" style="padding-bottom:0">
-  <h1 id="h">제품 페이지를 받는 중이에요</h1>
+  <h1 id="h">제품 페이지를 받는 중입니다</h1>
   <p class="lede" id="msg">쇼핑몰 창에서 본문이 넘어오면 제품명과 모델명을 확인해 주세요.</p>
 </section>
 <form class="form" id="f" hidden>
@@ -25,10 +25,10 @@
     f.name.value = t[0].trim();
     const m = (data.title || '').match(/\b[A-Z]{2,}[0-9][A-Z0-9-]{3,}\b/);
     if (m) f.model.value = m[0];
-    document.getElementById('h').textContent = '받았어요. 제품 정보를 확인해 주세요';
+    document.getElementById('h').textContent = '받았습니다. 제품 정보를 확인해 주세요';
     document.getElementById('msg').textContent = data.url;
     document.getElementById('sizes').textContent =
-      '본문 ' + data.sales_text.length.toLocaleString() + '자, 각주·사양 ' + data.fine_text.length.toLocaleString() + '자를 받았어요.';
+      '본문 ' + data.sales_text.length.toLocaleString() + '자, 각주·사양 ' + data.fine_text.length.toLocaleString() + '자를 받았습니다.';
     f.hidden = false; f.name.focus();
   });
   f.addEventListener('submit', async (e) => {
@@ -36,7 +36,7 @@
     if (!data) return;
     const body = Object.assign({}, data, {name: f.name.value, maker: f.maker.value, model: f.model.value, category: f.category.value});
     const r = await fetch('/api/ingest', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)});
-    if (!r.ok) { let m = '저장하지 못했어요: ' + r.status; try { const e = await r.json(); if (e.detail) m = e.detail; } catch (_) {} document.getElementById('msg').textContent = m; return; }
+    if (!r.ok) { let m = '저장하지 못했습니다: ' + r.status; try { const e = await r.json(); if (e.detail) m = e.detail; } catch (_) {} document.getElementById('msg').textContent = m; return; }
     const d = await r.json();
     location.href = '/review/' + d.id;
   });

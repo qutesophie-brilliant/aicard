@@ -1,15 +1,15 @@
 {% extends "base.html" %}
 {% block title %}전체 통계 | AI 정보카드{% endblock %}
-{% block desc %}공개한 카드 {{ tot.products }}장에서 ‘AI’ 표시 문구 {{ tot.claims }}개를 회사 자료와 맞춰 본 결과예요. 제품 순위는 매기지 않아요.{% endblock %}
+{% block desc %}공개한 카드 {{ tot.products }}장에서 ‘AI’ 표시 문구 {{ tot.claims }}개를 회사 자료와 맞춰 본 결과입니다. 제품 순위는 매기지 않습니다.{% endblock %}
 {% block content %}
 <section class="page-head">
   <h1>카드 {{ tot.products }}장 전체 통계</h1>
-  <p class="lede">{{ cat_line }}을 회사가 공개한 자료와 맞춰 봤어요. 문구별 집계는 <b>문구 수</b>로, 권익 정보의 공백은 <b>카드 수</b>로 표시해요. 어느 회사가 낫다는 뜻이 아니에요.</p>
+  <p class="lede">{{ cat_line }}을 제조사의 공개자료와 대조한 결과입니다. 문구별 집계는 <b>문구 수</b>로, 권익 정보의 공백은 <b>카드 수</b>로 표시합니다. 어느 회사가 낫다는 뜻이 아닙니다.</p>
 </section>
 
 <div class="prose">
   <h2>문구별 확인 결과: ‘AI’ 문구 {{ tot.claims }}개 중 설명 있음 {{ tot.linked }}개</h2>
-  <p>{{ tot.missing }}개는 확인한 공개자료에서 작동 설명을 찾지 못했고, {{ tot.mismatch }}개는 본문과 각주의 적용 범위나 조건을 추가로 확인해야 해요. 기능이 없거나 어디에도 설명이 없다고 확정한 것은 아니에요.</p>
+  <p>{{ tot.missing }}개는 확인한 공개자료에서 작동 설명을 찾지 못했고, {{ tot.mismatch }}개는 본문과 각주의 적용 범위나 조건을 추가로 확인해야 합니다. 기능이 없거나 어디에도 설명이 없다고 확정한 것은 아닙니다.</p>
   <ul class="bars" aria-label="작동 설명 유무">
     <li><b>{{ tot.linked }}</b><span>작동 설명 있음</span><i style="--w: {{ (100 * tot.linked / (tot.claims or 1)) | round(1) }}%"></i></li>
     <li><b>{{ tot.missing }}</b><span>설명을 찾지 못함</span><i class="g" style="--w: {{ (100 * tot.missing / (tot.claims or 1)) | round(1) }}%"></i></li>
@@ -17,7 +17,7 @@
   </ul>
 
   <h2>작동 설명의 종류</h2>
-  <p>‘작동 설명 있음’인 {{ tot.linked }}개 문구를 설명 종류별로 세어 봤어요. 아직 종류가 분류되지 않은 문구도 합계에 포함해요.</p>
+  <p>‘작동 설명 있음’인 {{ tot.linked }}개 문구를 설명 유형별로 집계했습니다. 아직 종류가 분류되지 않은 문구도 합계에 포함합니다.</p>
   <table class="map">
     <tr><th>작동 설명의 종류</th><th>문구 수</th></tr>
     <tr><td>학습·모델로 설명</td><td>{{ tot.basis.learn }}개</td></tr>
@@ -28,25 +28,25 @@
     <tr><td>설명 종류 미확정</td><td>{{ tot.basis.unknown }}개</td></tr>
     <tr><th>합계</th><th>{{ tot.linked }}개</th></tr>
   </table>
-  <p>이 분류는 제조사가 공개자료에서 기능을 어떻게 설명했는지 보여 줘요. 설명의 종류만으로 해당 기능이 AI인지 아닌지를 판정하지는 않아요.</p>
+  <p>이 분류는 제조사가 공개자료에서 기능을 어떻게 설명했는지 보여 줍니다. 설명의 종류만으로 해당 기능이 AI인지 아닌지를 판정하지는 않습니다.</p>
 
   <h2>소비자 권익 정보의 공백</h2>
   <ul class="gaps">
-    <li><b>{{ tot.optout_missing }}장</b><span>사용한 자료에서 AI 기능 해제 안내를 찾지 못했어요</span></li>
-    <li><b>{{ tot.data_missing }}장</b><span>사용한 자료에서 데이터 수집·처리 위치 안내를 찾지 못했어요</span></li>
-    <li><b>{{ tot.cond_missing }}장</b><span>사용한 자료에서 작동 조건·한계를 찾지 못했어요</span></li>
+    <li><b>{{ tot.optout_missing }}장</b><span>사용한 자료에서 AI 기능 해제 안내를 찾지 못했습니다</span></li>
+    <li><b>{{ tot.data_missing }}장</b><span>사용한 자료에서 데이터 수집·처리 위치 안내를 찾지 못했습니다</span></li>
+    <li><b>{{ tot.cond_missing }}장</b><span>사용한 자료에서 작동 조건·한계를 찾지 못했습니다</span></li>
   </ul>
-  <p>공개 카드 {{ tot.products }}장을 기준으로 센 숫자예요. 제품을 고를 때 판매페이지에서 답을 찾기 어려운 항목이 어디인지 보여 줘요.</p>
+  <p>공개 카드 {{ tot.products }}장을 기준으로 집계한 수치입니다. 제품을 고를 때 판매페이지에서 답을 찾기 어려운 항목이 어디인지 보여 줍니다.</p>
 
   {% if mismatches %}
   <h2>추가 확인이 필요한 문구 {{ mismatches | length }}개</h2>
-  <p>아래는 저장된 판정에서 추가 확인 대상으로 분류한 문구예요. 수동으로 기능을 켜는 조건, 서로 다른 기능의 범위, 업데이트 예정 안내만으로 표시가 잘못됐다고 확정할 수는 없어요. 연결된 원문과 확인 시점을 함께 살펴봐야 해요.</p>
+  <p>아래는 저장된 판정에서 추가 확인 대상으로 분류한 문구입니다. 수동으로 기능을 켜는 조건, 서로 다른 기능의 범위, 업데이트 예정 안내만으로 표시가 잘못됐다고 확정할 수는 없습니다. 연결된 원문과 확인 시점을 함께 살펴봐야 합니다.</p>
   <ol class="mism">
     {% for m in mismatches %}
     <li>
       <p class="mm-claim">“{{ m.claim }}”</p>
       {% if m.quote %}<blockquote>{{ m.quote }}<cite>카드에 연결된 회사 자료 · 전체 출처는 아래 카드에서 확인</cite></blockquote>{% endif %}
-      {% if m.note %}<details class="ev"><summary>저장된 판정 메모</summary><p class="mm-note">{{ m.note }}</p></details>{% endif %}
+      {% if m.note %}<details class="ev"><summary>저장된 판정 메모</summary><p class="mm-note">{{ m.note|haeyo }}</p></details>{% endif %}
       <p class="mm-from"><a href="/card/{{ m.pid }}#{{ m.anchor }}">{% if m.maker and not m.product.startswith(m.maker) %}{{ m.maker }} {% endif %}{{ m.product }} 카드에서 보기</a></p>
     </li>
     {% endfor %}
@@ -55,10 +55,10 @@
 
   {% if tot.control %}
   <h2>대조군: ‘AI’를 내세우지 않는 제품 {{ tot.control }}장</h2>
-  <p>비교 기준으로 넣은 제품이에요. 같은 질문을 똑같이 물어서, 카드가 ‘AI’라는 말에만 반응하는 게 아니라는 걸 보여 줘요.</p>
+  <p>‘AI’를 내세우지 않는 비교 대상 제품입니다. 동일한 질문을 적용해 소비자에게 필요한 정보가 공개되어 있는지 확인합니다.</p>
   {% endif %}
 
   <h2>해석 시 유의점</h2>
-  <p>여기 적힌 수는 {{ tot.products }}장을 확인한 날짜 기준이에요. 회사가 자료를 고치면 결과도 달라져요. 카드마다 확인한 날짜와 출처를 적어 두었으니, 숫자가 어디서 나왔는지는 카드를 열어 확인할 수 있어요. 자동 판정의 정확도와 한계는 <a href="/about">서비스 소개</a>에 적어 두었어요.</p>
+  <p>통계는 현재 공개된 카드 {{ tot.products }}장의 저장된 판정을 집계한 결과입니다. 각 카드의 자료 확인 시점은 다르며, 제조사의 자료가 바뀌면 검토 결과도 달라질 수 있습니다. 집계 근거는 각 카드의 확인 날짜와 출처에서 확인할 수 있습니다. 별도로 수행한 자동 판정 평가의 결과와 한계는 <a href="/about">서비스 소개</a>에 적어 두었습니다.</p>
 </div>
 {% endblock %}

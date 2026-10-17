@@ -5,7 +5,7 @@
 <script>document.documentElement.className+=" js"</script>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{% block title %}AI 정보카드{% endblock %}</title>
-<meta name="description" content="{% block desc %}제품에 적힌 ‘AI’ 문구마다 회사가 공개한 설명이 있는지, 작동 조건과 소비자 권익 정보는 어떻게 적혀 있는지 한 장에서 확인해요.{% endblock %}">
+<meta name="description" content="{% block desc %}제품에 적힌 ‘AI’ 문구마다 회사가 공개한 설명이 있는지, 작동 조건과 소비자 권익 정보는 어떻게 적혀 있는지 한 장에서 확인합니다.{% endblock %}">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="AI 정보카드">
 <meta property="og:title" content="{% block ogtitle %}{{ self.title() }}{% endblock %}">
@@ -52,11 +52,11 @@
       <a href="/check">바로 확인<small>목록에 없는 제품을 즉시 1차 확인</small></a>
       <a href="/compare">제품 비교<small>두 제품의 카드를 나란히</small></a>
       <a href="/findings">전체 통계<small>공개 카드 전체의 집계</small></a>
-      {% if is_reviewer %}<a href="/review">검토자<small>카드 검토와 요청 관리</small></a>{% else %}<a href="/review/login">검토자 로그인<small>검토자 비밀번호가 필요해요</small></a>{% endif %}
+      {% if is_reviewer %}<a href="/review">검토자<small>카드 검토와 요청 관리</small></a>{% else %}<a href="/review/login">검토자 로그인<small>검토자 비밀번호가 필요합니다</small></a>{% endif %}
 
     </nav>
     <div class="menu-side">
-      <p>{% if path.startswith("/about") %}제품의 ‘AI’ 표시를 제조사가 공개한 설명과 대조하는 카드입니다. 공개자료에서 확인한 정보를 제공하며, 제품의 우열은 판정하지 않습니다.{% else %}‘AI’라고 적힌 제품을 회사가 공개한 설명과 맞춰 보는 카드예요. 공개자료의 설명과 조건을 정리하고, 제품의 우열은 판정하지 않아요.{% endif %}</p>
+      <p>{% if path.startswith("/about") %}제품의 ‘AI’ 표시를 제조사가 공개한 설명과 대조하는 카드입니다. 공개자료에서 확인한 정보를 제공하며, 제품의 우열은 판정하지 않습니다.{% else %}‘AI’라고 적힌 제품을 회사가 공개한 설명과 맞춰 보는 카드입니다. 공개자료의 설명과 조건을 정리하고, 제품의 우열은 판정하지 않습니다.{% endif %}</p>
       <p class="meta">2026 AI 라이프 솔루션 챌린지 출품작</p>
     </div>
   </div>
@@ -66,16 +66,13 @@
 </main>
 <div class="wrap">
   <footer class="site">
-{% if path.startswith("/about") %}
+
     <p>제조사가 공개한 자료의 내용을 대조한 카드입니다. 자료에 없는 내용은 추정하여 채우지 않으며, 제품의 우열이나 법 위반 여부는 판정하지 않습니다.</p>
     <p>‘작동 설명 없음’은 공개자료에서 설명을 찾지 못했다는 뜻입니다. 제조사는 공개하지 않은 실증자료를 보유하고 있을 수 있습니다. 카드 내용이 공개자료와 다르면 <a href="/about#fix">정정을 요청</a>할 수 있습니다.</p>
-{% else %}
-    <p>회사가 공개한 자료에 적힌 내용을 대조한 카드예요. 자료에 없는 내용은 AI가 추측해서 채우지 않고, 제품의 우열이나 법 위반 여부는 가리지 않아요.</p>
-    <p>‘작동 설명 없음’은 공개자료에서 설명을 찾지 못했다는 뜻이에요. 회사는 공개하지 않은 실증자료를 가지고 있을 수 있고, 내용이 다르면 <a href="/about#fix">정정을 요청</a>할 수 있어요.</p>
-{% endif %}
+
     <p>2026 AI 라이프 솔루션 챌린지 출품작 · <a href="/about">서비스 소개</a></p>
   </footer>
 </div>
-<script src="/static/app.js?v=20261017ux"></script>
+<script src="/static/app.js?v=20261017copy"></script>
 </body>
 </html>

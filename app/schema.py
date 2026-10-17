@@ -93,17 +93,17 @@ BASIS_HELP = {k: h for k, _, h in BASIS_KINDS}
 # 항목 4·6의 추가 표시. 검토자가 공개자료를 보고 고르며, 비워 두면 카드에 나오지 않는다.
 # 항목 4 — 개인정보 보호법 제28조의8(국외 이전)은 국외 이전 사실을 알리도록 한다.
 DATA_SERVERS = [
-    ("kr", "국내에서 처리한다고 적혀 있어요"),
-    ("abroad", "국외 서버로 보낸다고 적혀 있어요"),
-    ("device", "기기 안에서만 처리한다고 적혀 있어요"),
-    ("none", "어디서 처리하는지 공개자료에 없어요"),
+    ("kr", "국내에서 처리한다고 적혀 있습니다"),
+    ("abroad", "국외 서버로 보낸다고 적혀 있습니다"),
+    ("device", "기기 안에서만 처리한다고 적혀 있습니다"),
+    ("none", "어디서 처리하는지 공개자료에 없습니다"),
 ]
 DATA_SERVER_LABEL = {k: v for k, v in DATA_SERVERS}
 # 항목 6 — EU 사이버복원력법 제13조는 지원 기간을 연수로 밝히도록 한다. '제공한다'는 말만으로는 기간을 알 수 없다.
 SUPPORT_PERIODS = [
-    ("years", "지원 기간이 햇수로 적혀 있어요"),
-    ("vague", "업데이트를 제공한다고만 적혀 있고 기간은 없어요"),
-    ("none", "업데이트·지원에 대한 설명이 공개자료에 없어요"),
+    ("years", "지원 기간이 햇수로 적혀 있습니다"),
+    ("vague", "업데이트를 제공한다고만 적혀 있고 기간은 없습니다"),
+    ("none", "업데이트·지원에 대한 설명이 공개자료에 없습니다"),
 ]
 SUPPORT_PERIOD_LABEL = {k: v for k, v in SUPPORT_PERIODS}
 
@@ -133,7 +133,7 @@ def heads_up(card: dict[str, Any], limit: int = 4) -> list[dict[str, str]]:
         if effective_status(c) == "추가 확인 필요":
             ct = (c.get("text") or "").strip()
             ct = ct[:60] + "…" if len(ct) > 60 else ct
-            text = f"“{ct}” — 본문과 각주의 적용 범위·조건·지원 시점을 더 확인해야 해요."
+            text = f"“{ct}” — 본문과 각주의 적용 범위·조건·지원 시점을 더 확인해야 합니다."
             out.append({"kind": "s4", "text": text, "anchor": f"claim-{c['id']}"})
     bc = basis_counts(card)
     linked = sum(1 for c in card.get("claims", []) if effective_status(c) in ("근거 확인", "조건 확인"))
@@ -147,16 +147,16 @@ def heads_up(card: dict[str, Any], limit: int = 4) -> list[dict[str, str]]:
             how.append(f"외부 서비스 {bc['service']}개")
         if bc["none"]:
             how.append(f"조건·한계만 제시 {bc['none']}개")
-        text = f"‘작동 설명 있음’ {linked}개의 설명 종류는 " + ", ".join(how) + "예요. 학습이나 모델을 언급한 설명은 없어요."
+        text = f"‘작동 설명 있음’ {linked}개의 설명 종류는 " + ", ".join(how) + "입니다. 학습이나 모델을 언급한 설명은 없습니다."
         out.append({"kind": "s3", "text": text, "anchor": "q-what"})
     extra = global_extra(card)
     if extra:
-        out.append({"kind": "s3", "text": f"문구 {len(extra)}개는 국내 자료에 없는 설명이 회사의 해외 영문 자료에 있어요.", "anchor": f"claim-{extra[0]['id']}"})
+        out.append({"kind": "s3", "text": f"문구 {len(extra)}개는 국내 자료에 없는 설명이 회사의 해외 영문 자료에 있습니다.", "anchor": f"claim-{extra[0]['id']}"})
     items = card.get("items", {})
     if items.get("optout", {}).get("status") == "자료 부족":
-        out.append({"kind": "s3", "text": "AI 기능을 끄는 방법은 이 카드에 사용한 자료에서 찾지 못했어요.", "anchor": "q-optout"})
+        out.append({"kind": "s3", "text": "AI 기능을 끄는 방법은 이 카드에 사용한 자료에서 찾지 못했습니다.", "anchor": "q-optout"})
     if items.get("data", {}).get("status") == "자료 부족":
-        out.append({"kind": "s3", "text": "데이터 수집·처리 위치에 관한 설명은 이 카드에 사용한 자료에서 찾지 못했어요.", "anchor": "q-data"})
+        out.append({"kind": "s3", "text": "데이터 수집·처리 위치에 관한 설명은 이 카드에 사용한 자료에서 찾지 못했습니다.", "anchor": "q-data"})
     return out[:limit]
 
 
@@ -245,26 +245,26 @@ def summarize(card: dict[str, Any]) -> dict[str, Any]:
     linked = counts["근거 확인"] + counts["조건 확인"]
     lines: list[str] = []
     if n == 0:
-        lines.append("이 제품은 판매페이지에서 ‘AI’를 내세우지 않아요. AI를 내세우는 제품과 견줄 수 있도록 같은 질문을 확인했어요.")
+        lines.append("이 제품은 판매페이지에서 ‘AI’를 내세우지 않습니다. AI를 내세우는 제품과 견줄 수 있도록 같은 질문을 확인했습니다.")
     else:
-        lines.append(f"‘AI’라고 표시한 문구 {n}개 중 {linked}개에 회사가 작동 설명을 적어 두었어요.")
+        lines.append(f"‘AI’라고 표시한 문구 {n}개 중 {linked}개에 회사가 작동 설명을 적어 두었습니다.")
         rest = []
         if counts["자료 부족"]:
-            rest.append(f"{counts['자료 부족']}개는 공개자료에서 설명을 찾지 못했어요")
+            rest.append(f"{counts['자료 부족']}개는 공개자료에서 설명을 찾지 못했습니다")
         if counts["추가 확인 필요"]:
-            rest.append(f"{counts['추가 확인 필요']}개는 본문과 각주를 더 확인해야 해요")
+            rest.append(f"{counts['추가 확인 필요']}개는 본문과 각주를 더 확인해야 합니다")
         if rest:
             lines.append(". ".join(rest) + ".")
     missing = [ITEM_SHORT[k] for k in COVERAGE_ITEMS
                if card["items"].get(k, {}).get("status") not in ("근거 확인", "조건 확인")]
     if covered == len(COVERAGE_ITEMS):
-        lines.append("소비자 권익 항목 5가지가 모두 공개돼 있어요.")
+        lines.append("소비자 권익 항목 5가지가 모두 공개돼 있습니다.")
     elif covered == 0:
-        lines.append("소비자 권익 항목 5가지를 공개자료에서 찾지 못했어요.")
+        lines.append("소비자 권익 항목 5가지를 공개자료에서 찾지 못했습니다.")
     else:
         joined = ", ".join(missing)
-        lines.append(f"소비자 권익 항목 5가지 중 {covered}가지가 공개돼 있어요. "
-                     f"{joined}{topic_particle(missing[-1])} 찾지 못했어요.")
+        lines.append(f"소비자 권익 항목 5가지 중 {covered}가지가 공개돼 있습니다. "
+                     f"{joined}{topic_particle(missing[-1])} 찾지 못했습니다.")
     return {
         "n_claims": n,
         "counts": counts,

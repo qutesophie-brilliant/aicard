@@ -13,12 +13,12 @@
       <p class="lb-meta">{% if url %}<a href="{{ url }}" target="_blank" rel="noopener">{{ url|replace('https://','')|truncate(60) }}</a><span class="sep">·</span>{% endif %}{{ card.checked_at|kdate }} 읽어 온 자료의 범위에서 확인</p>
     </div>
   </div>
-  {% if notes %}<details class="summary-detail capture-scope"><summary>읽어 온 자료와 확인 범위</summary><ul>{% for n in notes %}<li>{{ n }}</li>{% endfor %}</ul></details>{% endif %}
+  {% if notes %}<details class="summary-detail capture-scope"><summary>읽어 온 자료와 확인 범위</summary><ul>{% for n in notes %}<li>{{ n|haeyo }}</li>{% endfor %}</ul></details>{% endif %}
   <div class="lb-verdict">
     {% if s.n == 0 %}
-    <p class="lb-big">읽어 온 자료에서 ‘AI’라고 표시한 문구를 찾지 못했어요<small>확인한 범위의 결과예요. 읽지 못한 이미지나 별도 화면에 관련 설명이 있을 수 있으며, 제품에 AI 기능이 없다는 뜻은 아니에요.</small></p>
+    <p class="lb-big">읽어 온 자료에서 ‘AI’라고 표시한 문구를 찾지 못했습니다<small>확인한 범위의 결과입니다. 읽지 못한 이미지나 별도 화면에 관련 설명이 있을 수 있으며, 제품에 AI 기능이 없다는 뜻은 아닙니다.</small></p>
     {% else %}
-    <p class="lb-big"><span class="sr">‘AI’라고 적은 문구 {{ s.n }}개 중 {{ s.with_ev }}개는 같은 페이지에 관련 문장이 있어요.</span><span aria-hidden="true">‘AI’라고 적은 문구 <em>{{ s.n }}</em>개 중 <em>{{ s.with_ev }}</em>개는<br>같은 페이지에 관련 문장이 있어요</span><small>같은 페이지에 관련 문장이 있다는 뜻이에요. 작동 설명이 문구를 뒷받침하는지는 정식 카드에서 사람이 확인해요.</small></p>
+    <p class="lb-big"><span class="sr">‘AI’라고 적은 문구 {{ s.n }}개 중 {{ s.with_ev }}개는 같은 페이지에 관련 문장이 있습니다.</span><span aria-hidden="true">‘AI’라고 적은 문구 <em>{{ s.n }}</em>개 중 <em>{{ s.with_ev }}</em>개는<br>같은 페이지에 관련 문장이 있습니다</span><small>같은 페이지에 관련 문장이 있다는 뜻입니다. 작동 설명이 문구를 뒷받침하는지는 정식 카드에서 사람이 확인합니다.</small></p>
     <div class="cells" role="img" aria-label="관련 문장 있음 {{ s.with_ev }}, 없음 {{ s.n - s.with_ev }}">{% if s.with_ev %}<i class="s1" style="flex:{{ s.with_ev }}"></i>{% endif %}{% if s.n - s.with_ev %}<i class="s3" style="flex:{{ s.n - s.with_ev }}"></i>{% endif %}</div>
     <ul class="lb-legend"><li><i class="sw s1"></i>관련 문장 있음 <b>{{ s.with_ev }}</b></li><li><i class="sw s3"></i>관련 문장 없음 <b>{{ s.n - s.with_ev }}</b></li></ul>
     {% endif %}
@@ -38,7 +38,7 @@
         {% if c.evidence %}<details class="ev"><summary>관련 문장 {{ c.evidence|length }}건</summary>{% for e in c.evidence %}<blockquote>{% if e.condition_type == "test" %}<strong>시험 조건 · </strong>{% elif e.condition_type == "test_result_limit" %}<strong>시험 결과의 한계 · </strong>{% elif e.condition_type == "operating" %}<strong>사용 조건 · </strong>{% endif %}{{ e.quote }}<cite>{{ e.kind }}</cite></blockquote>{% endfor %}</details>{% endif %}
       </li>
       {% else %}
-      <li><p class="none">‘AI’라고 표시한 문구를 찾지 못했어요.</p></li>
+      <li><p class="none">‘AI’라고 표시한 문구를 찾지 못했습니다.</p></li>
       {% endfor %}
     </ul>
   </section>
@@ -48,7 +48,7 @@
     {% for key in COVERAGE_ITEMS %}{% set it = card['items'][key] %}
     <div class="block" id="qi-{{ key }}">
       <h4>{{ ITEM_SHORT[key] }} {% if it.evidence %}{{ yes() }}{% else %}{{ no() }}{% endif %}</h4>
-      <p class="{% if not it.evidence %}none{% endif %}">{{ '이 페이지에 관련 문장이 있어요.' if it.evidence else '이 페이지에서는 관련 문장을 찾지 못했어요.' }}</p>
+      <p class="{% if not it.evidence %}none{% endif %}">{{ '이 페이지에 관련 문장이 있습니다.' if it.evidence else '이 페이지에서는 관련 문장을 찾지 못했습니다.' }}</p>
       {% if it.evidence %}<details class="ev"><summary>관련 문장 {{ it.evidence|length }}건</summary>{% for e in it.evidence %}<blockquote>{% if e.condition_type == "test" %}<strong>시험 조건 · </strong>{% elif e.condition_type == "test_result_limit" %}<strong>시험 결과의 한계 · </strong>{% elif e.condition_type == "operating" %}<strong>사용 조건 · </strong>{% endif %}{{ e.quote }}<cite>{{ e.kind }}</cite></blockquote>{% endfor %}</details>{% endif %}
     </div>
     {% endfor %}
@@ -56,7 +56,7 @@
 
   <section class="qa">
     <h3>정식 카드 요청하기</h3>
-    <p class="lead">요청한 제품은 검토자가 설명서와 공공 DB 등 관련 자료를 대조해요. 자료를 확인한 뒤 카드의 공개 여부를 결정해요. 연락처는 받지 않아요.</p>
+    <p class="lead">정식 카드를 요청하면 검토자가 해당 제품의 설명서와 공공 DB 등 관련 자료를 대조합니다. 검토 결과에 따라 공개 여부를 결정하며, 요청자의 연락처는 수집하지 않습니다.</p>
     <form class="form" method="post" action="/check/request" style="margin-top:12px">
       <input type="hidden" name="url" value="{{ url }}">
       <label>제품 이름 <input type="text" name="name" value="{{ pname }}" required></label>

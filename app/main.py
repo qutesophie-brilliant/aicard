@@ -57,8 +57,16 @@ templates.env.globals.update(
 
 
 def _haeyo(v: str) -> str:
-    """저장된 항목 요약의 고정 문구를 카드 문체(해요체)로 맞춘다."""
-    return (v or "").replace("공개자료에서 확인되지 않았습니다.", "공개자료에서 확인되지 않았어요.")
+    """서비스가 작성한 요약의 문체만 정돈한다. 원문 인용에는 적용하지 않는다."""
+    text = v or ""
+    endings = {"아니에요": "아닙니다", "이에요": "입니다", "예요": "입니다",
+               "했어요": "했습니다", "못했어요": "못했습니다", "않았어요": "않았습니다",
+               "있어요": "있습니다", "없어요": "없습니다", "않아요": "않습니다",
+               "해요": "합니다", "돼요": "됩니다", "줘요": "줍니다", "두었어요": "두었습니다",
+               "읽었어요": "읽었습니다", "찾았어요": "찾았습니다", "달라져요": "달라집니다"}
+    for old, new in sorted(endings.items(), key=lambda pair: -len(pair[0])):
+        text = re.sub(re.escape(old) + r"(?=[.!?\s]|$)", new, text)
+    return text
 
 
 def kdate(v: str) -> str:
@@ -252,7 +260,7 @@ def card_view(pid: int) -> tuple[dict[str, Any], dict[str, Any], dict[int, dict[
 @app.exception_handler(500)
 async def _server_error(request: Request, exc: Exception):
     return templates.TemplateResponse(request, "404.html", {"request": request, "path": request.url.path, "is_reviewer": False,
-                                                             "detail": "잠깐 문제가 생겼어요. 잠시 뒤 다시 열어 주세요."}, status_code=500)
+                                                             "detail": "잠깐 문제가 생겼습니다. 잠시 뒤 다시 열어 주세요."}, status_code=500)
 
 
 @app.exception_handler(403)
@@ -497,7 +505,7 @@ def _ingest_data(request: Request, background: BackgroundTasks, data: dict) -> d
     if model_in and not data.get("force"):
         for p in db.list_products():
             if (p.get("model") or "").strip().lower() == model_in and p.get("status") in ("approved", "pending", "draft"):
-                raise HTTPException(409, f"같은 모델명({p.get('model')})의 카드가 이미 있어요: /review/{p['id']} ({p.get('status')}). 그래도 만들려면 force=true로 보내 주세요.")
+                raise HTTPException(409, f"같은 모델명({p.get('model')})의 카드가 이미 있습니다: /review/{p['id']} ({p.get('status')}). 그래도 만들려면 force=true로 보내 주세요.")
     pid = db.create_product(name, (data.get("maker") or "").strip()[:60],
                             (data.get("model") or "").strip()[:60],
                             (data.get("category") or "로봇청소기").strip()[:30])
@@ -573,7 +581,7 @@ _check_ocr_gate = threading.BoundedSemaphore(1)
 def _read_check_uploads(payloads: list[tuple[str, str, bytes]]) -> tuple[list[str], list[str]]:
     """OCR runs outside the async request loop; bound peak memory on the 512MB instance."""
     if not _check_ocr_gate.acquire(blocking=False):
-        raise ValueError("다른 파일의 글자를 읽고 있어요. 잠시 뒤 다시 시도해 주세요.")
+        raise ValueError("다른 파일의 글자를 읽고 있습니다. 잠시 뒤 다시 시도해 주세요.")
     try:
         from PIL import Image
         imgs: list[bytes] = []
@@ -589,13 +597,13 @@ def _read_check_uploads(payloads: list[tuple[str, str, bytes]]) -> tuple[list[st
                 try:
                     keep(ocr.read_pdf(data, allow_llm=config.CHECK_OCR_LLM))
                 except Exception as e:
-                    raise ValueError(f"PDF를 읽지 못했어요. 손상되거나 암호가 설정된 파일인지 확인해 주세요. ({filename})") from e
+                    raise ValueError(f"PDF를 읽지 못했습니다. 손상되거나 암호가 설정된 파일인지 확인해 주세요. ({filename})") from e
             else:
                 try:
                     with Image.open(io.BytesIO(data)) as image:
                         image.verify()
                 except Exception as e:
-                    raise ValueError(f"이미지를 읽지 못했어요. JPG·PNG 캡처로 다시 올려 주세요. ({filename})") from e
+                    raise ValueError(f"이미지를 읽지 못했습니다. JPG·PNG 캡처로 다시 올려 주세요. ({filename})") from e
                 imgs.append(data)
         if imgs:
             keep(ocr.read_images(imgs, allow_llm=config.CHECK_OCR_LLM))
@@ -607,7 +615,7 @@ def _read_check_uploads(payloads: list[tuple[str, str, bytes]]) -> tuple[list[st
 def _read_check_url(url: str):
     # URL image OCR shares the upload gate to bound server memory.
     if not _check_ocr_gate.acquire(blocking=False):
-        raise ingest.product_page.ProductBodyUnavailable("다른 자료의 글자를 읽고 있어요. 잠시 뒤 다시 시도해 주세요.")
+        raise ingest.product_page.ProductBodyUnavailable("다른 자료의 글자를 읽고 있습니다. 잠시 뒤 다시 시도해 주세요.")
     try:
         return ingest.from_url(url, ocr_images=True, product_only=True)
     finally:
@@ -638,20 +646,20 @@ async def check_url(request: Request, url: str = Form(""), text: str = Form(""),
     if uploads:
         if not _rate_ok(ip + ":ocr", limit=config.CHECK_OCR_PER_HOUR):
             return render(request, "check.html", base=base, bookmarklet=bm, url=url, q="",
-                          error="이미지 확인은 한 시간에 몇 번만 할 수 있어요. 잠시 뒤 다시 시도해 주세요.")
+                          error="이미지 확인은 한 시간에 몇 번만 할 수 있습니다. 잠시 뒤 다시 시도해 주세요.")
         if len(uploads) > config.CHECK_MAX_FILES:
             return render(request, "check.html", base=base, bookmarklet=bm, url=url, q="",
-                          error=f"파일은 한 번에 {config.CHECK_MAX_FILES}개까지 올릴 수 있어요.")
+                          error=f"파일은 한 번에 {config.CHECK_MAX_FILES}개까지 올릴 수 있습니다.")
         payloads: list[tuple[str, str, bytes]] = []
         for f in uploads:
             data = await f.read(config.CHECK_MAX_FILE_MB * 1024 * 1024 + 1)
             if len(data) > config.CHECK_MAX_FILE_MB * 1024 * 1024:
                 return render(request, "check.html", base=base, bookmarklet=bm, url=url, q="",
-                              error=f"파일 하나는 {config.CHECK_MAX_FILE_MB}MB까지만 올릴 수 있어요. ({f.filename})")
+                              error=f"파일 하나는 {config.CHECK_MAX_FILE_MB}MB까지만 올릴 수 있습니다. ({f.filename})")
             ctype = (f.content_type or "").lower()
             if not (ctype == "application/pdf" or ctype.startswith("image/") or f.filename.lower().endswith((".pdf", ".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp"))):
                 return render(request, "check.html", base=base, bookmarklet=bm, url=url, q="",
-                              error=f"이미지(JPG·PNG)나 PDF만 올릴 수 있어요. ({f.filename})")
+                              error=f"이미지(JPG·PNG)나 PDF만 올릴 수 있습니다. ({f.filename})")
             payloads.append((f.filename, ctype, data))
         try:
             read_texts, read_notes = await run_in_threadpool(_read_check_uploads, payloads)
@@ -661,9 +669,9 @@ async def check_url(request: Request, url: str = Form(""), text: str = Form(""),
         text = "\n".join([text] + read_texts).strip()
         if len(text) < 20:
             return render(request, "check.html", base=base, bookmarklet=bm, url=url, q="",
-                          error="올린 파일에서 읽을 수 있는 글자를 찾지 못했어요. 글자가 또렷하게 보이는 캡처인지 확인해 주세요.")
+                          error="올린 파일에서 읽을 수 있는 글자를 찾지 못했습니다. 글자가 또렷하게 보이는 캡처인지 확인해 주세요.")
         name = (uploads[0].filename.rsplit(".", 1)[0] or "올린 자료")[:60]
-        notes = [f"올린 파일 {len(uploads)}개에서 글자를 읽어 확인했어요."] + list(dict.fromkeys(notes))
+        notes = [f"올린 파일 {len(uploads)}개에서 글자를 읽어 확인했습니다."] + list(dict.fromkeys(notes))
 
     source_capture = None
     if text:
@@ -673,19 +681,19 @@ async def check_url(request: Request, url: str = Form(""), text: str = Form(""),
     elif url.startswith("http"):
         if not _rate_ok(ip + ":ocr", limit=config.CHECK_OCR_PER_HOUR):
             return render(request, "check.html", base=base, bookmarklet=bm, url=url, q="",
-                          error="이미지 확인 요청이 많아요. 잠시 뒤 다시 시도해 주세요.")
+                          error="이미지 확인 요청이 많습니다. 잠시 뒤 다시 시도해 주세요.")
         try:
             ing = await run_in_threadpool(_read_check_url, url)
         except ingest.product_page.ProductBodyUnavailable as e:
             return render(request, "check.html", base=base, bookmarklet=bm, url=url, q="", error=str(e), upload_fallback=True)
         except httpx.HTTPStatusError as e:
             blocked = e.response.status_code in (401, 403)
-            message = ("판매사이트가 자동 접속을 거부해 이 링크로는 검색할 수 없어요. 상세페이지 캡처 이미지나 PDF를 올려 주세요."
-                       if blocked else "판매사이트에서 페이지를 보내 주지 않아 이 링크로 확인하지 못했어요. 잠시 뒤 다시 시도하거나 상세페이지 캡처를 올려 주세요.")
+            message = ("판매사이트가 자동 접속을 거부해 이 링크로는 검색할 수 없습니다. 상세페이지 캡처 이미지나 PDF를 올려 주세요."
+                       if blocked else "판매사이트에서 페이지를 보내 주지 않아 이 링크로 확인하지 못했습니다. 잠시 뒤 다시 시도하거나 상세페이지 캡처를 올려 주세요.")
             return render(request, "check.html", base=base, bookmarklet=bm, url=url, q="", error=message, upload_fallback=True)
         except Exception:
             return render(request, "check.html", base=base, bookmarklet=bm, url=url, q="",
-                          error="페이지를 가져오지 못했어요. 쇼핑몰의 접근 제한이나 일시적인 연결 문제일 수 있어요. 상세페이지를 캡처한 이미지나 PDF를 올리거나, 제품 설명을 복사해 붙여 넣어 주세요. PC라면 ‘주소 입력이 안 될 때’의 버튼으로 보낼 수도 있어요.")
+                          error="페이지를 가져오지 못했습니다. 쇼핑몰의 접근 제한이나 일시적인 연결 문제일 수 있습니다. 상세페이지를 캡처한 이미지나 PDF를 올리거나, 제품 설명을 복사해 붙여 넣어 주세요. PC라면 ‘주소 입력이 안 될 때’의 버튼으로 보낼 수도 있습니다.")
         source_capture = ing.source_capture
         sales, fine = split_fine_print(ing.text)
         notes.extend(ing.notes)
@@ -719,7 +727,7 @@ async def api_check(request: Request):
     if hit:
         # 검토자가 확인한 카드가 있으면 즉석 분석 대신 그 카드로 보낸다
         return HTMLResponse(f'<script>location.replace("/card/{hit["id"]}?from=check")</script>'
-                            f'<p class="lede">이 제품은 이미 검토자가 확인한 카드가 있어요. <a href="/card/{hit["id"]}?from=check">카드 보기</a></p>')
+                            f'<p class="lede">이 제품은 이미 검토자가 확인한 카드가 있습니다. <a href="/card/{hit["id"]}?from=check">카드 보기</a></p>')
     use_llm = config.CHECK_LLM and _rate_ok(ip + ":llm", limit=config.CHECK_LLM_PER_HOUR)
     try:
         card, docs = await run_in_threadpool(quick_check, name, url, data.get("sales_text", ""), data.get("fine_text", ""), use_llm=use_llm)
@@ -776,12 +784,12 @@ def _bookmarklet(base: str, receive: str = "/capture/receive") -> str:
         "if(/^(nav|header|footer|aside|iframe)\\b/.test(k)||X.test(k)){if(n.style.display!=='none'){H.push([n,n.style.display]);n.style.display='none';}}});"
         "const T=(document.querySelector('main')||document.body).innerText;H.forEach(([n,d])=>n.style.display=d);"
         "const L=T.split('\\n').map(s=>s.trim()).filter(s=>s.length>1);"
-        "const J=/쿠폰|장바구니|구매하기|로그인|혜택|무이자|배송|포인트|리뷰|평점|이벤트|공유하기|위시리스트|비교하기|결제|구독|슬라이드|별점|좋아요|^[0-9][0-9,]*$|원 ~$|상담 예약|더보기|자세히 보기|신청/;"
+        "const J=/쿠폰|장바구니|구매하기|로그인|혜택|무이자|배송|포인트|리뷰|평점|이벤트|공유하기|위시리스트|비교하기|결제|구독|슬라이드|별점|좋습니다|^[0-9][0-9,]*$|원 ~$|상담 예약|더보기|자세히 보기|신청/;"
         "const F=/^\\*|^※|^-|기준|측정|조건|환경에 따라|다를 수|않을 수|않습니다|한정|유의|주의|인증|시험|평가|필요합니다|설정이 필요/;"
         "const K=L.filter(s=>!J.test(s));const S=[],P=[];K.forEach(s=>(F.test(s)?P:S).push(s));"
         "const D={type:'aicard-capture',url:location.href,title:document.title,sales_text:S.join('\\n'),fine_text:P.join('\\n')};"
         f"const B='{base}';const w=window.open(B+'{receive}','aicard_receive');"
-        "if(!w){alert('팝업이 막혔어요. 이 사이트의 팝업을 허용해 주세요.');return;}"
+        "if(!w){alert('팝업이 차단되었습니다. 이 사이트의 팝업을 허용해 주세요.');return;}"
         "const h=e=>{if(e.origin===B&&e.data==='aicard-ready'){w.postMessage(D,B);window.removeEventListener('message',h);}};"
         "window.addEventListener('message',h);"
         "})()"
