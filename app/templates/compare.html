@@ -10,24 +10,42 @@
   <h1>제품 비교</h1>
   <p class="lede">두 제품을 선택하면 같은 다섯 질문에 대한 정보를 나란히 확인할 수 있습니다. 제조사의 공개자료에서 확인한 설명과 조건을 비교합니다.</p>
 </section>
+<section class="compare-filter" aria-label="비교할 제품 찾기">
+  <label for="compare-category">품목 먼저 선택
+    <select id="compare-category"><option value="">전체 품목</option>{% for category, products in approved|groupby('category') %}<option value="{{ category }}">{{ category or '기타' }} ({{ products|length }})</option>{% endfor %}</select>
+  </label>
+  <label for="compare-search">제품명·제조사·모델명 검색<input id="compare-search" type="search" placeholder="예: 세탁기 모델명" autocomplete="off"></label>
+  <p id="compare-count" role="status" aria-live="polite">품목을 고르면 해당 품목의 제품만 선택 목록에 표시됩니다.</p>
+</section>
+<style>.compare-filter{display:flex;gap:1rem;flex-wrap:wrap;align-items:end;margin:1.5rem 0;padding:1.25rem;border:1px solid #d8e1e5;border-radius:12px}.compare-filter label{display:grid;gap:.5rem;flex:1 1 240px}.compare-filter input,.compare-filter select{width:100%;min-height:44px;padding:.7rem;font:inherit}.compare-filter p{flex-basis:100%;margin:0}.compare-facts{padding:1rem 0}.compare-facts dl{display:grid;grid-template-columns:6rem 1fr;gap:.5rem}.compare-facts dd{margin:0;overflow-wrap:anywhere}</style>
 <form class="pick" method="get" action="/compare">
   <label for="compare-a">왼쪽 제품
     <select id="compare-a" name="a" aria-label="왼쪽 제품">
       <option value="">고르기</option>
-      {% for p in approved %}<option value="{{ p.id }}" {% if a == p.id %}selected{% endif %}>{{ p.name }}</option>{% endfor %}
+      {% for category, products in approved|groupby('category') %}<optgroup label="{{ category or '기타' }}">{% for p in products|sort(attribute='name') %}<option value="{{ p.id }}" data-category="{{ category }}" data-search="{{ p.name }} {{ p.maker }} {{ p.model }}" {% if a == p.id %}selected{% endif %}>{{ p.name }}{% if p.model and p.model not in p.name %} · {{ p.model }}{% endif %}</option>{% endfor %}</optgroup>{% endfor %}
     </select>
   </label>
   <span class="vs">와</span>
   <label for="compare-b">오른쪽 제품
     <select id="compare-b" name="b" aria-label="오른쪽 제품">
       <option value="">고르기</option>
-      {% for p in approved %}<option value="{{ p.id }}" {% if b == p.id %}selected{% endif %}>{{ p.name }}</option>{% endfor %}
+      {% for category, products in approved|groupby('category') %}<optgroup label="{{ category or '기타' }}">{% for p in products|sort(attribute='name') %}<option value="{{ p.id }}" data-category="{{ category }}" data-search="{{ p.name }} {{ p.maker }} {{ p.model }}" {% if b == p.id %}selected{% endif %}>{{ p.name }}{% if p.model and p.model not in p.name %} · {{ p.model }}{% endif %}</option>{% endfor %}</optgroup>{% endfor %}
     </select>
   </label>
   <button class="btn primary" type="submit">나란히 보기</button>
 </form>
 
+<script>
+(function(){
+ const category=document.getElementById('compare-category'), search=document.getElementById('compare-search');
+ const selects=['compare-a','compare-b'].map(id=>document.getElementById(id));
+ const originals=selects.map(el=>Array.from(el.children).map(n=>n.cloneNode(true)));
+ function filter(){let count=0;selects.forEach((el,i)=>{const selected=el.value;el.replaceChildren();originals[i].forEach(original=>{const group=original.cloneNode(true);if(group.tagName==='OPTGROUP'){Array.from(group.children).forEach(option=>{const match=(!category.value||option.dataset.category===category.value)&&(!search.value.trim()||option.dataset.search.toLocaleLowerCase().includes(search.value.trim().toLocaleLowerCase()));if(!match)option.remove();});if(!group.children.length)return;count+=i===0?group.children.length:0;}el.append(group);});el.value=Array.from(el.options).some(o=>o.value===selected)?selected:'';});document.getElementById('compare-count').textContent='선택 가능한 제품 '+count+'개 · 품목이나 검색어를 바꾸면 목록에서 제외된 선택은 해제됩니다.';}
+ category.addEventListener('change',filter);search.addEventListener('input',filter);
+})();
+</script>
 {% if pair|length == 2 %}
+<section class="cmp-q compare-facts"><h2>비교 제품 기본 정보</h2><div class="pair">{% for row in pair %}<div><h3>{{ row.product.name }}</h3><dl><dt>품목</dt><dd>{{ row.product.category or '미확인' }}</dd><dt>제조사</dt><dd>{{ row.product.maker or '미확인' }}</dd><dt>모델명</dt><dd>{{ row.product.model or '미확인' }}</dd><dt>출시 시점</dt><dd>확인된 출시 정보 없음</dd></dl></div>{% endfor %}</div><p class="meta">출시 시점은 제조사 근거가 확인된 경우에만 표시합니다. 카드 등록일과 자료 수집일은 제품 출시일이 아닙니다.</p></section>
 <p class="cmp-note">비교 대상은 제품의 성능이 아니라 공개자료에 제시된 정보입니다. ‘적혀 있지 않음’은 확인한 자료에서 설명을 찾지 못했다는 뜻이며, 기능의 부재를 의미하지 않습니다.</p>
 <div class="cmp-labels">
   {% for row in pair %}{% with product=row.product, card=row.card, docs=row.docs, sum=row.sum, compact=True %}{% include "_label.html" %}{% endwith %}{% endfor %}
