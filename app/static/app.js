@@ -45,6 +45,7 @@
     const u = new SpeechSynthesisUtterance(text);
     u.lang = 'ko-KR'; u.rate = easy ? 0.85 : 0.95;
     u.onend = () => { btn.setAttribute('aria-pressed', 'false'); btn.textContent = '읽어주기'; };
+    u.onerror = () => { btn.setAttribute('aria-pressed', 'false'); btn.textContent = '읽어주기'; };
     btn.setAttribute('aria-pressed', 'true'); btn.textContent = '읽기 멈추기';
     speechSynthesis.speak(u);
   }
@@ -169,17 +170,7 @@
     rv.forEach((el, i) => { if (el.classList.contains('mini')) el.style.transitionDelay = (i % 3) * 70 + 'ms'; io.observe(el); });
   } else { root.classList.add('rv-all'); rv.forEach(el => el.classList.add('in')); }
 
-  // 첫 화면 숫자 타일: 한 번만 차오른다
-  if (motionOK) {
-    document.querySelectorAll('.hero-stats b').forEach((el, idx) => {
-      const node = el.firstChild; if (!node || node.nodeType !== 3) return;
-      const target = parseInt(node.textContent, 10); if (isNaN(target) || target === 0) return;
-      const start = performance.now() + 450 + idx * 120, dur = 900;
-      node.textContent = '0';
-      const tick = (t) => { const p = Math.min(1, Math.max(0, (t - start) / dur)); const e = 1 - Math.pow(1 - p, 3); node.textContent = String(Math.round(target * e)); if (p < 1) requestAnimationFrame(tick); };
-      requestAnimationFrame(tick);
-    });
-  }
+  // 공개 집계는 첫 화면부터 실제 값을 유지한다.
 
   // 기호를 눌러 문구로 갈 때, 해당 줄을 잠깐 밝힌다
   function flash() {

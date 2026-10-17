@@ -24,7 +24,7 @@
   </div>
   <ul class="lb-items" aria-label="소비자 권익 항목 다섯 가지">
     {% for key in COVERAGE_ITEMS %}{% set it = card['items'][key] %}
-    <li><a href="#qi-{{ key }}" class="{{ 's1' if it.evidence else 's3 none' }}"><b>{{ ITEM_TILE[key] }}</b><span>{{ '관련 문장 있음' if it.evidence else '없음' }}</span></a></li>
+    <li><a href="#qi-{{ key }}" class="{{ 's1' if it.evidence else 's3 none' }}"><b>{{ ITEM_TILE[key] }}</b><span>{{ '관련 문장 있음' if it.evidence else '관련 문장 없음' }}</span></a></li>
     {% endfor %}
   </ul>
 
@@ -55,7 +55,7 @@
 
   <section class="qa">
     <h3>정식 카드 요청하기</h3>
-    <p class="lead">요청하면 검토자가 설명서와 공공 DB까지 대조해 ‘작동 설명 있음·없음’을 판정한 카드를 만들어 공개해요. 연락처는 받지 않아요.</p>
+    <p class="lead">요청한 제품은 검토자가 설명서와 공공 DB 등 관련 자료를 대조해요. 자료를 확인한 뒤 카드의 공개 여부를 결정해요. 연락처는 받지 않아요.</p>
     <form class="form" method="post" action="/check/request" style="margin-top:12px">
       <input type="hidden" name="url" value="{{ url }}">
       <label>제품 이름 <input type="text" name="name" value="{{ pname }}" required></label>

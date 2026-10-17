@@ -145,11 +145,9 @@ def heads_up(card: dict[str, Any], limit: int = 4) -> list[dict[str, str]]:
             how.append(f"카메라 인식 {bc['vision']}개")
         if bc["service"]:
             how.append(f"외부 서비스 {bc['service']}개")
-        text = f"작동 설명 {linked}개 가운데 AI 학습이나 모델을 언급한 것은 없어요."
-        if len(how) == 1 and (bc["sensor"] + bc["vision"] + bc["service"]) == linked:
-            text = f"작동 설명 {linked}개는 모두 " + how[0].rsplit(" ", 1)[0] + "으로 설명했고, AI 학습이나 모델을 언급한 설명은 없어요."
-        elif how:
-            text = f"작동 설명 {linked}개는 " + ", ".join(how) + "로 설명했고, AI 학습이나 모델을 언급한 설명은 없어요."
+        if bc["none"]:
+            how.append(f"조건·한계만 제시 {bc['none']}개")
+        text = f"‘작동 설명 있음’ {linked}개의 설명 종류는 " + ", ".join(how) + "예요. 학습이나 모델을 언급한 설명은 없어요."
         out.append({"kind": "s3", "text": text, "anchor": "q-what"})
     extra = global_extra(card)
     if extra:
