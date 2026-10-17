@@ -158,6 +158,29 @@
     const checkError = document.getElementById('checkerror'); if (checkError) checkError.focus();
   }
 
+  // 첫 화면의 두 주소 입력창에도 같은 대기 피드백을 제공한다.
+  document.querySelectorAll('form.urlform[action="/check"]').forEach(form => {
+    const box = document.createElement('section');
+    box.className = 'check-wait'; box.hidden = true; box.tabIndex = -1;
+    box.setAttribute('aria-label', '자료 확인 중');
+    box.innerHTML = '<span class="wait-spinner" aria-hidden="true"></span><div><h2>자료를 확인하고 있어요</h2><p role="status">AI 문구와 관련 설명을 찾고 있어요. 이미지가 많으면 시간이 더 걸릴 수 있어요.</p><p class="meta">경과 시간 <strong data-elapsed>0초</strong> · 이 화면에서 기다려 주세요.</p><p class="meta" data-slow hidden>평소보다 시간이 걸리고 있어요. 외부 서비스 응답에 따라 확인이 늦어질 수 있어요.</p></div>';
+    form.after(box);
+    let timer;
+    const buttons = Array.from(form.querySelectorAll('button'));
+    form.addEventListener('submit', e => {
+      if (form.getAttribute('aria-busy') === 'true') { e.preventDefault(); return; }
+      form.setAttribute('aria-busy', 'true'); buttons.forEach(b => b.disabled = true);
+      box.hidden = false; box.focus({preventScroll:true}); box.scrollIntoView({block:'center',behavior:'auto'});
+      const start = Date.now();
+      timer = setInterval(() => {
+        const sec = Math.floor((Date.now()-start)/1000);
+        box.querySelector('[data-elapsed]').textContent = sec < 60 ? sec+'초' : Math.floor(sec/60)+'분 '+sec%60+'초';
+        box.querySelector('[data-slow]').hidden = sec < 45;
+      },1000);
+    });
+    window.addEventListener('pageshow', () => { clearInterval(timer); box.hidden = true; form.removeAttribute('aria-busy'); buttons.forEach(b => b.disabled = false); });
+  });
+
   // 상단 바: 스크롤하면 그림자
   const topbar = document.querySelector('.topbar');
   if (topbar) { const onS = () => topbar.classList.toggle('scrolled', window.scrollY > 8); onS(); window.addEventListener('scroll', onS, { passive: true }); }
