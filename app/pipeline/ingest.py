@@ -200,9 +200,11 @@ def from_product_html(html: str, url: str, ocr_images: bool = False) -> Ingested
     engine_note = ('AI 문자 인식' if 'llm' in engines else '서버 내 문자 인식')
     soup = BeautifulSoup(html, 'html.parser')
     title = soup.title.get_text(' ', strip=True) if soup.title else url
+    image_count = capture.get("coverage", {}).get("image_candidates", 0)
+    read_count = sum(bool(i["text"]) for i in capture.get("images", []))
     return Ingested(title=title, text=capture['text'], chunks=chunk_text(capture['text']),
                     source_capture=capture,
-                    notes=['제품 설명과 포함된 세부정보를 확인했습니다.'] + ([f"이미지 {sum(bool(i['text']) for i in capture.get('images', []))}장의 글자를 {engine_note}으로 읽었습니다. 읽지 못한 이미지가 있을 수 있습니다."] if ocr_images else ['이미지 속 글자는 읽지 않았습니다.']))
+                    notes=['제품 설명과 포함된 세부정보를 확인했습니다.'] + ([f"확인 대상 이미지 {image_count}장 중 {read_count}장의 글자를 {engine_note}으로 읽었습니다. 읽지 못한 이미지의 내용은 결과에 포함되지 않습니다."] if ocr_images else ['이미지 속 글자는 읽지 않았습니다.']))
 
 
 # ---------- 이미지 상세페이지 ----------
