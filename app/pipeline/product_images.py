@@ -11,7 +11,7 @@ def capture_images(html, url, capture, fetch_bytes=None, reader=None, limit=6):
     body=product_page.product_body(html,url)
     candidates=[]; seen=set()
     for im in body.select('img'):
-        src=urljoin(url, im.get('data-src') or im.get('data-original') or im.get('src') or '')
+        src=urljoin(url, product_page.image_source(im))
         if not src or src==url or not src.startswith('https://'): continue
         host=urlsplit(src).hostname or ''; source_host=urlsplit(url).hostname or ''
         if host != source_host and host not in ('images.samsung.com','static.lge.co.kr'): continue

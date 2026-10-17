@@ -21,6 +21,13 @@ _UNAVAILABLE = (
 )
 
 
+def image_source(image):
+    """Resolve lazy image attributes used by product-detail editors."""
+    return next((image.get(key) for key in
+                 ('ec-data-src', 'data-src', 'data-original', 'src')
+                 if image.get(key) and not image.get(key).startswith('data:')), '')
+
+
 def product_body(html: str, url: str) -> BeautifulSoup:
     """Return only identified product sections, retaining their conditions/footnotes.
 
@@ -59,7 +66,7 @@ def product_body(html: str, url: str) -> BeautifulSoup:
         selector = (
             '[itemprop="description"], #productDescription, #product-description, '
             '.product-description, .product__description, #product-detail, '
-            '#productDetail, #prodDetail, .product-detail, .product_detail'
+            '#productDetail, #prodDetail, #prdDetail, .product-detail, .product_detail'
         )
     nodes = soup.select(selector)
     if host in ("lge.co.kr", "www.lge.co.kr") and nodes:
@@ -79,7 +86,7 @@ def product_body(html: str, url: str) -> BeautifulSoup:
         selected.section.append(node)
     text = selected.get_text(" ", strip=True)
     # Empty/short shells and title-only pages are inconclusive, not negative AI findings.
-    if len(re.sub(r"\s+", "", text)) < 30 and not selected.select('img[src]'):
+    if len(re.sub(r"\s+", "", text)) < 30 and not any(image_source(im) for im in selected.select('img')):
         raise ProductBodyUnavailable(_UNAVAILABLE)
     return selected
 

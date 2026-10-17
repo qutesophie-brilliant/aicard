@@ -8,6 +8,14 @@ from app.pipeline.product_page import product_body, ProductBodyUnavailable
 
 
 class ProductPageTests(unittest.TestCase):
+    def test_cafe24_lazy_image_body_without_text(self):
+        html = '''<nav>AI 추천</nav><div id="prdDetail"><img ec-data-src="/detail.jpg" src="data:image/gif;base64,AA"></div>
+        <div id="prdReview">다른 제품 리뷰</div><div class="relatedProducts"><img src="/other.jpg"></div>'''
+        from app.pipeline.product_page import image_source
+        body = product_body(html, 'https://hellovelo.co.kr/product/1')
+        self.assertEqual(['/detail.jpg'], [image_source(im) for im in body.select('img')])
+        self.assertNotIn('다른 제품', str(body))
+
     def test_menu_recommendations_excluded_conditions_retained(self):
         html = '''<title>제품 A</title><div class="lnb-main">모터/감속기 계장/자동제어 추천상품</div>
         <div class="product-description"><h2>AI가 소리를 분석하여 음질을 조절합니다.</h2>
