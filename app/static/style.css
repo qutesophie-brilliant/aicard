@@ -734,3 +734,10 @@ body.menu-open .topbar{z-index:60;background:var(--paper)}
 .prose p {margin-bottom:18px;line-height:1.85}
 .prose li {margin-bottom:10px;line-height:1.75}
 @media(max-width:600px) {.check-wait:not([hidden]) {padding:22px;gap:14px}}
+
+.check-url-action {margin:16px 0 28px}
+.check-url-action .meta {margin:12px 0 0;line-height:1.7}
+.wait-example {margin:26px 0 0;padding-top:24px;border-top:1px solid #c4dad4;max-width:560px}
+.wait-example figcaption {font-size:.9rem;line-height:1.75;margin-bottom:14px}
+.wait-example img {display:block;width:100%;height:auto;border:1px solid #d6dfdd;border-radius:10px}
+.wait-example a {font-size:.9rem;text-underline-offset:4px}

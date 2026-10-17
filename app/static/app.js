@@ -136,7 +136,7 @@
       document.getElementById('wait-elapsed').textContent = '0초';
       document.getElementById('wait-slow').hidden = true;
       busy.hidden = false;
-      document.getElementById('go').disabled = true;
+      form.querySelectorAll('[data-check-submit]').forEach(b => b.disabled = true);
       document.getElementById('go').textContent = '확인 중…';
       form.setAttribute('aria-busy', 'true');
       busy.focus({preventScroll: true});
@@ -151,7 +151,7 @@
     window.addEventListener('pageshow', () => {
       clearInterval(waitTimer);
       document.getElementById('busy').hidden = true;
-      document.getElementById('go').disabled = false;
+      form.querySelectorAll('[data-check-submit]').forEach(b => b.disabled = false);
       document.getElementById('go').textContent = '바로 확인';
       form.removeAttribute('aria-busy');
     });
@@ -163,7 +163,7 @@
     const box = document.createElement('section');
     box.className = 'check-wait'; box.hidden = true; box.tabIndex = -1;
     box.setAttribute('aria-label', '자료 확인 중');
-    box.innerHTML = '<span class="wait-spinner" aria-hidden="true"></span><div><h2>자료를 확인하고 있어요</h2><p role="status">AI 문구와 관련 설명을 찾고 있어요. 이미지가 많으면 시간이 더 걸릴 수 있어요.</p><p class="meta">경과 시간 <strong data-elapsed>0초</strong> · 이 화면에서 기다려 주세요.</p><p class="meta" data-slow hidden>평소보다 시간이 걸리고 있어요. 외부 서비스 응답에 따라 확인이 늦어질 수 있어요.</p></div>';
+    box.innerHTML = '<span class="wait-spinner" aria-hidden="true"></span><div><h2>자료를 확인하고 있어요</h2><p role="status">AI 문구와 관련 설명을 찾고 있어요.</p><p class="meta">분석에는 약 1분 정도 걸릴 수 있어요. 페이지에 따라 더 오래 걸릴 수 있어요.</p><p class="meta">경과 시간 <strong data-elapsed>0초</strong> · 이 화면에서 기다려 주세요.</p><p class="meta" data-slow hidden>평소보다 시간이 걸리고 있어요. 외부 서비스 응답에 따라 확인이 늦어질 수 있어요.</p><figure class="wait-example"><figcaption><strong>정식 카드 예시</strong><br>사람이 원문을 확인한 공개 카드의 기존 화면입니다.<br>현재 입력한 링크의 분석 결과가 아닙니다.</figcaption><img src="/static/check-card-example.png" alt="공개 카드 예시: 제품명, AI 문구별 확인 상태와 주의사항" width="1265" height="712" loading="lazy"><p class="meta">바로 확인에서는 관련 문장과 조건을 보여 주며, 위와 같은 정식 판정은 하지 않아요.</p><a href="/card/67" target="_blank" rel="noopener">예시 카드 새 창에서 보기 ↗</a></figure></div>';
     form.after(box);
     let timer;
     const buttons = Array.from(form.querySelectorAll('button'));
