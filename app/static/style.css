@@ -722,3 +722,15 @@ footer.site a { color: var(--ink-3); text-decoration: underline; text-underline-
 .prose h2[id]{scroll-margin-top:100px}.prose>p{line-height:1.9}.prose>ul:not(.figures):not(.how)>li{margin-bottom:14px;line-height:1.85}.prose a{overflow-wrap:anywhere}
 @media(max-width:600px){.about-toc{gap:6px;padding:12px 0}.about-toc a{font-size:14px;padding:8px 11px}.prose table.map{font-size:14px}.prose table.map th,.prose table.map td{padding:10px 8px}}
 body.menu-open .topbar{z-index:60;background:var(--paper)}
+
+/* Analysis feedback: visible immediately, without invented progress. */
+.check-wait:not([hidden]) {display:flex;align-items:flex-start;gap:22px;margin:28px 0 48px;padding:32px;border:1px solid #b6cfca;border-radius:16px;background:#f0f7f5;box-shadow:0 8px 28px #183b3510}
+.check-wait h2 {margin:0 0 12px;font-size:1.35rem}
+.check-wait p {margin:8px 0;line-height:1.7}
+.wait-spinner {flex:0 0 28px;width:28px;height:28px;margin-top:4px;border:3px solid #c4dad4;border-top-color:#23695e;border-radius:50%;animation:wait-spin 1s linear infinite}
+@keyframes wait-spin {to {transform:rotate(360deg)}}
+@media(prefers-reduced-motion:reduce) {.wait-spinner {animation:none}}
+.prose h2 {margin-top:48px;margin-bottom:18px}
+.prose p {margin-bottom:18px;line-height:1.85}
+.prose li {margin-bottom:10px;line-height:1.75}
+@media(max-width:600px) {.check-wait:not([hidden]) {padding:22px;gap:14px}}

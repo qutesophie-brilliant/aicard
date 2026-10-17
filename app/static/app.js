@@ -125,13 +125,36 @@
       if (e.target && e.target.tagName === 'TEXTAREA' && !Array.from(items).some(okType)) return;
       e.preventDefault(); add(items); drop.scrollIntoView({ block: 'center', behavior: 'smooth' });
     });
+    let waitTimer;
     form.addEventListener('submit', e => {
       if (form.getAttribute('aria-busy') === 'true') { e.preventDefault(); return; }
       const busy = document.getElementById('busy');
-      busy.textContent = dt.files.length ? '파일의 글자를 읽고 관련 문장을 찾고 있어요. 파일 수와 응답에 따라 시간이 걸릴 수 있어요.' : '자료를 읽고 관련 문장을 찾고 있어요. 잠시 기다려 주세요.';
-      busy.hidden = false; document.getElementById('go').disabled = true; form.setAttribute('aria-busy', 'true');
+      document.getElementById('wait-message').textContent = dt.files.length
+        ? '올린 파일에서 글자를 읽고, AI 문구와 관련 설명을 찾고 있어요.'
+        : '입력한 자료에서 AI 문구와 관련 설명을 찾고 있어요. 이미지가 많으면 시간이 더 걸릴 수 있어요.';
+      const started = Date.now();
+      document.getElementById('wait-elapsed').textContent = '0초';
+      document.getElementById('wait-slow').hidden = true;
+      busy.hidden = false;
+      document.getElementById('go').disabled = true;
+      document.getElementById('go').textContent = '확인 중…';
+      form.setAttribute('aria-busy', 'true');
+      busy.focus({preventScroll: true});
+      busy.scrollIntoView({block: 'center', behavior: 'auto'});
+      clearInterval(waitTimer);
+      waitTimer = setInterval(() => {
+        const seconds = Math.floor((Date.now() - started) / 1000);
+        document.getElementById('wait-elapsed').textContent = seconds < 60 ? seconds + '초' : Math.floor(seconds / 60) + '분 ' + seconds % 60 + '초';
+        document.getElementById('wait-slow').hidden = seconds < 45;
+      }, 1000);
     });
-    window.addEventListener('pageshow', () => { document.getElementById('busy').hidden = true; document.getElementById('go').disabled = false; form.removeAttribute('aria-busy'); });
+    window.addEventListener('pageshow', () => {
+      clearInterval(waitTimer);
+      document.getElementById('busy').hidden = true;
+      document.getElementById('go').disabled = false;
+      document.getElementById('go').textContent = '바로 확인';
+      form.removeAttribute('aria-busy');
+    });
     const checkError = document.getElementById('checkerror'); if (checkError) checkError.focus();
   }
 

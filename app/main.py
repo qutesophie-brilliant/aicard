@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 import threading
+import httpx
 
 from fastapi import BackgroundTasks, Depends, FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse, Response
@@ -676,8 +677,13 @@ async def check_url(request: Request, url: str = Form(""), text: str = Form(""),
         try:
             ing = await run_in_threadpool(_read_check_url, url)
         except ingest.product_page.ProductBodyUnavailable as e:
-            return render(request, "check.html", base=base, bookmarklet=bm, url=url, q="", error=str(e))
-        except Exception:  # 쇼핑몰이 서버 접근을 막은 경우가 대부분
+            return render(request, "check.html", base=base, bookmarklet=bm, url=url, q="", error=str(e), upload_fallback=True)
+        except httpx.HTTPStatusError as e:
+            blocked = e.response.status_code in (401, 403)
+            message = ("판매사이트가 자동 접속을 거부해 이 링크로는 검색할 수 없어요. 상세페이지 캡처 이미지나 PDF를 올려 주세요."
+                       if blocked else "판매사이트에서 페이지를 보내 주지 않아 이 링크로 확인하지 못했어요. 잠시 뒤 다시 시도하거나 상세페이지 캡처를 올려 주세요.")
+            return render(request, "check.html", base=base, bookmarklet=bm, url=url, q="", error=message, upload_fallback=True)
+        except Exception:
             return render(request, "check.html", base=base, bookmarklet=bm, url=url, q="",
                           error="페이지를 가져오지 못했어요. 쇼핑몰의 접근 제한이나 일시적인 연결 문제일 수 있어요. 상세페이지를 캡처한 이미지나 PDF를 올리거나, 제품 설명을 복사해 붙여 넣어 주세요. PC라면 ‘주소 입력이 안 될 때’의 버튼으로 보낼 수도 있어요.")
         source_capture = ing.source_capture
