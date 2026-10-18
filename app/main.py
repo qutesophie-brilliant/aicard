@@ -1130,6 +1130,23 @@ def review_bulk_status(pid: list[int] = Form([]), status: str = Form(...), _=Dep
     return RedirectResponse("/review/queue", status_code=303)
 
 
+@app.get("/review/history-audit.json")
+def review_history_audit(_=Depends(require_reviewer)):
+    """검토자 전용: 공개 카드의 저장 시각과 승인 로그를 읽기 전용으로 대조한다."""
+    with db.connect() as con:
+        products = [dict(r) for r in con.execute(
+            "SELECT p.id,p.name,p.model,p.status,p.approved_at,p.updated_at,c.updated_at AS card_saved_at,c.card_json,c.pipeline_meta FROM products p JOIN cards c ON c.product_id=p.id WHERE p.status='approved' ORDER BY p.id")]
+        for row in products:
+            card = json.loads(row.pop("card_json"))
+            meta = json.loads(row.pop("pipeline_meta") or "{}")
+            row["checked_at"] = card.get("checked_at")
+            row["claim_count"] = len(card.get("claims", []))
+            row["release_approvals"] = meta.get("release_approvals", [])
+            row["review_history"] = [dict(r) for r in con.execute(
+                "SELECT action,detail,at FROM review_log WHERE product_id=? ORDER BY id", (row["id"],))]
+    return JSONResponse({"cards": products}, headers={"Cache-Control":"no-store"})
+
+
 @app.get("/review/{pid}", response_class=HTMLResponse)
 def review_card(request: Request, pid: int, warn: str = "", _=Depends(require_reviewer)):
     product = db.get_product(pid)
