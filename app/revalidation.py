@@ -99,6 +99,9 @@ def approve(ident, csrf, ack):
                 for val in obj: replace_ids(val)
         replace_ids(card)
         card['sources'] = payload['before']['sources'] + [{'doc_id':did,'kind':src['kind'],'title':src['title'],'url':src['url'],'n_chunks':len(chunks)}]
+        for claim in card['claims']:
+            claim['reviewer_status'] = claim['status']
+            claim['reviewer_note'] = '현재 제조사 원문 대조안을 관리자가 최종 승인했습니다.'
         for item in card.get('items',{}).values(): item['reviewed'] = True
         at = db.now()
         meta = json.loads(c['pipeline_meta'] or '{}')
