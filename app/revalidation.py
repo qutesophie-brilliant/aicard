@@ -44,8 +44,26 @@ def create(payload):
         after = payload['card']
         if after.get('product') != before.get('product') or after.get('public_db') != before.get('public_db'):
             raise ValueError('제품 정보와 공공 DB 기록은 변경할 수 없습니다.')
-        if [(x['id'],x['status']) for x in after['claims']] != [(x['id'],x['status']) for x in before['claims']]:
-            raise ValueError('기존 문구 수·판정 상태는 변경할 수 없습니다.')
+        before_pairs = [(x['id'],x['status']) for x in before['claims']]
+        after_pairs = [(x['id'],x['status']) for x in after['claims']]
+        if after_pairs != before_pairs:
+            exclusions = after.get('review_exclusions', [])
+            old_claims = {x['id']:x for x in before['claims']}
+            if not isinstance(exclusions,list) or not exclusions:
+                raise ValueError('문구 제외에는 원문 근거와 명시적인 제외 기록이 필요합니다.')
+            excluded_ids = []
+            for exclusion in exclusions:
+                if not isinstance(exclusion,dict) or set(exclusion) != {'id','text','reason','source_quote'}:
+                    raise ValueError('문구 제외 기록의 형식이 올바르지 않습니다.')
+                cid = exclusion['id']
+                if cid not in old_claims or exclusion['text'] != old_claims[cid]['text'] or not isinstance(exclusion['reason'],str) or not exclusion['reason'].strip():
+                    raise ValueError('제외할 기존 문구와 사유를 확인해 주세요.')
+                q = re.sub(r'\s+', '', exclusion['source_quote'])
+                if not q or q not in re.sub(r'\s+', '',src['text']):
+                    raise ValueError('제외 사유의 현재 원문 근거를 확인해 주세요.')
+                excluded_ids.append(cid)
+            if len(set(excluded_ids)) != len(excluded_ids) or after_pairs != [pair for pair in before_pairs if pair[0] not in excluded_ids]:
+                raise ValueError('명시한 문구만 제외할 수 있으며 문구 추가·판정 변경은 허용하지 않습니다.')
         def validate_quotes(obj):
             if isinstance(obj,dict):
                 if obj.get('doc_id') == -1:
@@ -108,6 +126,7 @@ def approve(ident, csrf, ack, transaction=None):
         at = db.now()
         meta = json.loads(c['pipeline_meta'] or '{}')
         detail = {'actor':'human','ai_assisted':True,'plan_id':ident,'before':payload['before'],'approved_sha256':digest(card),'changes':payload['changes'],'prior_approved_at':p['approved_at'],'source_url':src['url'],'source_fetched_at':src['fetched_at']}
+        meta['n_claims'] = len(card['claims'])
         meta.setdefault('revalidations',[]).append({k:v for k,v in detail.items() if k not in ('before','changes')})
         con.execute('UPDATE cards SET card_json=?,pipeline_meta=?,updated_at=? WHERE product_id=?',(json.dumps(card,ensure_ascii=False),json.dumps(meta,ensure_ascii=False),at,pid))
         con.execute('UPDATE products SET approved_at=?,updated_at=?,reviewer_note=? WHERE id=?',(at,at,'현재 제조사 원문 대조안을 최종 승인함',pid))

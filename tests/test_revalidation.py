@@ -53,3 +53,22 @@ class RevalidationTests(unittest.TestCase):
         with db.connect() as con:con.execute('UPDATE products SET id=268 WHERE id=?',(self.pid,));con.execute('UPDATE cards SET product_id=268 WHERE product_id=?',(self.pid,))
         with db.connect() as con:
             with self.assertRaises(ValueError): revalidation.snapshot(con,268)
+
+    def test_explicit_exclusion_archives_original(self):
+        payload=self.payload();payload['source']['text']+=' 다른 제품 안내입니다. 원문 문장'
+        payload['card']['claims']=[]
+        payload['card']['review_exclusions']=[{'id':'c1','text':'원문 문장','reason':'다른 제품의 설명','source_quote':'다른 제품 안내입니다. 원문 문장'}]
+        plan=revalidation.create(payload);row=revalidation.get(plan['id'])
+        self.assertEqual(len(db.get_card(self.pid)['claims']),1)
+        revalidation.approve(plan['id'],row['csrf'],'yes')
+        self.assertEqual(db.get_card(self.pid)['claims'],[])
+        self.assertEqual(revalidation.get(plan['id'])['payload']['before']['claims'],self.card['claims'])
+    def test_exclusion_rejects_addition_status_change_and_ungrounded_quote(self):
+        for mode in ('new','status','quote','duplicate'):
+            payload=self.payload();ex={'id':'c1','text':'원문 문장','reason':'대상 제품 외 설명','source_quote':'제조사 원문 설명입니다.'}
+            payload['card']['review_exclusions']=[ex];payload['card']['claims']=[]
+            if mode=='new':payload['card']['claims']=[{'id':'new','status':'근거 확인','text':'새 문구'}]
+            if mode=='status':payload['card']['claims']=[dict(self.card['claims'][0],status='자료 부족')]
+            if mode=='quote':ex['source_quote']='자료에 없는 설명'
+            if mode=='duplicate':payload['card']['review_exclusions']=[ex,ex]
+            with self.assertRaises(ValueError):revalidation.create(payload)
