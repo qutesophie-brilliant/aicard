@@ -3,6 +3,7 @@ import copy
 import json
 import re
 import secrets
+from contextlib import nullcontext
 from datetime import datetime, timezone
 from . import db
 from .draft_precheck import digest, sources_digest
@@ -72,11 +73,12 @@ def get(ident):
         return result
 
 
-def approve(ident, csrf, ack):
+def approve(ident, csrf, ack, transaction=None):
     if ack != 'yes': raise ValueError('원문 대조안 확인에 동의해 주세요.')
-    with db.connect() as con:
+    with (nullcontext(transaction) if transaction is not None else db.connect()) as con:
         _table(con)
-        con.execute('BEGIN IMMEDIATE')
+        if not con.in_transaction:
+            con.execute('BEGIN IMMEDIATE')
         row = con.execute('SELECT * FROM revalidation_plans WHERE id=?',(ident,)).fetchone()
         if not row or not secrets.compare_digest(row['csrf'],csrf): raise ValueError('승인 화면을 다시 열어 주세요.')
         if row['approved_at']: return {'already_approved':True}
