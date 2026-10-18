@@ -89,7 +89,7 @@ def apply(pid, payload):
         for cid,context in contexts.items():
             # Explanations and source links may be corrected by AI, but the
             # original judgment axes and every human-review field stay intact.
-            if not isinstance(context,dict) or set(context)!={"note","evidence"}:
+            if not isinstance(context,dict) or not {"note","evidence"} <= set(context) or set(context)-{"note","evidence","conditions"}:
                 raise ValueError("문구 설명과 인용만 수정할 수 있습니다.")
             if not isinstance(context['note'],str) or not 1<=len(context['note'])<=1000 or not isinstance(context['evidence'],list) or not 1<=len(context['evidence'])<=8:
                 raise ValueError("문구 설명·인용 형식이 올바르지 않습니다.")
@@ -105,6 +105,15 @@ def apply(pid, payload):
                 if idx is None:raise ValueError("인용 시작 위치를 찾을 수 없습니다.")
                 evidence.append({'doc_id':ev['doc_id'],'quote':ev['quote'],'chunk':idx,'kind':doc['kind']})
             by_id[cid]['note']=context['note'];by_id[cid]['evidence']=evidence
+            if 'conditions' in context:
+                condition=context['conditions']
+                if not isinstance(condition,str) or len(condition)>1500:
+                    raise ValueError("조건 인용 형식이 올바르지 않습니다.")
+                if condition and not any(_norm(condition) in _norm(e['quote']) for e in evidence):
+                    raise ValueError("조건 문장이 같은 기능의 인용에 없습니다.")
+                # Only the displayed source text changes. Automatic axes stay
+                # in the audit; the final human release decision stays separate.
+                by_id[cid]['conditions']=condition
         for cid,text in updates.items():
             if not isinstance(text,str) or not 5<=len(text)<=500:raise ValueError("문구 길이가 올바르지 않습니다.")
             cl=by_id[cid];src=cl.get("source") or {};doc=docs.get(src.get("doc_id"))

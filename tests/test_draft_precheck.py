@@ -6,6 +6,27 @@ from unittest.mock import patch
 from app import db,draft_precheck
 
 class DraftPrecheckTests(unittest.TestCase):
+    def test_condition_copy_can_be_cleared_without_changing_automatic_axes(self):
+        self.card['claims'][0].update(conditions='다른 기능의 사용 조건',conditions_noted=True)
+        db.save_card(self.pid,self.card,{})
+        self.payload['expected_sha256']=draft_precheck.digest(self.card)
+        q=self.card['claims'][0]['source']
+        self.payload['claim_context_updates']={'c1':{'note':'다른 기능의 조건이므로 표시에서 제외합니다.','conditions':'','evidence':[{'doc_id':q['doc_id'],'quote':q['quote']}]}}
+        draft_precheck.apply(self.pid,self.payload)
+        after=db.get_card(self.pid)['claims'][0]
+        self.assertEqual(after['conditions'],'')
+        self.assertTrue(after['conditions_noted'])
+        self.assertIsNone(after['reviewer_status'])
+        self.assertEqual(db.get_product(self.pid)['status'],'pending')
+    def test_condition_copy_must_be_present_in_linked_source(self):
+        q=self.card['claims'][0]['source']
+        self.payload['claim_context_updates']={'c1':{'note':'조건을 대조합니다.','conditions':'정확도 100%를 보장합니다.','evidence':[{'doc_id':q['doc_id'],'quote':q['quote']}]}}
+        with self.assertRaises(ValueError):draft_precheck.apply(self.pid,self.payload)
+        self.assertEqual(db.get_card(self.pid),self.card)
+    def test_condition_copy_must_be_text(self):
+        q=self.card['claims'][0]['source']
+        self.payload['claim_context_updates']={'c1':{'note':'조건을 대조합니다.','conditions':True,'evidence':[{'doc_id':q['doc_id'],'quote':q['quote']}]}}
+        with self.assertRaises(ValueError):draft_precheck.apply(self.pid,self.payload)
     def test_public_db_copy_is_audited_without_human_approval(self):
         self.payload['public_db_updates']={'kc':{'found':True,'number':'TEST','detail':'2026-10-17 모델 A 조회. 본체 모델 일치.','url':'https://www.safetykorea.kr/release/certificationsearch'}}
         draft_precheck.apply(self.pid,self.payload)
