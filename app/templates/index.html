@@ -47,7 +47,7 @@
           <p class="n" aria-label="‘AI’ 문구 {{ example.sum.n_claims }}개 중 {{ example.sum.linked }}개에 작동 설명이 있습니다">‘AI’ 문구 <em aria-hidden="true">{{ example.sum.n_claims }}</em>개 중 <em aria-hidden="true">{{ example.sum.linked }}</em>개에 작동 설명이 있습니다</p>
           {{ bar(example.card.claims, example.sum) }}
           {% if example.heads %}<span class="warn">{% if example.heads[0].kind == 's4' %}<i class="mark s4" aria-hidden="true"></i>{% else %}<span></span>{% endif %}<span>{{ example.heads[0].text|truncate(80) }}</span></span>{% endif %}
-          <span class="lk"><span>카드 전체 보기 →</span><span>{{ example.card.checked_at|kdate }} 확인</span></span>
+          <span class="lk"><span>카드 전체 보기 →</span><span>분석일 {{ example.card.checked_at|kdate }}</span></span>
         </a>
       </div>
     </div>

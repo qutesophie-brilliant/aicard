@@ -27,7 +27,7 @@
   <div class="lb-head">
     <div>
       <{{ h }} class="lb-name">{% if compact %}<a href="/card/{{ product.id }}" style="color:inherit">{{ product.name }}</a>{% else %}{{ product.name }}{% endif %}</{{ h }}>
-      <p class="lb-meta">{{ product.maker }}{% if product.model %}<span class="sep">·</span>{{ product.model }}{% endif %}<span class="sep">·</span>{{ card.checked_at|kdate }} 공개자료 기준</p>
+      <p class="lb-meta">{{ product.maker }}{% if product.model %}<span class="sep">·</span>{{ product.model }}{% endif %}<span class="sep">·</span>카드 분석일 {{ card.checked_at|kdate }}</p>
       {% if product.is_sample %}<span class="lb-tag sample">교육용 가상 제품</span>{% endif %}
       {% if sum.n_claims == 0 %}<span class="lb-tag">‘AI’를 내세우지 않는 제품 · 비교 기준</span>{% endif %}
     </div>
@@ -176,7 +176,7 @@
   </section>
 
   <div class="lb-foot">
-    <span class="stamp"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5L20 7"/></svg>{% if product.approved_at %}사람이 공개 승인 · {{ product.approved_at|kdate }}{% else %}공개 전 검토 대기{% endif %}</span>
+    <span class="stamp"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5L20 7"/></svg>{% if product.approved_at %}공개 승인 기록 · {{ product.approved_at|kdate }}{% else %}공개 전 검토 대기{% endif %}</span>
     <p class="lb-src">대조한 자료: {% set seen = [] %}{% for s in card.sources %}{% if s.kind not in seen %}{% if seen %}, {% endif %}{% if s.url %}<a href="{{ s.url }}" target="_blank" rel="noopener">{{ s.kind }}</a>{% else %}{{ s.kind }}{% endif %}{% set _ = seen.append(s.kind) %}{% endif %}{% endfor %}{% if pdb.rra.found %}, 국립전파연구원 적합성평가{% endif %}{% if pdb.kc.found %}, 제품안전정보센터{% endif %}.{% if product.approved_at %} 검토자가 공개를 승인했습니다.{% else %} 아직 검토자가 원문을 확인하지 않은 초안입니다.{% endif %}</p>
   </div>
   <details class="report plain-only">
