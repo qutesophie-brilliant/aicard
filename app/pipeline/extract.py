@@ -61,6 +61,12 @@ def _format_chunks(chunks: list[dict[str, Any]]) -> str:
     return "\n".join(f"[{c['chunk']}] {c['quote']}" for c in chunks)
 
 
+def _quoted_in(text: str, source: str) -> bool:
+    """Allow layout whitespace, but never an invented suffix or changed number."""
+    text = re.sub(r"\s+", "", text)
+    return bool(text) and text in re.sub(r"\s+", "", source)
+
+
 def extract_claims(source_chunks: list[dict[str, Any]], max_claims: int = 14) -> list[dict[str, Any]]:
     """source_chunks: [{doc_id, chunk, quote, kind}] 판매페이지 계열만."""
     if not source_chunks:
@@ -97,11 +103,11 @@ def extract_claims(source_chunks: list[dict[str, Any]], max_claims: int = 14) ->
             text = str(row.get("text", "")).strip()
             if not text:
                 continue
-            if src is None or text[:12] not in src["quote"]:  # 번호가 틀렸거나 문장을 바꿔 적었으면 원문에서 되찾는다
-                src = next((c for c in source_chunks if text[:12] in c["quote"]), None)
+            text = _one_sentence(text)
+            if src is None or not _quoted_in(text, src["quote"]):
+                src = next((c for c in source_chunks if _quoted_in(text, c["quote"])), None)
             if src is None:  # 원문에 없는 문장(번역·요약)은 인용할 수 없으므로 뺀다
                 continue
-            text = _one_sentence(text)
             item = row.get("item") if row.get("item") in ITEM_KEYS else "functions"
             out.append({"text": text, "item": item,
                         "label": str(row.get("label", ""))[:12],
