@@ -1130,6 +1130,34 @@ def review_bulk_status(pid: list[int] = Form([]), status: str = Form(...), _=Dep
     return RedirectResponse("/review/queue", status_code=303)
 
 
+@app.post("/review/revalidation")
+async def revalidation_create(request: Request, _=Depends(require_reviewer)):
+    from . import revalidation
+    try:
+        return revalidation.create(await request.json())
+    except (ValueError,KeyError,TypeError) as exc:
+        raise HTTPException(409,str(exc))
+
+
+@app.get("/review/revalidation/{ident}", response_class=HTMLResponse)
+def revalidation_page(request: Request, ident: str, _=Depends(require_reviewer)):
+    from . import revalidation
+    try:
+        return render(request,"revalidation.html",plan=revalidation.get(ident))
+    except ValueError as exc:
+        raise HTTPException(404,str(exc))
+
+
+@app.post("/review/revalidation/{ident}/approve")
+def revalidation_approve(ident: str, csrf: str=Form(""), ack: str=Form(""), _=Depends(require_reviewer)):
+    from . import revalidation
+    try:
+        revalidation.approve(ident,csrf,ack)
+    except ValueError as exc:
+        raise HTTPException(409,str(exc))
+    return RedirectResponse(f"/review/revalidation/{ident}",status_code=303)
+
+
 @app.get("/review/history-audit.json")
 def review_history_audit(_=Depends(require_reviewer)):
     """검토자 전용: 공개 카드의 저장 시각과 승인 로그를 읽기 전용으로 대조한다."""
