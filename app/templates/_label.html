@@ -74,6 +74,7 @@
 
   {% if not compact %}
   <p class="meta" style="padding:0 24px">궁금한 항목을 선택한 뒤, 설명과 사용 조건을 읽고 ‘확인한 원문’을 펼쳐 보세요.</p>
+  <p class="meta" style="padding:0 24px">‘적혀 있지 않음’은 이 카드에 사용한 자료에서 정보를 찾지 못했다는 뜻입니다. 기능·보증·지원이 없다는 뜻은 아닙니다.</p>
   {# ---- 질문 1 ---- #}
   <section class="qa" id="q-what">
     <h3>{{ QUESTION_TEXT['what'] }}</h3>
@@ -115,7 +116,7 @@
   <section class="qa" id="q-data">
     <h3>{{ qtext('data', product.category) }}{{ tag(it.status, ITEM_STATE[it.status]) }}</h3>
     <p class="lead plain-only {% if it.status == '자료 부족' %}none{% endif %}">{{ it.summary|haeyo }}</p>
-    <p class="lead easy-only">{{ card.easy['items'].get('data', it.summary) }}</p>
+    <p class="lead easy-only">{{ card.easy['items'].get('data', it.summary)|haeyo }}</p>
     {% if it.server %}<p class="flag">처리 위치 — {{ DATA_SERVER_LABEL[it.server] }}</p>{% endif %}
     {{ evidence(it.evidence, docs) }}
   </section>
@@ -127,7 +128,7 @@
     <p class="lead plain-only {% if it.status == '자료 부족' %}none{% endif %}">{{ it.summary|haeyo }}</p>
     <p class="lead easy-only">{{ card.easy['items'].get('optout', it.summary)|haeyo }}</p>
     {{ evidence(it.evidence, docs) }}
-    {% if it.status == '자료 부족' %}<p class="flag">‘적혀 있지 않음’은 끄는 기능이 없다는 뜻이 아니라, 끌 수 있는지 여부를 공개자료에서 찾지 못했다는 뜻입니다. 구매 전에 판매자나 제조사 고객센터에 "AI 기능을 끌 수 있는지, 끄면 어떤 모드로 동작하는지" 물어보는 것이 좋습니다.</p>{% endif %}
+    {% if it.status == '자료 부족' %}<p class="flag">‘적혀 있지 않음’은 끄는 기능이 없다는 뜻이 아니라, 이 카드에 사용한 자료에서 해제 방법을 찾지 못했다는 뜻입니다. 구매 전에 판매자나 제조사 고객센터에 "AI 기능을 끌 수 있는지, 끄면 어떤 모드로 동작하는지" 물어보는 것이 좋습니다.</p>{% endif %}
   </section>
 
   {# ---- 질문 4 ---- #}
