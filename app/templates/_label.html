@@ -79,7 +79,7 @@
   <section class="qa" id="q-what">
     <h3>{{ QUESTION_TEXT['what'] }}</h3>
     {% if sum.n_claims == 0 %}
-    <p class="lead none">판매페이지에서 ‘AI’, ‘학습’, ‘스스로 인식’ 같은 표현이 든 문구를 찾지 못했습니다. 제품 이름이나 광고에 ‘AI’를 쓰지 않는 제품입니다.</p>
+    <p class="lead none">{{ card.zero_claim_scope if card.zero_claim_scope else "판매페이지에서 ‘AI’, ‘학습’, ‘스스로 인식’ 같은 표현이 든 문구를 찾지 못했습니다. 제품 이름이나 광고에 ‘AI’를 쓰지 않는 제품입니다." }}</p>
     {% else %}
     <p class="lead plain-only">{{ card.easy['items'].get('functions', sum.lines[0])|haeyo }}</p>
     <p class="lead easy-only">{{ card.easy['items'].get('functions', '') }} {{ card.easy['items'].get('evidence', '') }}</p>

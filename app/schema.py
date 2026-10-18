@@ -245,7 +245,7 @@ def summarize(card: dict[str, Any]) -> dict[str, Any]:
     linked = counts["근거 확인"] + counts["조건 확인"]
     lines: list[str] = []
     if n == 0:
-        lines.append("이 제품은 판매페이지에서 ‘AI’를 내세우지 않습니다. AI를 내세우는 제품과 견줄 수 있도록 같은 질문을 확인했습니다.")
+        lines.append(card.get("zero_claim_scope") or "이 제품은 판매페이지에서 ‘AI’를 내세우지 않습니다. AI를 내세우는 제품과 견줄 수 있도록 같은 질문을 확인했습니다.")
     else:
         lines.append(f"‘AI’라고 표시한 문구 {n}개 중 {linked}개에 회사가 작동 설명을 적어 두었습니다.")
         rest = []
