@@ -1290,8 +1290,14 @@ def review_export(pid: int, _=Depends(require_reviewer)):
     product = db.get_product(pid)
     if not product:
         raise HTTPException(404)
+    with db.connect() as con:
+        history = [dict(row) for row in con.execute(
+            "SELECT action, detail, at FROM review_log WHERE product_id=? ORDER BY id", (pid,))]
+        saved = con.execute("SELECT updated_at FROM cards WHERE product_id=?", (pid,)).fetchone()
     return JSONResponse({"product": product, "documents": db.list_documents(pid),
-                         "card": db.get_card(pid), "meta": db.get_card_meta(pid)},
+                         "card": db.get_card(pid), "meta": db.get_card_meta(pid),
+                         "review_history": history,
+                         "card_saved_at": saved["updated_at"] if saved else None},
                         headers={"Cache-Control": "no-store"})
 
 
