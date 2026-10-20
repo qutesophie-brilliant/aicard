@@ -10,7 +10,7 @@
   <div class="lb-head">
     <div>
       <h2 class="lb-name">{{ pname }}</h2>
-      <p class="lb-meta">{% if url %}<a href="{{ url }}" target="_blank" rel="noopener">{{ url|replace('https://','')|truncate(60) }}</a><span class="sep">·</span>{% endif %}{{ card.checked_at|kdate }} 읽어 온 자료의 범위에서 확인</p>
+      <p class="lb-meta quick-meta">{% if url %}<a href="{{ url }}" target="_blank" rel="noopener">{{ url|replace('https://','')|truncate(60) }}</a><span class="sep">·</span>{% endif %}<time datetime="{{ card.checked_at[:10] }}">{{ card.checked_at|kdate }}</time> <span class="quick-scope">읽어 온 자료의 범위에서 확인</span></p>
     </div>
   </div>
   {% if notes %}<details class="summary-detail capture-scope"><summary>읽어 온 자료와 확인 범위</summary><ul>{% for n in notes %}<li>{{ n|haeyo }}</li>{% endfor %}</ul></details>{% endif %}
