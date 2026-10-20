@@ -15,13 +15,7 @@
   </label>
 
   <div class="check-url-action"><button class="btn primary" type="submit" id="go" data-check-submit>바로 확인</button><p class="meta">예상 분석 시간은 약 1분입니다. 페이지 구성과 접속 상태에 따라 더 오래 걸릴 수 있습니다.</p></div>
-  <div class="drop" id="drop" tabindex="0" role="group" aria-label="캡처 이미지나 PDF 올리기">
-    <input type="file" id="files" name="files" accept="image/*,application/pdf" multiple hidden>
-    <p class="drop-t"><b>상세페이지 캡처를 여기에 끌어다 놓거나 붙여 넣으세요</b><span>JPG·PNG·PDF, 한 번에 {{ CHECK_MAX_FILES }}개까지, 파일당 {{ CHECK_MAX_FILE_MB }}MB까지. 쇼핑몰이 주소 접근을 막은 경우에도 쓸 수 있습니다.</span></p>
-    <div class="drop-b"><button type="button" class="btn" id="pick">파일 고르기</button><span class="meta">복사한 캡처는 Ctrl+V(⌘V)로 붙여 넣을 수 있습니다</span></div>
-    <ul class="drop-list" id="droplist" aria-live="polite"></ul>
-    <p id="fileerror" class="notice" role="alert" hidden></p>
-  </div>
+  {% include "_check_upload.html" %}
 
   <details {% if error %}open{% endif %}>
     <summary>또는 설명 글을 직접 붙여 넣기</summary>
@@ -31,14 +25,7 @@
   </details>
   <div><button class="btn primary" type="submit" data-check-submit>올린 자료 확인</button></div>
 </form>
-<section class="check-wait" id="busy" hidden aria-labelledby="wait-title" tabindex="-1">
-  <span class="wait-spinner" aria-hidden="true"></span>
-  <div><h2 id="wait-title">자료를 확인하고 있습니다</h2>
-  <p id="wait-message" role="status" aria-live="polite"></p>
-  <p class="meta">분석에는 약 1분 정도 걸릴 수 있습니다. 페이지에 따라 더 오래 걸릴 수 있습니다.</p>
-  <p class="meta">경과 시간 <strong id="wait-elapsed">0초</strong> · 이 화면에서 기다려 주세요.</p>
-  <p class="meta" id="wait-slow" hidden>평소보다 시간이 걸리고 있습니다. 페이지 구성과 외부 서비스 응답에 따라 확인이 늦어질 수 있습니다.</p><figure class="wait-example"><figcaption><strong>정식 카드 예시</strong><br>사람이 원문을 확인한 공개 카드의 기존 화면입니다.<br>현재 입력한 링크의 분석 결과가 아닙니다.</figcaption><img src="/static/check-card-example.png" alt="공개 카드 예시: 제품명, AI 문구별 확인 상태와 주의사항" width="1265" height="712" loading="lazy"><p class="meta">바로 확인에서는 관련 문장과 조건을 보여 주며, 위와 같은 정식 판정은 하지 않습니다.</p><a href="/card/67" target="_blank" rel="noopener">예시 카드 새 창에서 보기 ↗</a></figure></div>
-</section>
+{% include "_check_wait.html" %}
 
 <section class="prose" aria-label="바로 확인의 처리 방식">
   <h2>자동 분석은 어디까지 확인하나요?</h2><p>입력한 자료에서 AI 문구와 관련 설명을 찾아 연결합니다. 사람이 검토하기 전의 결과로, 제품의 성능·품질이나 ‘작동 설명 있음·없음’을 판정하지 않습니다.</p>

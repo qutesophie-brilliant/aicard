@@ -100,6 +100,8 @@
         li.querySelector('button').addEventListener('click', () => { const n = new DataTransfer(); Array.from(dt.files).forEach((g, j) => { if (j !== i) n.items.add(g); }); dt.items.clear(); Array.from(n.files).forEach(g => dt.items.add(g)); render(); });
         dl.appendChild(li);
       });
+      const fileAction = form.querySelector('[data-files-action]');
+      if (fileAction) fileAction.hidden = dt.files.length === 0;
     }
     function add(list) {
       const incoming = Array.from(list), errors = [];
@@ -116,7 +118,15 @@
       });
       render(); return incoming.length;
     }
-    document.getElementById('pick').addEventListener('click', () => { const t = document.createElement('input'); t.type = 'file'; t.multiple = true; t.accept = 'image/*,application/pdf'; t.addEventListener('change', () => add(t.files)); t.click(); });
+    document.getElementById('pick').addEventListener('click', () => fin.click());
+    fin.addEventListener('change', () => {
+      const selected = Array.from(fin.files);
+      render(); // Restore accepted files before validating the new selection.
+      add(selected);
+    });
+    drop.addEventListener('keydown', e => {
+      if (e.target === drop && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); fin.click(); }
+    });
     ['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add('over'); }));
     ['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.remove('over'); }));
     drop.addEventListener('drop', (e) => { if (e.dataTransfer && e.dataTransfer.files.length) add(e.dataTransfer.files); });
@@ -128,6 +138,15 @@
     let waitTimer;
     form.addEventListener('submit', e => {
       if (form.getAttribute('aria-busy') === 'true') { e.preventDefault(); return; }
+      const urlInput = form.querySelector('[name="url"]'), textInput = form.querySelector('[name="text"]');
+      if (!dt.files.length && !(urlInput && urlInput.value.trim()) && !(textInput && textInput.value.trim())) {
+        e.preventDefault();
+        fileError.textContent = '판매페이지 주소를 입력하거나, 캡처 이미지·PDF를 골라 주세요.';
+        fileError.hidden = false;
+        fileError.tabIndex = -1;
+        fileError.focus();
+        return;
+      }
       const busy = document.getElementById('busy');
       document.getElementById('wait-message').textContent = dt.files.length
         ? '올린 파일에서 글자를 읽고, AI 문구와 관련 설명을 찾고 있습니다.'
