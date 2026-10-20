@@ -434,7 +434,22 @@ def cards_json():
 
 @app.get("/robots.txt")
 def robots():
-    return Response("User-agent: *\nAllow: /\nDisallow: /review\nDisallow: /api/\n", media_type="text/plain")
+    return Response("User-agent: *\nAllow: /\nDisallow: /review\nDisallow: /api/\n"
+                    "\nSitemap: https://ai-infocard.co.kr/sitemap.xml\n", media_type="text/plain")
+
+
+@app.get("/sitemap.xml", include_in_schema=False)
+def sitemap():
+    """검색에 제공할 공개 페이지. 초안·검토 URL과 요청별 분석 결과는 제외한다."""
+    from xml.etree.ElementTree import Element, SubElement, tostring
+
+    base = "https://ai-infocard.co.kr"
+    paths = ["/", "/about", "/check", "/compare", "/findings"]
+    paths.extend(f"/card/{p['id']}" for p in db.list_products("approved") if db.get_card(p["id"]))
+    root = Element("urlset", xmlns="http://www.sitemaps.org/schemas/sitemap/0.9")
+    for path in paths:
+        SubElement(SubElement(root, "url"), "loc").text = base + path
+    return Response(tostring(root, encoding="utf-8", xml_declaration=True), media_type="application/xml")
 
 
 @app.get("/api/card/{pid}.json")
