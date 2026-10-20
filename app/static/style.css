@@ -770,6 +770,10 @@ body.menu-open .topbar{z-index:60;background:var(--paper)}
 }
 
 /* Mobile layout: preserve readable columns and complete labels at narrow widths. */
+.hero-copy h1 > span { display: block; text-wrap: balance; }
+@media (max-width: 380px) {
+  .hero-copy h1 { font-size: clamp(1.8rem, 9.6vw, 2.3rem); }
+}
 @media (min-width: 761px) and (max-width: 1000px) {
   .pick { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .pick .vs { display: none; }
