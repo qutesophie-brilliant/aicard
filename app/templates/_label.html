@@ -27,7 +27,7 @@
   <div class="lb-head">
     <div>
       <{{ h }} class="lb-name">{% if compact %}<a href="/card/{{ product.id }}" style="color:inherit">{{ product.name }}</a>{% else %}{{ product.name }}{% endif %}</{{ h }}>
-      <p class="lb-meta">{{ product.maker }}{% if product.model %}<span class="sep">·</span>{{ product.model }}{% endif %}<span class="sep">·</span>카드 분석일 {{ card.checked_at|kdate }}</p>
+      <p class="lb-meta"><span class="lb-meta-product">{{ product.maker }}{% if product.model %}<span class="sep">·</span>{{ product.model }}{% endif %}</span><span class="lb-date"><span class="sep">·</span>카드 분석일 <time datetime="{{ card.checked_at[:10] }}">{{ card.checked_at|kdate }}</time></span></p>
       {% if product.is_sample %}<span class="lb-tag sample">교육용 가상 제품</span>{% endif %}
       {% if sum.n_claims == 0 %}<span class="lb-tag">‘AI’를 내세우지 않는 제품 · 비교 기준</span>{% endif %}
     </div>
