@@ -787,6 +787,7 @@ body.menu-open .topbar{z-index:60;background:var(--paper)}
 @media (max-width: 760px) {
   .brand span { display: inline; }
   .brand { min-width: 0; }
+  .label[id] { scroll-margin-top: 84px; }
   .lb-band { flex-wrap: wrap; align-items: flex-start; }
   .lb-brand { white-space: nowrap; }
   .lb-cat { margin-left: auto; }
