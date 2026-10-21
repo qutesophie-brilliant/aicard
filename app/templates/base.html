@@ -56,8 +56,8 @@
       {% if is_reviewer %}<a href="/review">검토자<small>카드 검토와 요청 관리</small></a>{% else %}<a href="/review/login">검토자 로그인<small>검토자 비밀번호가 필요합니다</small></a>{% endif %}
 
     </nav>
-    <div class="menu-side">
-      <p>{% if path.startswith("/about") %}제품의 ‘AI’ 표시를 제조사가 공개한 설명과 대조하는 카드입니다. 공개자료에서 확인한 정보를 제공하며, 제품의 우열은 판정하지 않습니다.{% else %}‘AI’라고 적힌 제품을 회사가 공개한 설명과 맞춰 보는 카드입니다. 공개자료의 설명과 조건을 정리하고, 제품의 우열은 판정하지 않습니다.{% endif %}</p>
+    <div class="menu-side" data-nosnippet>
+      <p>AI 정보카드는 소비자가 구매 전에 AI 기능의 근거와 사용 조건을 제조사 원문으로 확인하도록 돕는 서비스입니다. 공개자료에서 확인한 정보를 제공하며, 제품의 우열은 판정하지 않습니다.</p>
       <p class="meta">2026 AI 라이프 솔루션 챌린지 출품작</p>
     </div>
   </div>
