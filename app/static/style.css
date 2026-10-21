@@ -390,7 +390,7 @@ html[data-easy="on"] .claims q { font-weight: 500; }
 .mini:hover, .mini:focus-visible { border-color: var(--navy); text-decoration: none; box-shadow: 0 14px 34px rgba(9, 41, 86, .10); transform: translateY(-2px); }
 .mini .k { font-size: .84rem; color: var(--ink-3); display: flex; justify-content: space-between; gap: 8px; }
 .mini .k span:last-child { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.mini h3 { font-size: 1.15rem; margin: 6px 0 auto; padding-bottom: 22px; line-height: 1.3; letter-spacing: -0.02em; }
+.mini h3 { font-size: 1.15rem; margin: 6px 0 auto; padding-bottom: 22px; line-height: 1.3; letter-spacing: -0.02em; text-wrap: balance; }
 .mini .cells { height: 12px; }
 .mini .m { font-size: .9rem; color: var(--ink-2); margin-top: 12px; display: flex; justify-content: space-between; gap: 8px; }
 .mini .m b { color: var(--ink); font-weight: 600; }
