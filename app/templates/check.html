@@ -4,7 +4,7 @@
 {% block content %}
 <section class="page-head">
   <h1>{% if q %}‘{{ q }}’ 카드는 아직 없습니다{% else %}바로 확인{% endif %}</h1>
-  <p class="lede">판매페이지 주소나 상세페이지 캡처를 입력하면, AI 정보카드가 제품의 AI 설명과 관련 조건을 찾아 보여 드립니다.</p>
+  <p class="lede">AI 정보카드는 판매페이지 주소나 캡처·PDF에서 ‘AI’ 표시 문구와 관련 설명·사용 조건을 찾아 연결합니다.</p>
   <p class="check-route">새로 입력한 자료는 서비스가 분석한 뒤 <strong>자동 분석 결과</strong>로 보여 드립니다. 검토를 마친 제품의 주소를 입력하면 <strong>정식 카드</strong>로 연결합니다.</p>
 </section>
 {% if error %}<div class="notice" role="alert" tabindex="-1" id="checkerror">{{ error }}{% if upload_fallback %}<p><a class="btn primary" href="#drop">상세페이지 캡처 올리기</a></p><p>상품 설명과 각주가 보이도록 캡처한 뒤, 아래에서 파일을 골라 주세요.</p>{% endif %}</div>{% endif %}
