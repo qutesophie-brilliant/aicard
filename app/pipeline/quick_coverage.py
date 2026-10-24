@@ -33,13 +33,20 @@ def _matches(key: str, text: str) -> bool:
     if re.search(r'재고|생산월|매장|반품|교환|철거|회수|추가\s*비용|살균\s*효과', text):
         return False
     from .condition_type import condition_type
-    return condition_type(text) != 'test' and bool(_AI_CONTEXT.search(text)) and len(coverage._KEYWORDS[key].findall(text)) >= 2
+    explicit_trial=re.search(r'^(?:[\s*※-])*(?:시험|실험|테스트)\s*(?:부하|조건|환경|방법|모델)\s*[:：]',text)
+    kind=condition_type(text)
+    return not explicit_trial and kind != 'test' and bool(_AI_CONTEXT.search(text)) and (
+        kind=='operating' or len(coverage._KEYWORDS[key].findall(text)) >= 2)
 
 
 def fill(index):
     out = {}
     for key, query in coverage.QUERIES.items():
         candidates = index.search(query, k=30, prefer_kinds=("설명서", "사양표", "공공DB"))
+        if key=='conditions':
+            # Numerical limits may share no words with the retrieval query.
+            # Use the same condition/topic checks on every available sentence.
+            candidates += index.condition_context()
         hits = []
         seen = set()
         for c in candidates:

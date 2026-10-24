@@ -46,5 +46,24 @@ class ZeroClaimScopeCopyTests(unittest.TestCase):
         self.assertNotIn('plain-only',form.get('class',[]))
         self.assertIsNotNone(form.select_one('input[name="note"]'))
 
+    def test_comparison_keeps_full_conditions_and_original_source_link(self):
+        from bs4 import BeautifulSoup
+        quote='판매페이지에는 제품 보증과 모터의 보증 범위가 다르다고 안내합니다.'
+        did=db.add_document(self.pid,'판매페이지','공식 제품 안내','https://example.test/product',quote,[quote])
+        card=copy.deepcopy(self.card)
+        claim='AI 기능은 카메라 센서로 사물을 구별하며 바닥과 주변 조명, 물체의 형태에 따라 인식 결과가 달라질 수 있으므로 해당 기능의 사용 범위를 원문에서 확인해야 합니다.'
+        condition='이 기능을 사용하려면 앱 설치 및 기기 연동이 필요하고, 주변 조도와 설치 환경의 영향을 받을 수 있으며, 사전에 지도 그리기와 구역 편집을 모두 완료해야 합니다. 이 설정은 최초 사용 전에 확인해야 합니다.'
+        card['claims']=[{'id':'c1','text':claim,'status':'조건 확인','conditions':condition}]
+        card['items']['remedy'].update(summary=quote,evidence=[{'doc_id':did,'chunk':0,'quote':quote,'kind':'판매페이지'}])
+        db.save_card(self.pid,card,{})
+        page=BeautifulSoup(self.client.get(f'/compare?a={self.pid}&b={self.pid}').text,'html.parser')
+        texts=page.get_text(' ',strip=True)
+        self.assertIn(claim,texts)
+        self.assertIn(condition,texts)
+        original=page.select_one('details.ev a[href="https://example.test/product"]')
+        self.assertIsNotNone(original)
+        self.assertEqual('_blank',original.get('target'))
+        self.assertIn('noopener',original.get('rel',[]))
+
 
 if __name__=='__main__':unittest.main()

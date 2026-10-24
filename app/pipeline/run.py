@@ -111,7 +111,8 @@ def quick_check(name: str, url: str, sales_text: str, fine_text: str = "", use_l
                     return True
                 remainder = q.replace(phrase, "")
                 return bool(link.self_describes(remainder) or link._is_cond(remainder))
-            claim["evidence"] = [e for e in original if distinct(e)]
+            related = [e for e in original if distinct(e)]
+            claim["evidence"] = _dedupe_quick_evidence(related, docs)
             if original and not claim["evidence"]:
                 claim.update(status="자료 부족", basis_state="없음", conditions_noted=False, conditions="")
         card["claims"] = claims
@@ -125,6 +126,25 @@ def quick_check(name: str, url: str, sales_text: str, fine_text: str = "", use_l
         card['image_sources'] = source_capture.get('images', [])
     card["quick_llm"] = bool(use_llm)
     return card, {d["id"]: d for d in docs}
+
+
+def _dedupe_quick_evidence(evidence, docs):
+    """Collapse repeated non-condition excerpts from the same source page."""
+    urls={d['id']:d.get('url','') for d in docs}
+    norm=lambda text:re.sub(r'\s+','',text)
+    kept=[]
+    for i,e in enumerate(evidence):
+        q=norm(e['quote'])
+        same_page=lambda other:(other['doc_id']==e['doc_id'] or bool(urls.get(e['doc_id'])) and urls.get(other['doc_id'])==urls.get(e['doc_id']))
+        if any(same_page(other) and norm(other['quote'])==q for other in kept):
+            continue
+        if not link._is_cond(e['quote']) and any(
+            j!=i and same_page(other) and not link._is_cond(other['quote'])
+            and q in norm(other['quote']) and q!=norm(other['quote'])
+            for j,other in enumerate(evidence)):
+            continue
+        kept.append(e)
+    return kept
 
 
 def _norm_claim(t: str) -> str:
