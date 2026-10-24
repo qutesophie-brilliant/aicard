@@ -24,6 +24,17 @@ def read_images(images, allow_llm=True):
             row.update(attempts=1, engine='llm', status=failure or ('missing_response' if value is None else 'no_text'))
             if isinstance(value, str) and value.strip():
                 row.update(text=value.strip(), status='read')
+        if failure:
+            # Keep the existing server OCR fallback when the AI service fails.
+            # Its positional contract is local/deterministic, unlike an LLM's
+            # unvalidated pages array. Never use source alt text as a fallback.
+            local = ocr.read_images(payloads, allow_llm=False)
+            for i, row in enumerate(rows):
+                text = local.texts[i].strip() if i < len(local.texts) else ''
+                row.update(initial_status=failure, attempts=2, fallback_attempted=True)
+                if text:
+                    row.update(text=text, engine=local.engine, status='read', recovered=True)
+            return rows
         # Retry only one unresolved image, never the successful images or the
         # whole batch. A second empty result does not mean the image has no text.
         recoveries = 0

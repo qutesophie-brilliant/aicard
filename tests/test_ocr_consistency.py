@@ -55,10 +55,21 @@ class OcrConsistencyTests(unittest.TestCase):
 
     def test_timeout_is_distinct_from_empty_text(self):
         with patch.object(ocr,'_shrink',side_effect=lambda b:b),patch.object(llm,'available',return_value=True),\
-             patch.object(llm,'ocr_images_indexed',side_effect=httpx.ReadTimeout('slow')):
+             patch.object(llm,'ocr_images_indexed',side_effect=httpx.ReadTimeout('slow')),\
+             patch.object(ocr,'read_images',return_value=ocr.OcrResult(texts=[''],engine='none')):
             rows=product_ocr.read_images([b'a'])
         self.assertEqual('timeout',rows[0]['status'])
         self.assertEqual('',rows[0]['text'])
+
+    def test_ai_connection_error_retains_local_fallback_and_source_order(self):
+        with patch.object(ocr,'_shrink',side_effect=lambda b:b),patch.object(llm,'available',return_value=True),\
+             patch.object(llm,'ocr_images_indexed',side_effect=httpx.ConnectError('offline')) as model,\
+             patch.object(ocr,'read_images',return_value=ocr.OcrResult(texts=['첫 원문','둘째 원문'],engine='tesseract')) as local:
+            rows=product_ocr.read_images([b'a',b'b'])
+        self.assertEqual(['첫 원문','둘째 원문'],[r['text'] for r in rows])
+        self.assertTrue(all(r['engine']=='tesseract' and r['recovered'] for r in rows))
+        self.assertEqual(1,model.call_count)
+        local.assert_called_once_with([b'a',b'b'],allow_llm=False)
 
     def test_local_fallback_keeps_source_identity(self):
         with patch.object(ocr,'_shrink',side_effect=lambda b:b),patch.object(ocr,'read_images',side_effect=[

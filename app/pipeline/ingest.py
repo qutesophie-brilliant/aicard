@@ -215,7 +215,7 @@ def from_product_html(html: str, url: str, ocr_images: bool = False) -> Ingested
         if coverage.get('image_ocr_unconfirmed'):
             image_notes.append(f"이미지 {coverage['image_ocr_unconfirmed']}장은 글자 읽기 결과를 확인하지 못했습니다. 이미지에 글자가 없다는 뜻은 아닙니다.")
         if coverage.get('image_ocr_retried'):
-            image_notes.append(f"글자 읽기 결과가 비어 있거나 누락된 이미지 {coverage['image_ocr_retried']}장을 한 번 더 확인했습니다.")
+            image_notes.append(f"이미지 {coverage['image_ocr_retried']}장은 재시도하거나 다른 방식으로 글자 읽기를 한 번 더 시도했습니다.")
         image_notes.append("읽지 못했거나 시도하지 않은 이미지의 내용은 결과에 포함되지 않습니다.")
     return Ingested(title=title, text=capture['text'], chunks=chunk_text(capture['text']),
                     source_capture=capture,
