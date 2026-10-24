@@ -30,7 +30,7 @@
       <{{ h }} class="lb-name">{% if compact %}<a href="/card/{{ product.id }}" style="color:inherit">{{ product.name }}</a>{% else %}{{ product.name }}{% endif %}</{{ h }}>
       <p class="lb-meta"><span class="lb-meta-product">{{ product.maker }}{% if product.model %}<span class="sep">·</span>{{ product.model }}{% endif %}</span><span class="lb-date"><span class="sep">·</span>카드 분석일 <time datetime="{{ card.checked_at[:10] }}">{{ card.checked_at|kdate }}</time></span></p>
       {% if product.is_sample %}<span class="lb-tag sample">교육용 가상 제품</span>{% endif %}
-      {% if sum.n_claims == 0 %}<span class="lb-tag">‘AI’를 내세우지 않는 제품 · 비교 기준</span>{% endif %}
+      {% if sum.n_claims == 0 %}<span class="lb-tag">AI 표시 문구를 찾지 못함 · 자료 범위 확인</span>{% endif %}
     </div>
     {% if not compact %}
     <div class="lb-tools" role="group" aria-label="보기 설정">
@@ -44,7 +44,7 @@
 
   <div class="lb-verdict">
     {% if sum.n_claims == 0 %}
-    <p class="lb-big">판매페이지에서 ‘AI’를 내세우지 않습니다<small>AI를 내세우는 제품과 견줄 수 있도록 같은 다섯 질문을 확인했습니다.</small></p>
+    <p class="lb-big">대조한 자료에서 AI 표시 문구를 찾지 못했습니다<small>제품에 AI 기능이 없다는 판정은 아닙니다. 수집한 자료의 범위와 다른 항목의 설명을 함께 확인해 주십시오.</small></p>
     {% else %}
     {% set bc = basis_counts(card) %}
     <p class="lb-big"><span class="sr">‘AI’라고 적은 문구 {{ sum.n_claims }}개 중 {{ sum.linked }}개에 회사가 작동 설명을 적어 두었습니다.</span><span aria-hidden="true">‘AI’라고 적은 문구 <em>{{ sum.n_claims }}</em>개 중 <em>{{ sum.linked }}</em>개에<br>회사가 작동 설명을 적어 두었습니다</span>{% if not compact and (sum.counts['자료 부족'] or sum.counts['추가 확인 필요']) %}<small class="lb-rest">나머지 {{ sum.n_claims - sum.linked }}개는 {% if sum.counts['자료 부족'] %}설명을 찾지 못한 문구 {{ sum.counts['자료 부족'] }}개{% endif %}{% if sum.counts['자료 부족'] and sum.counts['추가 확인 필요'] %}와 {% endif %}{% if sum.counts['추가 확인 필요'] %}추가 확인이 필요한 문구 {{ sum.counts['추가 확인 필요'] }}개{% endif %}입니다. 추가 확인 문구는 ‘설명 있음’에 넣지 않았습니다.</small>{% endif %}</p>
@@ -80,7 +80,7 @@
   <section class="qa" id="q-what">
     <h3>{{ QUESTION_TEXT['what'] }}</h3>
     {% if sum.n_claims == 0 %}
-    <p class="lead none">{{ card.zero_claim_scope if card.zero_claim_scope else "판매페이지에서 ‘AI’, ‘학습’, ‘스스로 인식’ 같은 표현이 든 문구를 찾지 못했습니다. 제품 이름이나 광고에 ‘AI’를 쓰지 않는 제품입니다." }}</p>
+    <p class="lead none">{{ card.zero_claim_scope if card.zero_claim_scope else "이 카드에 사용한 자료에서 AI 표시 문구를 찾지 못했습니다. 제품에 AI 기능이 없거나 제조사가 AI를 표시하지 않았다는 뜻은 아닙니다." }}</p>
     {% else %}
     <p class="lead plain-only">{{ card.easy['items'].get('functions', sum.lines[0])|haeyo }}</p>
     <p class="lead easy-only">{{ card.easy['items'].get('functions', '') }} {{ card.easy['items'].get('evidence', '') }}</p>
@@ -129,7 +129,7 @@
     <p class="lead plain-only {% if it.status == '자료 부족' %}none{% endif %}">{{ it.summary|haeyo }}</p>
     <p class="lead easy-only">{{ card.easy['items'].get('optout', it.summary)|haeyo }}</p>
     {{ evidence(it.evidence, docs) }}
-    {% if it.status == '자료 부족' %}<p class="flag">‘적혀 있지 않음’은 끄는 기능이 없다는 뜻이 아니라, 이 카드에 사용한 자료에서 해제 방법을 찾지 못했다는 뜻입니다. 구매 전에 판매자나 제조사 고객센터에 "AI 기능을 끌 수 있는지, 끄면 어떤 모드로 동작하는지" 물어보는 것이 좋습니다.</p>{% endif %}
+    {% if it.status == '자료 부족' %}<p class="flag">{% if sum.n_claims %}‘적혀 있지 않음’은 끄는 기능이 없다는 뜻이 아니라, 이 카드에 사용한 자료에서 해제 방법을 찾지 못했다는 뜻입니다. 구매 전에 판매자나 제조사 고객센터에 "AI 기능을 끌 수 있는지, 끄면 어떤 모드로 동작하는지" 물어보는 것이 좋습니다.{% else %}이 카드에 사용한 자료에서는 AI 표시 문구를 찾지 못했습니다. 해제 안내의 유무만으로 제품에 AI 기능이 있는지 판단할 수는 없습니다.{% endif %}</p>{% endif %}
   </section>
 
   {# ---- 질문 4 ---- #}

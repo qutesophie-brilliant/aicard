@@ -267,7 +267,8 @@ body.menu-open .top { position: relative; z-index: 60; }
 html[data-easy="on"] .easy-only { display: block; }
 html[data-easy="on"] .plain-only { display: none; }
 html[data-easy="on"] .qa .lead { font-size: 1.12rem; line-height: 1.75; }
-html[data-easy="on"] .ev { display: none; } /* 쉬운 말에서도 문구별 조건은 보인다(사용성 시험 10/12) */
+/* Easy wording must not remove source access or the correction request form.
+   The existing details/summary controls keep long excerpts collapsed. */
 html[data-easy="on"] .claims q { font-weight: 500; }
 
 /* ---- 카드 페이지 둘레 ---- */

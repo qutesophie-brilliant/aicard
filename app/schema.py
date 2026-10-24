@@ -153,7 +153,7 @@ def heads_up(card: dict[str, Any], limit: int = 4) -> list[dict[str, str]]:
     if extra:
         out.append({"kind": "s3", "text": f"문구 {len(extra)}개는 국내 자료에 없는 설명이 회사의 해외 영문 자료에 있습니다.", "anchor": f"claim-{extra[0]['id']}"})
     items = card.get("items", {})
-    if items.get("optout", {}).get("status") == "자료 부족":
+    if card.get('claims') and items.get("optout", {}).get("status") == "자료 부족":
         out.append({"kind": "s3", "text": "AI 기능을 끄는 방법은 이 카드에 사용한 자료에서 찾지 못했습니다.", "anchor": "q-optout"})
     if items.get("data", {}).get("status") == "자료 부족":
         out.append({"kind": "s3", "text": "데이터 수집·처리 위치에 관한 설명은 이 카드에 사용한 자료에서 찾지 못했습니다.", "anchor": "q-data"})
@@ -245,7 +245,7 @@ def summarize(card: dict[str, Any]) -> dict[str, Any]:
     linked = counts["근거 확인"] + counts["조건 확인"]
     lines: list[str] = []
     if n == 0:
-        lines.append(card.get("zero_claim_scope") or "이 제품은 판매페이지에서 ‘AI’를 내세우지 않습니다. AI를 내세우는 제품과 견줄 수 있도록 같은 질문을 확인했습니다.")
+        lines.append(card.get("zero_claim_scope") or "대조한 자료에서 AI 표시 문구를 찾지 못했습니다. 제품에 AI 기능이 없다는 판정은 아닙니다.")
     else:
         lines.append(f"‘AI’라고 표시한 문구 {n}개 중 {linked}개에 회사가 작동 설명을 적어 두었습니다.")
         rest = []
