@@ -1,0 +1,8 @@
+{% extends "base.html" %}
+{% block title %}문의·보증 수정안 등록 | AI 정보카드{% endblock %}
+{% block content %}
+<section class="hero"><p class="meta">관리자 전용 · 승인 전 수정안 등록</p><h1>문의·보증 수정안 연결</h1><p class="lede">원문 대조 파일을 등록하면 현재 카드와 비교한 최종 승인 화면으로 이동합니다.</p></section>
+<p class="notice">이 단계에서는 공개 카드를 수정하거나 승인하지 않습니다. 다른 문구·권익 항목의 검토 상태와 연구용 고정 카드는 변경하지 않습니다.</p>
+{% if error %}<p role="alert" class="notice"><b>등록하지 못했습니다.</b> {{ error }}</p>{% endif %}
+<form class="form" method="post" enctype="multipart/form-data"><input type="hidden" name="csrf" value="{{ csrf }}"><label for="proposal-file">원문 대조 수정안 JSON 파일</label><input id="proposal-file" name="proposal" type="file" accept=".json,application/json" required aria-describedby="file-help"><p id="file-help" class="meta">8MB 이하. 같은 파일을 다시 등록하면 기존 승인 화면을 엽니다. 카드 내용이 변경됐으면 등록을 중단합니다.</p><button class="btn primary" type="submit">현재 카드와 대조하고 승인 화면 열기</button></form>
+{% endblock %}

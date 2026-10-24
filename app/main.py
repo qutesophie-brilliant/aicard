@@ -1153,6 +1153,32 @@ def review_bulk_status(pid: list[int] = Form([]), status: str = Form(...), _=Dep
     return RedirectResponse("/review/queue", status_code=303)
 
 
+@app.get("/review/revalidation-import", response_class=HTMLResponse)
+def revalidation_import_page(request: Request, _=Depends(require_reviewer)):
+    import secrets
+    csrf = secrets.token_urlsafe(32)
+    response = render(request,"revalidation_import.html",csrf=csrf,error="")
+    response.set_cookie('review_import_csrf',csrf,httponly=True,secure=request.url.scheme=='https',samesite='strict',path='/review/revalidation-import',max_age=3600)
+    return response
+
+
+@app.post("/review/revalidation-import")
+async def revalidation_import_upload(request: Request, proposal: UploadFile=File(...), csrf: str=Form(""), _=Depends(require_reviewer)):
+    import secrets
+    from . import revalidation_import
+    expected = request.cookies.get('review_import_csrf','')
+    if not expected or not secrets.compare_digest(expected,csrf):
+        raise HTTPException(403,'등록 화면을 다시 열어 주세요.')
+    try:
+        data = await proposal.read(8*1024*1024+1)
+        if len(data)>8*1024*1024: raise ValueError('검토안 파일은 8MB 이하여야 합니다.')
+        package = json.loads(data.decode('utf-8-sig'))
+        result = await run_in_threadpool(revalidation_import.stage,package)
+    except (ValueError,KeyError,TypeError,UnicodeError) as exc:
+        return render(request,"revalidation_import.html",csrf=csrf,error=str(exc))
+    return RedirectResponse(result['url'],status_code=303)
+
+
 @app.post("/review/revalidation-batch")
 async def revalidation_batch_create(request: Request, _=Depends(require_reviewer)):
     from . import revalidation_batch
