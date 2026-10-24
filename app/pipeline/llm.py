@@ -8,6 +8,7 @@ import base64
 import json
 import os
 import re
+import time
 from typing import Any
 
 from .. import config
@@ -23,6 +24,22 @@ SYSTEM_PROMPT = """당신은 소비자 정보카드 작성을 돕는 분석 보�
 
 class LLMError(RuntimeError):
     pass
+
+
+# A separate budget for quick URL-image OCR. Existing formal-card calls keep
+# their prior retry/timeout behavior outside this context.
+_ocr_budget = contextvars.ContextVar('aicard_ocr_budget', default=None)
+
+
+def _request_timeout(default):
+    budget = _ocr_budget.get()
+    if budget is None:
+        return default
+    remaining = budget['deadline'] - time.monotonic()
+    if budget['requests'] <= 0 or remaining <= 0:
+        raise LLMError('OCR request budget exhausted')
+    budget['requests'] -= 1
+    return min(default, remaining)
 
 
 _force_rules: contextvars.ContextVar[bool] = contextvars.ContextVar("aicard_force_rules", default=False)
@@ -61,7 +78,8 @@ def _extract_json(text: str) -> Any:
 
 def _anthropic_call(prompt: str, images: list[bytes] | None, max_tokens: int) -> str:
     import anthropic
-    client = anthropic.Anthropic()
+    options = {'timeout': _request_timeout(180), 'max_retries': 0} if _ocr_budget.get() is not None else {}
+    client = anthropic.Anthropic(**options)
     content: list[dict[str, Any]] = []
     for img in images or []:
         content.append({"type": "image", "source": {
@@ -76,7 +94,8 @@ def _anthropic_call(prompt: str, images: list[bytes] | None, max_tokens: int) ->
 
 def _openai_call(prompt: str, images: list[bytes] | None, max_tokens: int) -> str:
     from openai import OpenAI
-    client = OpenAI()
+    options = {'timeout': _request_timeout(180), 'max_retries': 0} if _ocr_budget.get() is not None else {}
+    client = OpenAI(**options)
     content: list[dict[str, Any]] = [{"type": "text", "text": prompt}]
     for img in images or []:
         content.append({"type": "image_url", "image_url": {
@@ -117,10 +136,12 @@ def _gemini_call(prompt: str, images: list[bytes] | None, max_tokens: int) -> st
         url = ep.format(model=model)
         for attempt in range(3):
             try:
-                r = httpx.post(url, json=body, timeout=180,
+                r = httpx.post(url, json=body, timeout=_request_timeout(180),
                                headers={"x-goog-api-key": config.GEMINI_API_KEY,
                                         "Content-Type": "application/json"})
             except httpx.HTTPError as e:
+                if _ocr_budget.get() is not None:
+                    raise
                 errors.append(f"{model}: 연결 실패 {e}")
                 break
             if r.status_code == 200:
@@ -136,6 +157,8 @@ def _gemini_call(prompt: str, images: list[bytes] | None, max_tokens: int) -> st
             except Exception:
                 msg = r.text
             errors.append(f"{model} @ {url.split('/')[2]}: HTTP {r.status_code} {msg[:160]}")
+            if _ocr_budget.get() is not None:
+                raise LLMError(f'OCR provider HTTP {r.status_code}')
             if r.status_code == 429 and ("PerDay" in r.text or "per day" in r.text.lower()):
                 _gemini_dead.add((ep, model))   # 하루 한도 소진: 오늘은 이 모델을 건너뛴다
                 break
@@ -179,6 +202,8 @@ def ask_json(prompt: str, images: list[bytes] | None = None, max_tokens: int = 4
             last_err = e
             prompt = prompt + "\n\n(이전 응답이 올바른 JSON이 아니었습니다. JSON만 다시 출력하세요.)"
         except Exception as e:  # SDK 오류는 그대로 올린다
+            if _ocr_budget.get() is not None:
+                raise
             raise LLMError(str(e)) from e
     raise LLMError(f"JSON 파싱 실패: {last_err}")
 
@@ -206,3 +231,40 @@ def ocr_image(img: bytes) -> str:
         "읽을 수 없는 부분은 생략합니다. 형식: {\"text\": \"...\"}",
         images=[img], max_tokens=3000)
     return str(data.get("text", "")) if isinstance(data, dict) else ""
+
+
+def ocr_images_indexed(imgs: list[bytes], timeout_seconds: float = 20) -> list[str | None]:
+    """Quick URL OCR only: validate image identity, never shift omitted pages."""
+    if not imgs:
+        return []
+    token = _ocr_budget.set({'deadline': time.monotonic() + timeout_seconds, 'requests': 1})
+    try:
+        data = ask_json(
+            f'이미지 {len(imgs)}장이 순서대로 주어집니다. 각 이미지의 글자를 그대로 옮기세요. '
+            '해석하거나 요약하지 마세요. 각주와 작은 글씨도 포함하세요. '
+            'image는 입력 순서의 1부터 시작하는 번호입니다. 모든 번호를 한 번씩 반환하세요. '
+            '글자를 확인하지 못한 이미지도 생략하지 말고 text를 빈 문자열로 반환하세요. '
+            '형식: {"pages":[{"image":1,"text":"첫 이미지 글자"},{"image":2,"text":""}]}',
+            images=imgs, max_tokens=8000)
+    finally:
+        _ocr_budget.reset(token)
+    texts = [None] * len(imgs)
+    seen = set()
+    pages = data.get('pages', []) if isinstance(data, dict) else []
+    if not isinstance(pages, list):
+        return texts
+    for page in pages:
+        if not isinstance(page, dict):
+            continue
+        number = page.get('image')
+        if type(number) is not int or not 1 <= number <= len(imgs):
+            continue
+        index = number - 1
+        if index in seen:
+            texts[index] = None
+            continue
+        seen.add(index)
+        text = page.get('text')
+        if isinstance(text, str):
+            texts[index] = text.strip()
+    return texts
