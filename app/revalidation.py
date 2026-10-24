@@ -29,7 +29,8 @@ def fingerprint(p, c, docs):
 
 def create(payload):
     payload = copy.deepcopy(payload)
-    if set(payload) != {'product_id','expected_fingerprint','card','source','summary','changes','checks'}:
+    required = {'product_id','expected_fingerprint','card','source','summary','changes','checks'}
+    if set(payload)-{'review_scope'} != required or payload.get('review_scope') not in (None,'remedy'):
         raise ValueError('재검토안 형식이 올바르지 않습니다.')
     pid = payload['product_id']
     src = payload['source']
@@ -42,6 +43,14 @@ def create(payload):
             raise ValueError('카드나 원문이 변경됐습니다. 다시 대조해 주세요.')
         before = json.loads(c['card_json'])
         after = payload['card']
+        if payload.get('review_scope') == 'remedy':
+            def outside_remedy(card):
+                rest = copy.deepcopy(card)
+                rest.get('items',{}).pop('remedy',None)
+                rest.get('easy',{}).get('items',{}).pop('remedy',None)
+                return rest
+            if outside_remedy(before) != outside_remedy(after) or not after.get('items',{}).get('remedy'):
+                raise ValueError('문의·보증 부분 검토에서는 다른 항목을 변경할 수 없습니다.')
         if after.get('product') != before.get('product') or after.get('public_db') != before.get('public_db'):
             raise ValueError('제품 정보와 공공 DB 기록은 변경할 수 없습니다.')
         before_pairs = [(x['id'],x['status']) for x in before['claims']]
@@ -119,17 +128,24 @@ def approve(ident, csrf, ack, transaction=None):
                 for val in obj: replace_ids(val)
         replace_ids(card)
         card['sources'] = payload['before']['sources'] + [{'doc_id':did,'kind':src['kind'],'title':src['title'],'url':src['url'],'n_chunks':len(chunks)}]
-        for claim in card['claims']:
-            claim['reviewer_status'] = claim['status']
-            claim['reviewer_note'] = '현재 제조사 원문 대조안을 관리자가 최종 승인했습니다.'
-        for item in card.get('items',{}).values(): item['reviewed'] = True
+        scope = payload.get('review_scope')
+        if scope == 'remedy':
+            card['items']['remedy']['reviewed'] = True
+        else:
+            for claim in card['claims']:
+                claim['reviewer_status'] = claim['status']
+                claim['reviewer_note'] = '현재 제조사 원문 대조안을 관리자가 최종 승인했습니다.'
+            for item in card.get('items',{}).values(): item['reviewed'] = True
         at = db.now()
         meta = json.loads(c['pipeline_meta'] or '{}')
-        detail = {'actor':'human','ai_assisted':True,'plan_id':ident,'before':payload['before'],'approved_sha256':digest(card),'changes':payload['changes'],'prior_approved_at':p['approved_at'],'source_url':src['url'],'source_fetched_at':src['fetched_at']}
+        detail = {'actor':'human','ai_assisted':True,'review_scope':scope or 'whole_card','plan_id':ident,'before':payload['before'],'approved_sha256':digest(card),'changes':payload['changes'],'prior_approved_at':p['approved_at'],'source_url':src['url'],'source_fetched_at':src['fetched_at']}
         meta['n_claims'] = len(card['claims'])
         meta.setdefault('revalidations',[]).append({k:v for k,v in detail.items() if k not in ('before','changes')})
         con.execute('UPDATE cards SET card_json=?,pipeline_meta=?,updated_at=? WHERE product_id=?',(json.dumps(card,ensure_ascii=False),json.dumps(meta,ensure_ascii=False),at,pid))
-        con.execute('UPDATE products SET approved_at=?,updated_at=?,reviewer_note=? WHERE id=?',(at,at,'현재 제조사 원문 대조안을 최종 승인함',pid))
-        con.execute('INSERT INTO review_log(product_id,action,detail,at) VALUES(?,?,?,?)',(pid,'human_reapproval',json.dumps(detail,ensure_ascii=False),at))
+        if scope == 'remedy':
+            con.execute('UPDATE products SET updated_at=?,reviewer_note=? WHERE id=?',(at,'문의·보증 항목만 현재 원문과 재대조·승인함. 다른 항목의 승인일은 갱신하지 않음',pid))
+        else:
+            con.execute('UPDATE products SET approved_at=?,updated_at=?,reviewer_note=? WHERE id=?',(at,at,'현재 제조사 원문 대조안을 최종 승인함',pid))
+        con.execute('INSERT INTO review_log(product_id,action,detail,at) VALUES(?,?,?,?)',(pid,'human_item_reapproval' if scope else 'human_reapproval',json.dumps(detail,ensure_ascii=False),at))
         con.execute('UPDATE revalidation_plans SET approved_at=? WHERE id=?',(at,ident))
     return {'approved':pid}
