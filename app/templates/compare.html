@@ -67,7 +67,7 @@
         <li class="{{ STATUS_CLASS[s] }}"><div class="cl-head">{{ chip(s) }}<q>{{ c.text|truncate(70) }}</q>{% if s != '자료 부족' and c.basis_kind in BASIS_LABEL %}<span class="kind kind-{{ c.basis_kind }}">{{ BASIS_LABEL[c.basis_kind] }}</span>{% endif %}{% if c.basis_kind_global and c.basis_kind_global != c.basis_kind %}<span class="kind kind-global">해외 자료: {{ BASIS_LABEL[c.basis_kind_global] }}</span>{% endif %}</div>{% if c.conditions %}<p class="cond">{{ c.conditions|truncate(90) }}</p>{% endif %}</li>
         {% endfor %}
       </ul>
-      {% else %}<p class="lead none">‘AI’라고 표시한 문구가 없습니다.</p>{% endif %}
+      {% else %}<p class="lead none">대조한 자료에서 AI 표시 문구를 찾지 못했습니다. 제품에 AI 기능이 없다는 뜻은 아닙니다.</p>{% endif %}
       {% set it = row.card['items']['conditions'] %}
       <div class="block"><h4>작동 조건 전반 {{ chip(it.status, ITEM_STATE[it.status]) }}</h4><p class="{% if it.status == '자료 부족' %}none{% endif %}">{{ it.summary|haeyo }}</p></div>
     </div>

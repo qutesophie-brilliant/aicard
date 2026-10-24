@@ -172,7 +172,7 @@
         {{ bar(row.card.claims, row.sum) }}
         <p class="m"><span>‘AI’ 문구 {{ row.sum.n_claims }}개 중 <b>{{ row.sum.linked }}개</b> 작동 설명 있음</span>{% if row.sum.counts['추가 확인 필요'] %}<span class="w"><i class="mark s4"></i>추가 확인 {{ row.sum.counts['추가 확인 필요'] }}</span>{% endif %}</p>
         {% else %}
-        <p class="zero">대조군 · ‘AI’를 내세우지 않는 제품</p>
+        <p class="zero">대조한 자료에서 AI 표시 문구를 찾지 못했습니다.</p>
         {% endif %}
         {% if row.product.is_sample %}<p class="m"><span class="w">교육용 가상 제품</span></p>{% endif %}
       </a>
