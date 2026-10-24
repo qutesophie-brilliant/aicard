@@ -1,6 +1,10 @@
 {# 즉석 확인 결과 본문. 변수: card, docs, pname, url, s #}
 {% macro yes() %}<span class="st s1">관련 문장 있음</span>{% endmacro %}
 {% macro no() %}<span class="st s3">관련 문장 없음</span>{% endmacro %}
+{% macro source_cite(e) %}
+  {% set source = docs.get(e.doc_id, {}) %}
+  <cite>{{ e.kind }}{% if source.url and (source.url.startswith('https://') or source.url.startswith('http://')) %} · <a href="{{ source.url }}" target="_blank" rel="noopener">자료 주소 열기</a>{% endif %}</cite>
+{% endmacro %}
 <article class="label quick" style="margin-top:14px" aria-label="{{ pname }} 바로 확인 결과">
   <div class="lb-band">
     <span class="lb-brand"><img src="/static/logo.png" alt="">바로 확인 · 자동 분석</span>
@@ -49,7 +53,7 @@
       {% for c in card.claims %}
       <li id="qc-{{ loop.index }}">
         <div class="cl-head">{% if c.evidence %}{{ yes() }}{% else %}{{ no() }}{% endif %}<q>{{ c.text }}</q></div>
-        {% if c.evidence %}<details class="ev"><summary>관련 문장 {{ c.evidence|length }}건</summary>{% for e in c.evidence %}<blockquote>{% if e.condition_type == "test" %}<strong>시험 조건 · </strong>{% elif e.condition_type == "test_result_limit" %}<strong>시험 결과의 한계 · </strong>{% elif e.condition_type == "operating" %}<strong>사용 조건 · </strong>{% endif %}{{ e.quote }}<cite>{{ e.kind }}</cite></blockquote>{% endfor %}</details>{% endif %}
+        {% if c.evidence %}<details class="ev"><summary>관련 문장 {{ c.evidence|length }}건</summary>{% for e in c.evidence %}<blockquote>{% if e.condition_type == "test" %}<strong>시험 조건 · </strong>{% elif e.condition_type == "test_result_limit" %}<strong>시험 결과의 한계 · </strong>{% elif e.condition_type == "operating" %}<strong>사용 조건 · </strong>{% endif %}{{ e.quote }}{{ source_cite(e) }}</blockquote>{% endfor %}</details>{% endif %}
       </li>
       {% else %}
       <li><p class="none">‘AI’라고 표시한 문구를 찾지 못했습니다.</p></li>
@@ -63,7 +67,7 @@
     <div class="block" id="qi-{{ key }}">
       <h4>{{ ITEM_SHORT[key] }} {% if it.evidence %}{{ yes() }}{% else %}{{ no() }}{% endif %}</h4>
       <p class="{% if not it.evidence %}none{% endif %}">{{ '이 페이지에 관련 문장이 있습니다.' if it.evidence else '이 페이지에서는 관련 문장을 찾지 못했습니다.' }}</p>
-      {% if it.evidence %}<details class="ev"><summary>관련 문장 {{ it.evidence|length }}건</summary>{% for e in it.evidence %}<blockquote>{% if e.condition_type == "test" %}<strong>시험 조건 · </strong>{% elif e.condition_type == "test_result_limit" %}<strong>시험 결과의 한계 · </strong>{% elif e.condition_type == "operating" %}<strong>사용 조건 · </strong>{% endif %}{{ e.quote }}<cite>{{ e.kind }}</cite></blockquote>{% endfor %}</details>{% endif %}
+      {% if it.evidence %}<details class="ev"><summary>관련 문장 {{ it.evidence|length }}건</summary>{% for e in it.evidence %}<blockquote>{% if e.condition_type == "test" %}<strong>시험 조건 · </strong>{% elif e.condition_type == "test_result_limit" %}<strong>시험 결과의 한계 · </strong>{% elif e.condition_type == "operating" %}<strong>사용 조건 · </strong>{% endif %}{{ e.quote }}{{ source_cite(e) }}</blockquote>{% endfor %}</details>{% endif %}
     </div>
     {% endfor %}
   </section>

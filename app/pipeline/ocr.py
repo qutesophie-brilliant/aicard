@@ -84,7 +84,7 @@ def _tess_opts() -> list[str]:
     return opts
 
 
-def _tesseract(data: bytes) -> str:
+def _tesseract(data: bytes, timeout_seconds: float = 120) -> str:
     """로컬 OCR. 글자가 작은 캡처가 많아 2배로 키우고 회색조로 바꾼 뒤 읽는다."""
     from PIL import Image
     im = Image.open(io.BytesIO(data)).convert("L")
@@ -95,7 +95,7 @@ def _tesseract(data: bytes) -> str:
         src = os.path.join(d, "in.png")
         im.save(src)
         r = subprocess.run(["tesseract", src, "-", *_tess_opts(), "--psm", "6"],
-                           capture_output=True, text=True, timeout=120)
+                           capture_output=True, text=True, timeout=timeout_seconds)
         text = r.stdout
     for pat, rep in _FIX:
         text = pat.sub(rep, text)
@@ -103,7 +103,7 @@ def _tesseract(data: bytes) -> str:
     return "\n".join(l for l in lines if l)
 
 
-def read_images(imgs: list[bytes], allow_llm: bool = True) -> OcrResult:
+def read_images(imgs: list[bytes], allow_llm: bool = True, local_timeout_seconds: float = 120) -> OcrResult:
     imgs = [_shrink(b) for b in imgs if b]
     res = OcrResult()
     if not imgs:
@@ -120,7 +120,7 @@ def read_images(imgs: list[bytes], allow_llm: bool = True) -> OcrResult:
             res.notes.append("비전 모델에 연결하지 못해 로컬 글자 인식으로 대신 읽었어요.")
     if tesseract_available():
         try:
-            res.texts = [_tesseract(b) for b in imgs]
+            res.texts = [_tesseract(b, timeout_seconds=local_timeout_seconds) for b in imgs]
             res.engine = "tesseract"
             if "kor" not in " ".join(_tess_opts()):
                 res.notes.append("한국어 글자 인식 데이터가 없어 영문만 읽었어요.")
@@ -164,7 +164,7 @@ def read_images(imgs: list[bytes], allow_llm: bool = True) -> OcrResult:
     return res
 
 
-def read_pdf(data: bytes, allow_llm: bool = True, max_pages: int = 12) -> OcrResult:
+def read_pdf(data: bytes, allow_llm: bool = True, max_pages: int = 12, image_reader=None) -> OcrResult:
     """글자가 든 PDF는 그대로 꺼내고, 스캔·이미지 PDF는 페이지를 그림으로 바꿔 읽는다."""
     import pymupdf
     res = OcrResult(engine="pdf")
@@ -183,7 +183,7 @@ def read_pdf(data: bytes, allow_llm: bool = True, max_pages: int = 12) -> OcrRes
             scans.append(page.get_pixmap(dpi=130).tobytes("png"))
             idx.append(i)
     if scans:
-        sub = read_images(scans, allow_llm=allow_llm)
+        sub = (image_reader or read_images)(scans, allow_llm=allow_llm)
         for j, i in enumerate(idx):
             if j < len(sub.texts):
                 res.texts[i] = sub.texts[j]

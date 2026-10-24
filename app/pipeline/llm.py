@@ -234,7 +234,7 @@ def ocr_image(img: bytes) -> str:
 
 
 def ocr_images_indexed(imgs: list[bytes], timeout_seconds: float = 20) -> list[str | None]:
-    """Quick URL OCR only: validate image identity, never shift omitted pages."""
+    """Consumer OCR: validate image identity, never shift omitted images/pages."""
     if not imgs:
         return []
     token = _ocr_budget.set({'deadline': time.monotonic() + timeout_seconds, 'requests': 1})

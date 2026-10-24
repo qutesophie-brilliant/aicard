@@ -583,21 +583,16 @@ def _check_summary(card: dict[str, Any]) -> dict[str, Any]:
 
 
 def _match_published(url: str) -> dict[str, Any] | None:
-    """붙여 넣은 주소가 이미 검토·공개된 제품이면 그 제품을 돌려준다(모델명이 주소에 들어 있거나 저장된 주소와 같은 경우)."""
-    import re as _re
-    u = (url or "").strip().lower()
-    if not u.startswith("http"):
+    """저장된 제품 주소와 고유하게 일치할 때만 정식 카드로 연결한다."""
+    from .product_identity import source_identity
+    identity = source_identity(url)
+    if identity is None:
         return None
-    u_norm = u.split("?")[0].split("#")[0].rstrip("/")
+    matches = {}
     for p in db.list_products("approved"):
-        model = (p.get("model") or "").strip().lower()
-        if model and len(model) >= 5 and _re.sub(r"[^a-z0-9]", "", model) in _re.sub(r"[^a-z0-9]", "", u_norm):
-            return p
-        for d in db.list_documents(p["id"]):
-            du = (d.get("url") or "").strip().lower().split("?")[0].split("#")[0].rstrip("/")
-            if du and du == u_norm:
-                return p
-    return None
+        if any(source_identity(d.get('url')) == identity for d in db.list_documents(p['id'])):
+            matches[p['id']] = p
+    return next(iter(matches.values())) if len(matches) == 1 else None
 
 @app.get("/check", response_class=HTMLResponse)
 def check_page(request: Request, q: str = ""):
@@ -609,6 +604,25 @@ def check_page(request: Request, q: str = ""):
 _check_ocr_gate = threading.BoundedSemaphore(1)
 
 
+def _read_upload_images(images, allow_llm=True):
+    """Consumer uploads use indexed OCR and bounded recovery, never formal-card edits."""
+    from .pipeline import product_ocr
+    rows = []
+    for offset in range(0, len(images), ocr.LLM_BATCH):
+        rows.extend(product_ocr.read_images(images[offset:offset + ocr.LLM_BATCH],
+                    allow_llm=allow_llm, local_timeout_seconds=8, recover_unconfirmed=True))
+    read = sum(bool(row['text'].strip()) for row in rows)
+    engines = {row['engine'] for row in rows if row['text'].strip()}
+    result = ocr.OcrResult(texts=[row['text'] for row in rows],
+                           engine=next(iter(engines)) if len(engines) == 1 else 'mixed' if engines else 'none')
+    result.notes.append(f'확인 대상 이미지 {len(rows)}장 중 {read}장에서 글자를 읽었습니다.')
+    if read < len(rows):
+        result.notes.append(f'이미지 {len(rows)-read}장은 글자 읽기 결과 미확인입니다. 글자가 없다는 뜻은 아니며, 해당 내용은 분석에 포함되지 않았습니다.')
+    if any(row.get('recovered') and row['engine'] != 'llm' for row in rows):
+        result.notes.append('AI가 읽지 못한 이미지는 서버 문자 인식으로 다시 읽었습니다.')
+    return result
+
+
 def _read_check_uploads(payloads: list[tuple[str, str, bytes]]) -> tuple[list[str], list[str]]:
     """OCR runs outside the async request loop; bound peak memory on the 512MB instance."""
     if not _check_ocr_gate.acquire(blocking=False):
@@ -618,7 +632,7 @@ def _read_check_uploads(payloads: list[tuple[str, str, bytes]]) -> tuple[list[st
         imgs: list[bytes] = []
         texts: list[str] = []
         notes: list[str] = []
-        engines = {"llm": "AI 문자 인식", "tesseract": "서버 내 문자 인식", "pdf": "PDF 텍스트 추출", "none": "읽을 수 있는 글자 없음"}
+        engines = {"llm": "AI 문자 인식", "tesseract": "서버 내 문자 인식", "windows_ocr": "Windows 문자 인식", "mixed": "AI·서버 문자 인식", "pdf": "PDF 텍스트 추출", "none": "글자 읽기 결과 미확인"}
         def keep(r):
             texts.append(r.text)
             notes.extend(r.notes)
@@ -626,7 +640,7 @@ def _read_check_uploads(payloads: list[tuple[str, str, bytes]]) -> tuple[list[st
         for filename, ctype, data in payloads:
             if ctype == "application/pdf" or filename.lower().endswith(".pdf"):
                 try:
-                    keep(ocr.read_pdf(data, allow_llm=config.CHECK_OCR_LLM))
+                    keep(ocr.read_pdf(data, allow_llm=config.CHECK_OCR_LLM, image_reader=_read_upload_images))
                 except Exception as e:
                     raise ValueError(f"PDF를 읽지 못했습니다. 손상되거나 암호가 설정된 파일인지 확인해 주세요. ({filename})") from e
             else:
@@ -637,7 +651,7 @@ def _read_check_uploads(payloads: list[tuple[str, str, bytes]]) -> tuple[list[st
                     raise ValueError(f"이미지를 읽지 못했습니다. JPG·PNG 캡처로 다시 올려 주세요. ({filename})") from e
                 imgs.append(data)
         if imgs:
-            keep(ocr.read_images(imgs, allow_llm=config.CHECK_OCR_LLM))
+            keep(_read_upload_images(imgs, allow_llm=config.CHECK_OCR_LLM))
         return texts, list(dict.fromkeys(notes))
     finally:
         _check_ocr_gate.release()
@@ -702,7 +716,7 @@ async def check_url(request: Request, url: str = Form(""), text: str = Form(""),
             return render(request, "check.html", base=base, bookmarklet=bm, url=url, q="",
                           error="올린 파일에서 읽을 수 있는 글자를 찾지 못했습니다. 글자가 또렷하게 보이는 캡처인지 확인해 주세요.")
         name = (uploads[0].filename.rsplit(".", 1)[0] or "올린 자료")[:60]
-        notes = [f"올린 파일 {len(uploads)}개에서 글자를 읽어 확인했습니다."] + list(dict.fromkeys(notes))
+        notes = [f"올린 파일 {len(uploads)}개를 확인 대상으로 받았습니다. 읽어 온 글자만 분석에 사용했습니다."] + list(dict.fromkeys(notes))
 
     source_capture = None
     if text:

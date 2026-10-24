@@ -1,0 +1,48 @@
+import unittest
+from unittest.mock import patch
+
+from app import db, main
+
+
+class ProductIdentityTests(unittest.TestCase):
+    def match(self, url, sources):
+        products = [{'id': key, 'model': f'MODEL{key:04d}'} for key in sources]
+        with patch.object(db, 'list_products', return_value=products), \
+             patch.object(db, 'list_documents', side_effect=lambda key: [{'url': value} for value in sources[key]]):
+            return main._match_published(url)
+
+    def test_query_product_identity_is_preserved(self):
+        sources = {1: ['https://shop.example/product?goodsNo=111'],
+                   2: ['https://shop.example/product?goodsNo=222']}
+        self.assertEqual(2, self.match('https://shop.example/product?goodsNo=222', sources)['id'])
+        self.assertIsNone(self.match('https://shop.example/product?goodsNo=333', sources))
+
+    def test_coupang_item_and_vendor_identity_are_not_tracking(self):
+        sources = {1: ['https://www.coupang.com/vp/products/123?itemId=11&vendorItemId=21']}
+        self.assertIsNone(self.match('https://www.coupang.com/vp/products/123?itemId=12&vendorItemId=22', sources))
+
+    def test_tracking_query_order_fragment_and_https_do_not_hide_same_source(self):
+        sources = {1: ['https://shop.example/product?goodsNo=111&item=2']}
+        result = self.match('http://www.shop.example/product/?utm_source=google&item=2&goodsNo=111#detail', sources)
+        self.assertEqual(1, result['id'])
+
+    def test_model_in_an_unrelated_host_does_not_redirect(self):
+        sources = {1: ['https://maker.example/product/MODEL0001']}
+        self.assertIsNone(self.match('https://other.example/product/MODEL0001', sources))
+
+    def test_model_prefix_is_not_an_exact_model(self):
+        sources = {1: ['https://maker.example/product/MODEL0001']}
+        self.assertIsNone(self.match('https://maker.example/product/MODEL0001PLUS', sources))
+
+    def test_shared_manual_is_ambiguous_instead_of_first_product(self):
+        sources = {1: ['https://maker.example/manual.pdf'], 2: ['https://maker.example/manual.pdf']}
+        self.assertIsNone(self.match('https://maker.example/manual.pdf', sources))
+
+    def test_path_and_identifier_values_remain_case_sensitive(self):
+        sources = {1: ['https://shop.example/Product?code=AbC']}
+        self.assertIsNone(self.match('https://shop.example/Product?code=abc', sources))
+        self.assertIsNone(self.match('https://shop.example/product?code=AbC', sources))
+
+    def test_generic_homepage_is_not_a_product_match(self):
+        self.assertIsNone(self.match('https://maker.example/', {1: ['https://maker.example/']}))
+

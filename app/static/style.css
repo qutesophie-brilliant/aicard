@@ -872,3 +872,7 @@ body.menu-open .topbar{z-index:60;background:var(--paper)}
   .check-wait:not([hidden]) { flex-direction: column; gap: 14px; padding: 20px; }
   .wait-spinner { margin-top: 0; }
 }
+
+/* The source action remains easy to tap alongside its excerpt on mobile. */
+.quick blockquote cite { display: flex; align-items: center; flex-wrap: wrap; gap: 4px; }
+.quick blockquote cite a { display: inline-flex; align-items: center; min-height: 44px; padding: 4px; }
