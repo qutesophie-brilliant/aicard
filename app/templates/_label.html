@@ -24,6 +24,7 @@
   </div>
 
   <p class="review-state">{{ '검토 중인 초안입니다. 공개 전 확인이 필요합니다.' if preview else '검토자가 공개자료를 원문과 대조한 카드입니다. 제품 성능을 인증한 것은 아닙니다.' }}</p>
+  {% if card.display_scope_notice %}<p class="notice" role="note">{{ card.display_scope_notice }}</p>{% endif %}
   <div class="lb-head">
     <div>
       <{{ h }} class="lb-name">{% if compact %}<a href="/card/{{ product.id }}" style="color:inherit">{{ product.name }}</a>{% else %}{{ product.name }}{% endif %}</{{ h }}>

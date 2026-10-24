@@ -330,6 +330,9 @@ def card_page(request: Request, pid: int, preview: int = 0):
         raise HTTPException(404, "아직 검토가 끝나지 않은 카드입니다.")
     if preview:
         require_reviewer(request)
+    else:
+        from .public_view import safe_public_card
+        card = safe_public_card(card)
     return render(request, "card.html", product=product, card=card, docs=docs, sum=summarize(card),
                   preview=bool(preview), from_check=from_check)
 
@@ -343,6 +346,8 @@ def compare(request: Request, a: int | None = None, b: int | None = None):
             try:
                 product, card, docs = card_view(pid)
                 if product["status"] == "approved":
+                    from .public_view import safe_public_card
+                    card = safe_public_card(card)
                     pair.append({"product": product, "card": card, "docs": docs, "sum": summarize(card)})
             except HTTPException:
                 pass
@@ -427,6 +432,8 @@ def cards_json():
     for pr in db.list_products("approved"):
         c = db.get_card(pr["id"])
         if c:
+            from .public_view import safe_public_card
+            c = safe_public_card(c)
             out.append({"id": pr["id"], "product": c["product"], "checked_at": c.get("checked_at"),
                         "summary": summarize(c), "card": c})
     return JSONResponse(out, media_type="application/json; charset=utf-8")
@@ -457,7 +464,8 @@ def card_json(pid: int):
     product, card, _ = card_view(pid)
     if product["status"] != "approved":
         raise HTTPException(404)
-    return JSONResponse(card, media_type="application/json; charset=utf-8")
+    from .public_view import safe_public_card
+    return JSONResponse(safe_public_card(card), media_type="application/json; charset=utf-8")
 
 
 @app.post("/api/ingest")

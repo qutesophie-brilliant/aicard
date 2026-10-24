@@ -179,8 +179,14 @@ def split_fine_print(text: str) -> tuple[str, str]:
     # (본문의 기능 설명 문장이 각주로 밀려 문구 추출에서 빠지던 문제, 2026-10-13).
     fine = re.compile(r"^\*|^※|^-|^\d\)|^주\d|^\(\d+\)|환경에 따라|다를 수|않을 수|없을 수|않습니다|한정|유의|주의 사항|주의사항|필요합니다|설정이 필요|기준으로 측정|자체 시험|시험 결과|시험 기준|인증번호|인증 번호|실제 사용 환경|모델에 따라")
     sales, foot = [], []
+    marker = re.compile(r"^\*|^※|^-|^\d\)|^주\d|^\(\d+\)")
     for line in (l.strip() for l in text.splitlines()):
-        if len(line) < 2 or junk.search(line):
-            continue
-        (foot if fine.search(line) else sales).append(line)
+        # A condition or a coupon at the end of a paragraph must not remove an
+        # earlier function sentence. Explicitly marked footnotes retain their
+        # whole scope, including following sentences within the same line.
+        parts = [line] if marker.search(line) else re.split(r"(?<=[.!?。])\s+(?=\S)", line)
+        for part in parts:
+            if len(part) < 2 or junk.search(part):
+                continue
+            (foot if fine.search(part) else sales).append(part)
     return "\n".join(sales), "\n".join(foot)
