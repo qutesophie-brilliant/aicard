@@ -38,5 +38,13 @@ class ZeroClaimScopeCopyTests(unittest.TestCase):
         db.save_card(self.pid,card,{})
         self.assertIn('끄면 어떤 모드로 동작하는지',self.client.get(f'/card/{self.pid}').text)
 
+    def test_correction_form_remains_available_in_easy_mode(self):
+        from bs4 import BeautifulSoup
+        page=BeautifulSoup(self.client.get(f'/card/{self.pid}').text,'html.parser')
+        form=page.select_one('details.report')
+        self.assertIsNotNone(form)
+        self.assertNotIn('plain-only',form.get('class',[]))
+        self.assertIsNotNone(form.select_one('input[name="note"]'))
+
 
 if __name__=='__main__':unittest.main()
