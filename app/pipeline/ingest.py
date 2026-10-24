@@ -202,9 +202,24 @@ def from_product_html(html: str, url: str, ocr_images: bool = False) -> Ingested
     title = soup.title.get_text(' ', strip=True) if soup.title else url
     image_count = capture.get("coverage", {}).get("image_candidates", 0)
     read_count = sum(bool(i["text"]) for i in capture.get("images", []))
+    coverage = capture['coverage']
+    image_notes = []
+    if ocr_images:
+        attempted = coverage.get('image_attempted',0)
+        image_notes.append(f"제품 설명 이미지 {image_count}장 중 {attempted}장을 확인 대상으로 선택했고, {read_count}장에서 글자를 읽었습니다.")
+        if read_count: image_notes.append(f"글자 읽기: {engine_note}")
+        if coverage.get('image_skipped_limit'):
+            image_notes.append(f"처리량 제한으로 {coverage['image_skipped_limit']}장은 이번 분석에서 읽기를 시도하지 않았습니다.")
+        if coverage.get('image_download_failed'):
+            image_notes.append(f"이미지 {coverage['image_download_failed']}장은 내려받지 못했습니다.")
+        if coverage.get('image_ocr_unconfirmed'):
+            image_notes.append(f"이미지 {coverage['image_ocr_unconfirmed']}장은 글자 읽기 결과를 확인하지 못했습니다. 이미지에 글자가 없다는 뜻은 아닙니다.")
+        if coverage.get('image_ocr_retried'):
+            image_notes.append(f"이미지 {coverage['image_ocr_retried']}장은 재시도하거나 다른 방식으로 글자 읽기를 한 번 더 시도했습니다.")
+        image_notes.append("읽지 못했거나 시도하지 않은 이미지의 내용은 결과에 포함되지 않습니다.")
     return Ingested(title=title, text=capture['text'], chunks=chunk_text(capture['text']),
                     source_capture=capture,
-                    notes=['제품 설명과 포함된 세부정보를 확인했습니다.'] + ([f"확인 대상 이미지 {image_count}장 중 {read_count}장의 글자를 {engine_note}으로 읽었습니다. 읽지 못한 이미지의 내용은 결과에 포함되지 않습니다."] if ocr_images else ['이미지 속 글자는 읽지 않았습니다.']))
+                    notes=['제품 설명과 포함된 세부정보를 확인했습니다.'] + (image_notes if ocr_images else ['이미지 속 글자는 읽지 않았습니다.']))
 
 
 # ---------- 이미지 상세페이지 ----------
