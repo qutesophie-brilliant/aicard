@@ -1,0 +1,36 @@
+/* Service introduction: one page, with a summary and clearly grouped evidence. */
+.about-summary { margin: 28px 0 52px; padding: clamp(20px, 3vw, 36px); background: var(--navy-tint); border: 1px solid var(--line); border-radius: var(--r); }
+.about-summary h2 { max-width: 30em; font-size: clamp(1.4rem, 2.5vw, 1.8rem); line-height: 1.4; margin: 8px 0 14px; }
+.about-kicker { color: var(--navy); font-size: .9rem; font-weight: 700; margin: 0; }
+.about-summary-lead { color: var(--ink-2); line-height: 1.8; margin-bottom: 26px; }
+.about-summary, .about-evidence { word-break: keep-all; overflow-wrap: anywhere; }
+.about-summary [id], .about-evidence [id] { scroll-margin-top: 100px; }
+.about-summary h2[id], .about-evidence .about-section-heading h2[id] { scroll-margin-top: 140px; }
+.about-benefits { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 26px; }
+.about-benefits > div { min-width: 0; display: flex; flex-direction: column; border-top: 2px solid var(--navy); padding-top: 18px; }
+.about-benefits h3 { font-size: 1.08rem; line-height: 1.5; margin: 0 0 10px; }
+.about-benefits p { color: var(--ink-2); line-height: 1.8; margin: 0 0 14px; }
+.about-benefits a { align-self: flex-start; margin-top: auto; display: inline-flex; align-items: center; min-height: 44px; text-decoration: underline; text-underline-offset: 4px; font-weight: 600; }
+.about-result-note { margin: 26px 0 14px; padding-top: 22px; border-top: 1px solid var(--line-2); color: var(--ink-2); line-height: 1.8; }
+.about-result-note strong { display: block; margin-bottom: 6px; color: var(--ink); }
+.about-overview-detail { margin: 0; }
+.about-overview-detail summary { min-height: 44px; padding: 10px 0; cursor: pointer; }
+.about-overview-detail p { line-height: 1.85; color: var(--ink-2); }
+.about-evidence { max-width: var(--label-w); }
+.about-evidence .about-section { margin-top: 52px; }
+.about-evidence .about-section-heading { padding: 26px 0 18px; border-top: 2px solid var(--navy); border-bottom: 1px solid var(--line); margin-bottom: 30px; }
+.about-evidence .about-section-heading .about-kicker { color: var(--navy); margin: 0 0 8px; }
+.about-evidence .about-section-heading h2 { font-size: clamp(1.4rem, 2.5vw, 1.65rem); line-height: 1.45; margin: 0 0 12px; }
+.about-evidence .about-section-heading p:last-child { margin: 0; }
+.about-evidence h3 { font-size: 1.2rem; line-height: 1.5; margin: 38px 0 16px; }
+.about-evidence h4 { font-size: 1.05rem; line-height: 1.6; margin: 24px 0 12px; }
+.about-evidence .about-section > ul:not(.figures):not(.how) > li { margin-bottom: 14px; line-height: 1.85; }
+.about-summary a:focus-visible, .about-summary summary:focus-visible { outline: 3px solid var(--navy); outline-offset: 4px; }
+@media (max-width: 720px) {
+  .about-benefits { grid-template-columns: 1fr; gap: 24px; }
+  .about-summary { margin-top: 22px; padding: 22px 18px; }
+  .about-summary h2 { font-size: 1.4rem; }
+  .about-summary-lead { margin-bottom: 22px; }
+  .about-benefits a { margin-top: 0; }
+  .about-evidence .about-section { margin-top: 40px; }
+}
