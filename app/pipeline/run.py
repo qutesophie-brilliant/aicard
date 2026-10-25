@@ -99,7 +99,12 @@ def quick_check(name: str, url: str, sales_text: str, fine_text: str = "", use_l
                 re.sub(r"\s+", "", c["quote"]) in compact_name
                 and not extract.VERBISH.search(c["quote"]))]
         claims = extract.extract_claims(source_chunks) if use_llm else extract._rules_extract(source_chunks, 14, complete_quotes=True)
-        claims = link.link_claims(claims, index)
+        uploaded = bool(source_capture and source_capture.get('coverage', {}).get('scope') == 'uploaded_documents')
+        if uploaded:
+            from . import quick_diagrams
+            claims = quick_diagrams.link_within_units(claims, docs)
+        else:
+            claims = link.link_claims(claims, index)
         # Quick-check joins nearby fragments. Do not count a repeated slogan plus
         # table labels as an additional related explanation.
         for claim in claims:
@@ -115,6 +120,8 @@ def quick_check(name: str, url: str, sales_text: str, fine_text: str = "", use_l
             claim["evidence"] = _dedupe_quick_evidence(related, docs)
             if original and not claim["evidence"]:
                 claim.update(status="자료 부족", basis_state="없음", conditions_noted=False, conditions="")
+        if uploaded:
+            claims = quick_diagrams.connect(claims, docs)
         card["claims"] = claims
         with llm.rules_only():
             from . import quick_coverage

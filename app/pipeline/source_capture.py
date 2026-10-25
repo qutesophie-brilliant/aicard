@@ -91,8 +91,10 @@ def capture_product_html(html, url):
 
 def section_documents(capture, first_id):
     """Use separate source documents to prevent scope leaking across DOM blocks."""
-    return [{'id': first_id + s['section_id'], 'kind': '판매페이지',
+    return [{'id': first_id + s['section_id'], 'kind': s.get('kind', '판매페이지'),
              'title': s['feature_scope'] or '제품 설명', 'url': s['source_url'],
              'text': s['text'], 'chunks': s['chunks'],
              'feature_scope': s['feature_scope'], 'snapshot_sha256': s['snapshot_sha256'],
-             'section_id': s['section_id'], 'source_type': s.get('source_type','html'), 'ocr_engine': s.get('ocr_engine','')} for s in capture['sections'] if s['chunks']]
+             'section_id': s['section_id'], 'source_type': s.get('source_type','html'),
+             'upload_unit': s.get('upload_unit'), 'diagram_text': s.get('diagram_text', s['text']),
+             'ocr_engine': s.get('ocr_engine','')} for s in capture['sections'] if s['chunks']]
