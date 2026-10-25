@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}서비스 소개·카드 설계와 검증 | AI 정보카드{% endblock %}
 {% block desc %}소비자의 구매 전 정보 확인을 위해 선정한 항목과 카드 제작 과정을 설명합니다. AI 초안의 원문 검토, 개발 중 오류 수정, 독립 판정 대조와 사용성 시험 결과를 공개합니다.{% endblock %}
-{% block searchmeta %}<link rel="stylesheet" href="/static/about.css?v=20261026aligned">{% endblock %}
+{% block searchmeta %}<link rel="stylesheet" href="/static/about.css?v=20261026outcomes">{% endblock %}
 {% block content %}
 <section class="page-head">
   <h1>서비스 소개</h1>
@@ -86,7 +86,7 @@
 <header class="about-section-heading"><p class="about-kicker">검증 기록</p><h2 id="research-detail">조건 연결을 개선하고, 자동 판정과 정보 탐색을 점검했습니다</h2><p>개발 중 코드 개선, 라벨 대조, 소비자 사용성 시험을 각각 진행했습니다. 아래에서 성과를 살펴보고, 각 시험의 대상·기준과 세부 기록을 함께 확인할 수 있습니다.</p></header>
   <h3 id="development-check">개발자료로 확인한 조건 연결 개선</h3>
   <p>개발팀은 AI가 찾은 설명에 해당 기능의 조건이 정확히 연결되는지 점검하고, 조건 연결 코드를 보완했습니다. 수정 효과를 구분하기 위해 같은 문구·기준 답안·저장된 언어 모델 응답을 고정한 뒤 코드 수정 전후를 비교했습니다.</p>
-  <ul class="figures">
+  <ul class="figures development-figures">
     <li><b>70.8% → 95.8%</b><span>개발자료 48문구의 조건 표시 일치율입니다. 기준 답안과 일치한 문구가 34/48에서 46/48로 늘었습니다. 같은 개발자료에서 확인한 코드 개선 결과이며, 새로운 독립 표본이나 전체 공개 카드의 정확도와 구분합니다.</span></li>
   </ul>
 
