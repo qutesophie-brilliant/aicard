@@ -634,7 +634,7 @@ def _read_check_uploads(payloads: list[tuple[str, str, bytes]]) -> tuple[list[st
         notes: list[str] = []
         engines = {"llm": "AI 문자 인식", "tesseract": "서버 내 문자 인식", "windows_ocr": "Windows 문자 인식", "mixed": "AI·서버 문자 인식", "pdf": "PDF 텍스트 추출", "none": "글자 읽기 결과 미확인"}
         def keep(r):
-            texts.append(r.text)
+            texts.extend(r.texts)
             notes.extend(r.notes)
             notes.append("글자 읽기: " + engines.get(r.engine, "문자 인식"))
         for filename, ctype, data in payloads:
@@ -679,6 +679,7 @@ async def check_url(request: Request, url: str = Form(""), text: str = Form(""),
     text = text.strip()
     name = ""
     notes: list[str] = []
+    source_capture = None
 
     # 0) 이미 검토·공개된 제품이면 즉석 분석 대신 그 카드로 보낸다(사람이 확인한 카드가 더 정확하다)
     if url.startswith("http") and not text and not [f for f in (files or []) if f and f.filename]:
@@ -711,6 +712,8 @@ async def check_url(request: Request, url: str = Form(""), text: str = Form(""),
         except ValueError as e:
             return render(request, "check.html", base=base, bookmarklet=bm, url=url, q="", error=str(e))
         notes.extend(read_notes)
+        from .pipeline.quick_diagrams import capture_uploads
+        source_capture = capture_uploads(([text] if text else []) + read_texts, url)
         text = "\n".join([text] + read_texts).strip()
         if len(text) < 20:
             return render(request, "check.html", base=base, bookmarklet=bm, url=url, q="",
@@ -718,7 +721,6 @@ async def check_url(request: Request, url: str = Form(""), text: str = Form(""),
         name = (uploads[0].filename.rsplit(".", 1)[0] or "올린 자료")[:60]
         notes = [f"올린 파일 {len(uploads)}개를 확인 대상으로 받았습니다. 읽어 온 글자만 분석에 사용했습니다."] + list(dict.fromkeys(notes))
 
-    source_capture = None
     if text:
         sales, fine = split_fine_print(text)
         if not name:
