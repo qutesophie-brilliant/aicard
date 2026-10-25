@@ -8,7 +8,7 @@
 
 <section class="page-head">
   <h1>제품 비교</h1>
-  <p class="lede">두 제품을 선택하면 같은 다섯 질문에 대한 정보를 나란히 확인할 수 있습니다. 제조사의 공개자료에서 확인한 설명과 조건을 비교합니다.</p>
+  <p class="lede">같은 품목의 두 제품을 선택하면 AI 기능·사용 조건·권익 정보를 다섯 공통 질문별로 비교할 수 있습니다. 각 설명에 연결된 제조사 원문도 함께 확인할 수 있습니다.</p>
 </section>
 <section class="compare-filter" aria-label="비교할 제품 찾기">
   <label for="compare-category">품목 먼저 선택
@@ -49,7 +49,7 @@
 </script>
 {% if pair|length == 2 %}
 <section class="cmp-q compare-facts"><h2>비교 제품 기본 정보</h2><div class="pair">{% for row in pair %}<div><h3>{{ row.product.name }}</h3><dl><dt>품목</dt><dd>{{ row.product.category or '미확인' }}</dd><dt>제조사</dt><dd>{{ row.product.maker or '미확인' }}</dd><dt>모델명</dt><dd>{{ row.product.model or '미확인' }}</dd><dt>출시 시점</dt><dd>{% if row.release %}{{ row.release.date }} <a href="{{ row.release.url }}" target="_blank" rel="noopener">제조사 출시정보 원문</a><small style="display:block">{{ row.release.label }}: {{ row.release.quote }}</small>{% else %}확인된 출시 정보 없음{% endif %}</dd></dl></div>{% endfor %}</div><p class="meta">출시 시점은 제조사 근거가 확인된 경우에만 표시합니다. 카드 등록일과 자료 수집일은 제품 출시일이 아닙니다.</p></section>
-<p class="cmp-note">비교 대상은 제품의 성능이 아니라 공개자료에 제시된 정보입니다. ‘적혀 있지 않음’은 확인한 자료에서 설명을 찾지 못했다는 뜻이며, 기능의 부재를 의미하지 않습니다.</p>
+<p class="cmp-note">이 화면에서는 제조사 공개자료에 제시된 설명과 조건을 비교합니다. 제품의 성능을 직접 시험한 결과는 아닙니다. ‘적혀 있지 않음’은 확인한 자료에서 설명을 찾지 못했다는 뜻이며, 기능의 부재를 의미하지 않습니다.</p>
 <div class="cmp-labels">
   {% for row in pair %}{% with product=row.product, card=row.card, docs=row.docs, sum=row.sum, compact=True %}{% include "_label.html" %}{% endwith %}{% endfor %}
 </div>
