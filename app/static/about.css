@@ -1,5 +1,6 @@
 /* Service introduction: one page, with a summary and clearly grouped evidence. */
-.about-summary { margin: 28px 0 52px; padding: clamp(20px, 3vw, 36px); background: var(--navy-tint); border: 1px solid var(--line); border-radius: var(--r); }
+.about-toc { max-width: var(--label-w); }
+.about-summary { max-width: var(--label-w); margin: 28px 0 52px; padding: clamp(20px, 3vw, 28px); background: var(--navy-tint); border: 1px solid var(--line); border-radius: var(--r); }
 .about-summary h2 { max-width: 30em; font-size: clamp(1.4rem, 2.5vw, 1.8rem); line-height: 1.4; margin: 8px 0 14px; }
 .about-kicker { color: var(--navy); font-size: .9rem; font-weight: 700; margin: 0; }
 .about-summary-lead { color: var(--ink-2); line-height: 1.8; margin-bottom: 26px; }
