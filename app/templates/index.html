@@ -165,7 +165,7 @@
       </div>
     </div>
     <div class="catalog-identity-note">
-      <p id="catalog-identity-note">첫 화면에서는 회사명·제품명·모델명을 가렸습니다. 검색하거나 아래 버튼을 누르면 실제 명칭을 확인할 수 있습니다.</p>
+      <p id="catalog-identity-note">품목과 규격은 표시하고 회사명·고유 제품명·모델명만 가렸습니다. 검색하거나 아래 버튼을 누르면 실제 명칭을 확인할 수 있습니다.</p>
       <button class="btn primary" id="catalog-reveal" type="button" aria-pressed="false" aria-controls="grid catalog-brands">실제 제품명 보기</button>
     </div>
     {% if makers|length > 1 %}
@@ -177,8 +177,8 @@
     <div class="grid" id="grid" aria-live="polite">
       {% for row in cards %}
       <a class="mini rv" href="/card/{{ row.product.id }}" data-name="{{ row.product.name }} {{ row.product.maker }} {{ row.product.model }}" data-maker="{{ row.product.maker }}">
-        <p class="k"><span data-identity-text="{{ row.product.maker }}" data-masked-text="{{ row.product.category or '제품' }}">{{ row.product.category or '제품' }}</span><span data-identity-text="{{ row.product.model }}" data-masked-text="모델명 비표시">모델명 비표시</span></p>
-        <h3 data-identity-text="{{ row.product.name }}" data-masked-text="제품 {{ loop.index }}">제품 {{ loop.index }}</h3>
+        <p class="k"><span data-identity-text="{{ row.product.maker }}" data-masked-text="{{ row.product.category or '제품' }}">{{ row.product.category or '제품' }}</span><span data-identity-text="{{ row.product.model }}" data-masked-text="예시 {{ loop.index }}">예시 {{ loop.index }}</span></p>
+        <h3 data-identity-text="{{ row.product.name }}" data-masked-text="{{ row.display_label }}">{{ row.display_label }}</h3>
         {% if row.sum.n_claims %}
         {{ bar(row.card.claims, row.sum) }}
         <p class="m"><span>‘AI’ 문구 {{ row.sum.n_claims }}개 중 <b>{{ row.sum.linked }}개</b> 작동 설명 있음</span>{% if row.sum.counts['추가 확인 필요'] %}<span class="w"><i class="mark s4"></i>추가 확인 {{ row.sum.counts['추가 확인 필요'] }}</span>{% endif %}</p>

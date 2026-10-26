@@ -18,7 +18,7 @@ from fastapi.templating import Jinja2Templates
 from starlette.concurrency import run_in_threadpool
 
 from . import config, db
-from .display_mask import PUBLIC_TEMPLATES, mask_public_html
+from .display_mask import PUBLIC_TEMPLATES, mask_public_html, catalog_display_label
 from .pipeline import ingest, llm, ocr
 from .pipeline.run import build_card, quick_check, split_fine_print
 from .schema import (BASIS_HELP, BASIS_KINDS, BASIS_LABEL, BASIS_STATE_HELP, BASIS_STATES, CARD_ITEMS, COVERAGE_ITEMS,
@@ -300,6 +300,8 @@ def index(request: Request):
         c = db.get_card(p["id"])
         if c:
             cards.append({"product": p, "card": c, "sum": summarize(c)})
+    for row in cards:
+        row["display_label"] = catalog_display_label(row["product"])
     cards.sort(key=lambda r: (r["product"].get("is_sample", 0), r["product"]["name"]))
     # 첫 화면 보기: 표시와 설명이 어긋난 문구가 있는 카드를 우선 고른다(없으면 문구가 가장 많은 카드).
     example = None

@@ -78,3 +78,23 @@ def mask_public_html(html, products, *, context=None, fragment=False):
     if address:
         address.string = "제품 판매페이지"
     return str(soup)
+
+
+def catalog_display_label(product):
+    """Keep only generic category/specs explicitly present in the product name."""
+    category = str(product.get("category") or "제품").strip()
+    name = str(product.get("name") or "")
+    model = str(product.get("model") or "").strip()
+    if model:
+        name = name.replace(model, " ")
+    parts = []
+    if category in ("TV", "모니터"):
+        panel = re.search(r"(?<![A-Za-z])(?:OLED|QLED|Mini LED|Micro RGB|LED)(?![A-Za-z])", name, re.I)
+        if panel:
+            parts.append(panel.group(0))
+    parts.append(category)
+    title = " ".join(parts)
+    specs = re.findall(r"(?<![A-Za-z0-9])\d+(?:\.\d+)?(?:/\d+(?:\.\d+)?)*\s*(?:cm|kg|L|ℓ|㎡|인치)(?![A-Za-z0-9])", name, re.I)
+    if specs:
+        title += " · " + " / ".join(dict.fromkeys(re.sub(r"\s+", "", value) for value in specs))
+    return title
