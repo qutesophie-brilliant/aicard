@@ -48,7 +48,7 @@
 })();
 </script>
 {% if pair|length == 2 %}
-<section class="cmp-q compare-facts"><h2>비교 제품 기본 정보</h2><div class="pair">{% for row in pair %}<div><h3>{{ row.product.name }}</h3><dl><dt>품목</dt><dd>{{ row.product.category or '미확인' }}</dd><dt>제조사</dt><dd>{{ row.product.maker or '미확인' }}</dd><dt>모델명</dt><dd>{{ row.product.model or '미확인' }}</dd><dt>출시 시점</dt><dd>{% if row.release %}{{ row.release.date }} <a href="{{ row.release.url }}" target="_blank" rel="noopener">제조사 출시정보 원문</a><small style="display:block">{{ row.release.label }}: {{ row.release.quote }}</small>{% else %}확인된 출시 정보 없음{% endif %}</dd></dl></div>{% endfor %}</div><p class="meta">출시 시점은 제조사 근거가 확인된 경우에만 표시합니다. 카드 등록일과 자료 수집일은 제품 출시일이 아닙니다.</p></section>
+<section class="cmp-q compare-facts"><h2>비교 제품 기본 정보</h2><div class="pair">{% for row in pair %}<div><h3 data-display-product="{{ row.product.id }}">{{ row.product.name }}</h3><dl><dt>품목</dt><dd>{{ row.product.category or '미확인' }}</dd><dt>제조사</dt><dd>{{ row.product.maker or '미확인' }}</dd><dt>모델명</dt><dd>{{ row.product.model or '미확인' }}</dd><dt>출시 시점</dt><dd>{% if row.release %}{{ row.release.date }} <a href="{{ row.release.url }}" target="_blank" rel="noopener">제조사 출시정보 원문</a><small style="display:block">{{ row.release.label }}: {{ row.release.quote }}</small>{% else %}확인된 출시 정보 없음{% endif %}</dd></dl></div>{% endfor %}</div><p class="meta">출시 시점은 제조사 근거가 확인된 경우에만 표시합니다. 카드 등록일과 자료 수집일은 제품 출시일이 아닙니다.</p></section>
 <p class="cmp-note">이 화면에서는 제조사 공개자료에 제시된 설명과 조건을 비교합니다. 제품의 성능을 직접 시험한 결과는 아닙니다. ‘적혀 있지 않음’은 확인한 자료에서 설명을 찾지 못했다는 뜻이며, 기능의 부재를 의미하지 않습니다.</p>
 <div class="cmp-labels">
   {% for row in pair %}{% with product=row.product, card=row.card, docs=row.docs, sum=row.sum, compact=True %}{% include "_label.html" %}{% endwith %}{% endfor %}
@@ -60,7 +60,7 @@
   <div class="pair">
     {% for row in pair %}
     <div>
-      <p class="who">{{ row.product.name }}</p>
+      <p class="who" data-display-product="{{ row.product.id }}">{{ row.product.name }}</p>
       {% if row.sum.n_claims %}
       <ul class="claims">
         {% for c in row.card.claims %}{% set s = eff(c) %}
@@ -81,7 +81,7 @@
   <div class="pair">
     {% for row in pair %}
     <div>
-      <p class="who">{{ row.product.name }}</p>
+      <p class="who" data-display-product="{{ row.product.id }}">{{ row.product.name }}</p>
       {% for key in keys %}{% set it = row.card['items'][key] %}
       <div class="block"><h4>{% if keys|length > 1 %}{{ ITEM_SHORT[key] }} {% endif %}{{ chip(it.status, ITEM_STATE[it.status]) }}</h4><p class="{% if it.status == '자료 부족' %}none{% endif %}">{{ it.summary|haeyo }}</p>{{ evidence(it.evidence, row.docs) }}</div>
       {% endfor %}
@@ -96,7 +96,7 @@
   <div class="pair">
     {% for row in pair %}{% set pdb = row.card.public_db %}
     <div>
-      <p class="who">{{ row.product.name }}</p>
+      <p class="who" data-display-product="{{ row.product.id }}">{{ row.product.name }}</p>
       <ul class="pub">
         {% for key, label in [('rra', '전파 적합성평가'), ('kc', 'KC 안전인증'), ('energy', '에너지소비효율'), ('recall', '리콜·안전 점검')] %}{% set e = pdb[key] %}
         <li><b>{{ label }}</b><div>

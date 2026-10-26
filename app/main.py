@@ -18,6 +18,7 @@ from fastapi.templating import Jinja2Templates
 from starlette.concurrency import run_in_threadpool
 
 from . import config, db
+from .display_mask import PUBLIC_TEMPLATES, mask_public_html
 from .pipeline import ingest, llm, ocr
 from .pipeline.run import build_card, quick_check, split_fine_print
 from .schema import (BASIS_HELP, BASIS_KINDS, BASIS_LABEL, BASIS_STATE_HELP, BASIS_STATES, CARD_ITEMS, COVERAGE_ITEMS,
@@ -233,7 +234,14 @@ def render(request: Request, name: str, **ctx: Any) -> HTMLResponse:
     ctx.setdefault("request", request)
     ctx.setdefault("path", request.url.path)
     ctx.setdefault("is_reviewer", is_reviewer(request))
-    return templates.TemplateResponse(request, name, ctx)
+    response = templates.TemplateResponse(request, name, ctx)
+    if name in PUBLIC_TEMPLATES and not ctx.get("preview"):
+        response.body = mask_public_html(
+            response.body.decode("utf-8"), db.list_products("approved"),
+            context=ctx, fragment=name == "_check_body.html",
+        ).encode("utf-8")
+        response.headers["content-length"] = str(len(response.body))
+    return response
 
 
 def is_reviewer(request: Request) -> bool:
@@ -780,9 +788,8 @@ async def api_check(request: Request):
         card, docs = await run_in_threadpool(quick_check, name, url, data.get("sales_text", ""), data.get("fine_text", ""), use_llm=use_llm)
     except ValueError as e:
         raise HTTPException(400, str(e))
-    return templates.TemplateResponse(request, "_check_body.html",
-                                      {"card": card, "docs": docs, "pname": name, "url": url, "s": _check_summary(card),
-                                       "notes": [], "request": request, "is_reviewer": is_reviewer(request)})
+    return render(request, "_check_body.html", card=card, docs=docs, pname=name,
+                  url=url, s=_check_summary(card), notes=[])
 
 
 @app.post("/check/request")
