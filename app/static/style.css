@@ -893,3 +893,8 @@ body.menu-open .topbar{z-index:60;background:var(--paper)}
 .catalog-identity-note .btn{flex-shrink:0;min-height:48px}
 #catalog-brands[hidden]{display:none!important}
 @media(max-width:700px){.catalog-identity-note{flex-direction:column;align-items:stretch;padding:18px}.catalog-identity-note .btn{width:100%}}
+
+.catalog-total{display:flex;flex-wrap:wrap;align-items:baseline;gap:0 .3em}
+.catalog-total>span{white-space:nowrap}
+.catalog-breakdown{margin:12px 0 8px;line-height:1.7;color:var(--muted,#526678);word-break:keep-all;overflow-wrap:break-word}
+@media(max-width:600px){.catalog-total{flex-direction:column;gap:4px}.catalog-total .catalog-total-separator{display:none}}

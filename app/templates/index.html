@@ -154,7 +154,8 @@
     <div class="sec-head">
       <div>
         <p class="eyebrow">제품 카드</p>
-        <h2>{{ cat_line }}</h2>
+        <h2 class="catalog-total"><span>{{ hero.cats }}개 품목</span><span class="catalog-total-separator" aria-hidden="true">·</span><span>{{ hero.products }}개 제품 카드</span></h2>
+        <p class="catalog-breakdown">{{ cat_line }}</p>
         <p class="hint">검토자가 원문을 확인한 카드만 공개합니다. 막대 한 칸이 ‘AI’ 문구 하나를 뜻합니다.</p>
       </div>
       <div class="search">
