@@ -61,10 +61,21 @@ def mask_public_html(html, products, *, context=None, fragment=False):
     by_id = {str(p["id"]): p for p in products if p.get("id")}
     replacements = {}
     categories = {str(p.get("category") or "").strip() for p in products}
+    name_ids = {}
+    model_ids = {}
+    for p in products:
+        if p.get("id"):
+            name_ids.setdefault(str(p.get("name") or "").strip(), set()).add(int(p["id"]))
+            model_ids.setdefault(str(p.get("model") or "").strip(), set()).add(int(p["id"]))
     for p in products:
         for key, label in (("name", "[제품명]"), ("model", "[모델명]")):
             value = str(p.get(key) or "").strip()
             if len(value) >= 3 and value not in categories:
+                ids = (name_ids if key == "name" else model_ids).get(value, set())
+                if key == "name" and len(ids) == 1:
+                    label = product_alias(next(iter(ids)))
+                elif key == "model" and ids:
+                    label = f"모델 {min(ids):03d}"
                 replacements[value] = label
     pname = context.get("pname")
     if pname and len(str(pname).strip()) >= 3:

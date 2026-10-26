@@ -70,6 +70,11 @@ class DisplayMaskTests(unittest.TestCase):
         self.assertEqual(soup.p.text, '인덕션 (6)')
         self.assertEqual(soup.optgroup['label'], '의류관리기')
 
+    def test_conditions_keep_different_models_distinguishable(self):
+        html = '<main><p>VR90F01SAG는 지원하며 VR90F02SAG는 지원하지 않습니다. 6kg 이하입니다.</p></main>'
+        soup = BeautifulSoup(mask_public_html(html, self.products), 'html.parser')
+        self.assertEqual(soup.p.text, '모델 067는 지원하며 모델 068는 지원하지 않습니다. 6kg 이하입니다.')
+
 
 if __name__ == '__main__':
     unittest.main()
