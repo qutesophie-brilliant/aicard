@@ -898,3 +898,8 @@ body.menu-open .topbar{z-index:60;background:var(--paper)}
 .catalog-total>span{white-space:nowrap}
 .catalog-breakdown{margin:12px 0 8px;line-height:1.7;color:var(--muted,#526678);word-break:keep-all;overflow-wrap:break-word}
 @media(max-width:600px){.catalog-total{flex-direction:column;gap:4px}.catalog-total .catalog-total-separator{display:none}}
+
+/* A restrained emphasis on the catalog identity reveal action. */
+#catalog-reveal{font-weight:700;min-height:50px;padding:14px 20px;background:var(--navy-2);border-color:#355c91;box-shadow:0 0 0 3px #e0e8f4,0 4px 10px rgba(9,41,86,.12);justify-content:center}
+#catalog-reveal:hover{background:var(--navy);box-shadow:0 0 0 3px #d6e2f2,0 5px 12px rgba(9,41,86,.16)}
+#catalog-reveal:focus-visible{outline:3px solid var(--navy);outline-offset:5px}
