@@ -319,6 +319,16 @@ html[data-easy="on"] .claims q { font-weight: 500; }
 .shop .pop .lk { display: flex; justify-content: space-between; margin-top: 14px; font-size: .86rem; font-weight: 600; color: var(--navy-2); }
 .shop .pop .lk span:last-child { color: var(--ink-3); font-weight: 500; }
 .shop-cap { font-size: .82rem; color: var(--ink-3); margin-top: 14px; text-align: center; }
+.example-access { max-width: 1000px; margin: 20px auto 0; padding: 22px 24px; display: flex; align-items: center; gap: 20px 28px; background: var(--navy-soft); border: 1px solid var(--line-2); border-radius: 14px; }
+.example-access-copy { flex: 1; min-width: 0; }
+.example-access-title { font-size: 1.05rem; font-weight: 700; color: var(--navy); margin-bottom: 6px; }
+.example-access-copy #example-access-note { font-size: .94rem; color: var(--ink-2); line-height: 1.65; }
+.example-access .example-access-button { flex-shrink: 0; min-height: 52px; padding: 14px 20px; gap: 14px; font-size: 1rem; white-space: nowrap; box-shadow: 0 4px 12px rgba(9, 41, 86, .12); }
+.example-access-button:focus-visible { outline: 3px solid var(--navy); outline-offset: 4px; }
+@media (max-width: 700px) {
+  .example-access { flex-direction: column; align-items: stretch; padding: 20px; gap: 16px; }
+  .example-access .example-access-button { width: 100%; justify-content: center; white-space: normal; text-align: center; }
+}
 .makers { padding: 64px 0 0; max-width: none; overflow: hidden; -webkit-mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent); mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent); }
 .makers-track { display: flex; gap: 10px; width: max-content; }
 .makers span { flex: none; border: 1px solid var(--line); border-radius: 999px; padding: 10px 20px; font-size: .95rem; font-weight: 600; color: var(--ink-2); background: var(--paper); }

@@ -77,7 +77,4 @@ def mask_public_html(html, products, *, context=None, fragment=False):
     address = example.select_one(".bar .url")
     if address:
         address.string = "제품 판매페이지"
-    caption = soup.select_one(".shop-cap")
-    if caption:
-        caption.append(" 이 예시의 회사명·제품명·모델명만 가렸습니다. 검색·비교에서는 실제 명칭을 확인할 수 있습니다.")
     return str(soup)
