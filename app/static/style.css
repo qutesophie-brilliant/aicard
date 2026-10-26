@@ -886,3 +886,10 @@ body.menu-open .topbar{z-index:60;background:var(--paper)}
 /* The source action remains easy to tap alongside its excerpt on mobile. */
 .quick blockquote cite { display: flex; align-items: center; flex-wrap: wrap; gap: 4px; }
 .quick blockquote cite a { display: inline-flex; align-items: center; min-height: 44px; padding: 4px; }
+
+/* Homepage identities are revealed only by an explicit action or a search. */
+.catalog-identity-note{display:flex;align-items:center;justify-content:space-between;gap:20px;padding:18px 22px;margin:12px 0 24px;border:1px solid #d6e1e8;border-radius:14px;background:#f2f6f8}
+.catalog-identity-note p{margin:0;line-height:1.7;word-break:keep-all;overflow-wrap:break-word}
+.catalog-identity-note .btn{flex-shrink:0;min-height:48px}
+#catalog-brands[hidden]{display:none!important}
+@media(max-width:700px){.catalog-identity-note{flex-direction:column;align-items:stretch;padding:18px}.catalog-identity-note .btn{width:100%}}

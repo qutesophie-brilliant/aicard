@@ -64,8 +64,35 @@
   // 제품 찾기: 이름·브랜드·모델명으로 거른다
   const q = document.getElementById('q');
   const grid = document.getElementById('grid');
+  const catalog = document.querySelector('#find[data-identities]');
+  const reveal = document.getElementById('catalog-reveal');
+  const brands = document.getElementById('catalog-brands');
+  let namesRequested = false;
+  function syncIdentities() {
+    if (!catalog) return;
+    const searching = Boolean(q && q.value.trim());
+    const visible = namesRequested || searching;
+    catalog.dataset.identities = visible ? 'visible' : 'masked';
+    catalog.querySelectorAll('[data-identity-text]').forEach(el => {
+      el.textContent = visible ? el.dataset.identityText : el.dataset.maskedText;
+    });
+    if (brands) brands.hidden = !visible;
+    if (reveal) {
+      reveal.setAttribute('aria-pressed', String(visible));
+      reveal.textContent = visible ? '제품명 다시 가리기' : '실제 제품명 보기';
+    }
+  }
+  if (reveal) reveal.addEventListener('click', () => {
+    namesRequested = catalog.dataset.identities !== 'visible';
+    if (!namesRequested) {
+      if (q) q.value = '';
+      if (brands) brands.querySelectorAll('[data-maker]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.maker === '')));
+    }
+    filter();
+  });
   function filter() {
     if (!grid) return;
+    syncIdentities();
     const text = (q ? q.value : '').trim().toLowerCase().replace(/\s+/g, '');
     const pressed = document.querySelector('[data-maker][aria-pressed="true"]');
     const maker = pressed ? pressed.dataset.maker : '';
@@ -81,6 +108,7 @@
     const nl = document.getElementById('noresult-link'); if (nl) nl.href = '/check' + (q && q.value.trim() ? '?q=' + encodeURIComponent(q.value.trim()) : '');
   }
   if (q) { q.addEventListener('input', filter); }
+  if (catalog) { filter(); window.addEventListener('pageshow', filter); }
 
   // 바로 확인: 캡처 끌어다 놓기·붙여넣기
   const drop = document.getElementById('drop'), fin = document.getElementById('files'), dl = document.getElementById('droplist');
