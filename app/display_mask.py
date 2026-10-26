@@ -110,7 +110,7 @@ def mask_public_html(html, products, *, context=None, fragment=False):
         if rx:
             value = rx.sub(lambda m: lookup[re.sub(r"\s+", " ", m[0]).casefold()], value)
         # Related-model references and public certification identifiers in quotations.
-        value = re.sub(r"(?<![\w])(?:R-[RC]-[A-Za-z0-9*-]+|[A-Z]{2,}\d[A-Z0-9*_-]{3,})(?![\w])", "[모델·인증번호]", value)
+        value = re.sub(r"(?<![A-Za-z0-9])(?:R-[RC]-[A-Za-z0-9*-]+|(?!ISO|IEC|IEEE)[A-Z]{2,}\d[A-Z0-9*_-]{2,})(?![A-Za-z0-9])", "[모델·인증번호]", value)
         return value
 
     soup = BeautifulSoup(html, "html.parser")

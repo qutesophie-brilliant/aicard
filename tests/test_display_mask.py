@@ -75,6 +75,10 @@ class DisplayMaskTests(unittest.TestCase):
         soup = BeautifulSoup(mask_public_html(html, self.products), 'html.parser')
         self.assertEqual(soup.p.text, '모델 067는 지원하며 모델 068는 지원하지 않습니다. 6kg 이하입니다.')
 
+    def test_short_related_model_with_korean_particle_is_masked(self):
+        soup = BeautifulSoup(mask_public_html('<main><p>VR90F01로 조회, VR90F 모델. ISO24495-1, 6kg 이하.</p></main>', self.products), 'html.parser')
+        self.assertEqual(soup.p.text, '[모델·인증번호]로 조회, [모델·인증번호] 모델. ISO24495-1, 6kg 이하.')
+
 
 if __name__ == '__main__':
     unittest.main()
