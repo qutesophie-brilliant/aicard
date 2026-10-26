@@ -58,7 +58,7 @@
       <div class="page">
         <div class="img" aria-hidden="true"><svg viewBox="0 0 48 48"><circle cx="24" cy="26" r="15"/><circle cx="24" cy="26" r="5"/><path d="M9 24h-4M43 24h-4M24 9v2"/></svg></div>
         <div>
-          <h3 data-display-product="{{ example.product.id }}">{{ example.product.name }}</h3>
+          <h3>{{ example.product.name }}</h3>
           <p class="maker">{{ example.product.maker }} 판매페이지에 적힌 문구</p>
           <ul class="cp">
             {% for c in example.claims %}{% set s = eff(c) %}<li>{{ tag(s) }}<span><mark>{{ c.text|truncate(60) }}</mark></span></li>{% endfor %}

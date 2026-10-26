@@ -876,8 +876,3 @@ body.menu-open .topbar{z-index:60;background:var(--paper)}
 /* The source action remains easy to tap alongside its excerpt on mobile. */
 .quick blockquote cite { display: flex; align-items: center; flex-wrap: wrap; gap: 4px; }
 .quick blockquote cite a { display: inline-flex; align-items: center; min-height: 44px; padding: 4px; }
-/* Display masking keeps aliases readable without changing the original evidence. */
-.identity-notice{display:flex;align-items:baseline;gap:.5rem 1rem;flex-wrap:wrap;max-width:1120px;margin:1rem auto;padding:.8rem 1rem;background:#edf4fa;border:1px solid #d3e1ed;border-radius:10px;color:#244463;font-size:.875rem;line-height:1.65;box-sizing:border-box;word-break:keep-all;overflow-wrap:break-word}
-.identity-notice strong{flex:0 0 auto;color:#163e69}
-.identity-notice span{flex:1 1 400px;min-width:0}
-@media(max-width:600px){.identity-notice{margin:1rem auto;padding:.75rem;gap:.25rem}.identity-notice span{flex-basis:100%}}
