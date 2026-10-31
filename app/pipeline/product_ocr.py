@@ -19,9 +19,26 @@ _LOG = logging.getLogger('uvicorn.error')
 
 def _provider_failure(exc):
     """Return only allowlisted diagnostics, never exception response content."""
+    import httpx
     if isinstance(exc, TimeoutError) or 'timeout' in type(exc).__name__.lower():
         return 'timeout'
+    if isinstance(exc, (httpx.NetworkError, httpx.ProtocolError, httpx.ProxyError)):
+        return 'provider_network'
+    if isinstance(exc, (httpx.InvalidURL, httpx.UnsupportedProtocol)):
+        return 'provider_configuration'
     if isinstance(exc, llm.LLMError):
+        known = {
+            'OCR provider invalid JSON': 'provider_invalid_json',
+            'OCR provider invalid response': 'provider_invalid_response',
+            'OCR provider empty response': 'provider_empty_response',
+            'OCR provider output limit': 'provider_output_limit',
+            'OCR provider blocked response': 'provider_blocked_response',
+            'OCR provider not configured': 'provider_configuration',
+            'OCR request budget exhausted': 'request_budget',
+            'OCR time budget exhausted': 'time_budget',
+        }
+        if str(exc) in known:
+            return known[str(exc)]
         match = re.fullmatch(r'OCR provider HTTP (400|401|403|404|429|5\d\d)', str(exc))
         if match:
             code = match.group(1)
@@ -39,6 +56,15 @@ def provider_failure_notes(rows):
         'provider_http_400': 'AI 문자 인식 서비스가 이번 요청을 처리하지 못했습니다.',
         'provider_http_404': 'AI 문자 인식 서비스 연결을 확인해야 해 이번 요청을 처리하지 못했습니다.',
         'provider_http_5xx': 'AI 문자 인식 서비스의 일시적인 오류로 일부 이미지의 AI 읽기 결과를 받지 못했습니다.',
+        'provider_network': 'AI 문자 인식 서비스와 통신하는 중 오류가 발생해 일부 결과를 받지 못했습니다.',
+        'provider_invalid_json': 'AI 문자 인식 응답의 형식이 올바르지 않아 해당 응답을 사용하지 않았습니다.',
+        'provider_invalid_response': 'AI 문자 인식 응답에 필요한 정보가 올바르게 담기지 않아 해당 응답을 사용하지 않았습니다.',
+        'provider_empty_response': 'AI 문자 인식 서비스에서 읽기 결과를 반환하지 않았습니다.',
+        'provider_output_limit': 'AI 문자 인식 응답이 길이 제한으로 중간에 끝나 해당 응답을 사용하지 않았습니다.',
+        'provider_blocked_response': 'AI 문자 인식 서비스가 해당 이미지의 읽기 응답을 제한했습니다.',
+        'provider_configuration': 'AI 문자 인식 서비스의 연결 설정을 확인해야 해 결과를 받지 못했습니다.',
+        'request_budget': '설정된 AI 문자 인식 호출 한도에 도달해 추가 요청을 보내지 않았습니다.',
+        'time_budget': '설정된 AI 문자 인식 대기 시간이 지나 추가 요청을 보내지 않았습니다.',
         'provider_error': '일부 이미지의 AI 문자 인식 결과를 정상적으로 받지 못했습니다.',
     }
     reasons = set()
@@ -181,6 +207,7 @@ def _read_images(images, allow_llm=True, local_timeout_seconds=None, recover_unc
             except Exception as exc:
                 row['provider_failure'] = _provider_failure(exc)
                 row['status'] = 'timeout' if row['provider_failure'] == 'timeout' else 'provider_error'
+                _LOG.warning('Consumer OCR recovery failed: category=%s type=%s', row['provider_failure'], type(exc).__name__)
         if recover_unconfirmed:
             # Do not regenerate good text or add further paid calls. At most
             # two unresolved images get local recovery within the same budget.

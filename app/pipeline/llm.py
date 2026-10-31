@@ -38,7 +38,9 @@ def _request_timeout(default):
     if budget is None:
         return default
     remaining = budget['deadline'] - time.monotonic()
-    if budget['requests'] <= 0 or remaining <= 0:
+    if remaining <= 0:
+        raise LLMError('OCR time budget exhausted')
+    if budget['requests'] <= 0:
         raise LLMError('OCR request budget exhausted')
     budget['requests'] -= 1
     return min(default, remaining)
@@ -199,9 +201,36 @@ def _gemini_call(prompt: str, images: list[bytes] | None, max_tokens: int) -> st
             if r.status_code == 200:
                 _gemini_ok = (ep, model)
                 data = r.json()
+                if _ocr_budget.get() is not None and not isinstance(data, dict):
+                    raise LLMError('OCR provider invalid response')
                 cands = data.get("candidates") or []
                 if not cands:
+                    if _ocr_budget.get() is not None:
+                        feedback = data.get('promptFeedback')
+                        if isinstance(feedback, dict) and feedback.get('blockReason'):
+                            raise LLMError('OCR provider blocked response')
+                        raise LLMError('OCR provider empty response')
                     raise LLMError(f"Gemini 응답이 비었습니다: {str(data)[:300]}")
+                if _ocr_budget.get() is not None:
+                    if not isinstance(cands, list) or not isinstance(cands[0], dict):
+                        raise LLMError('OCR provider invalid response')
+                    candidate = cands[0]
+                    if candidate.get('finishReason') == 'MAX_TOKENS':
+                        raise LLMError('OCR provider output limit')
+                    if candidate.get('finishReason') in ('SAFETY', 'RECITATION', 'BLOCKLIST', 'PROHIBITED_CONTENT', 'SPII', 'IMAGE_SAFETY'):
+                        raise LLMError('OCR provider blocked response')
+                    content = candidate.get('content')
+                    if not isinstance(content, dict):
+                        raise LLMError('OCR provider empty response' if content is None else 'OCR provider invalid response')
+                    response_parts = content.get('parts')
+                    if not isinstance(response_parts, list) or any(not isinstance(part, dict) for part in response_parts):
+                        raise LLMError('OCR provider invalid response')
+                    texts = [part.get('text') for part in response_parts if 'text' in part and not part.get('thought')]
+                    if any(not isinstance(text, str) for text in texts):
+                        raise LLMError('OCR provider invalid response')
+                    if not texts or not ''.join(texts).strip():
+                        raise LLMError('OCR provider empty response')
+                    return ''.join(texts)
                 return "".join(p.get("text", "") for p in cands[0].get("content", {}).get("parts", []))
             msg = ""
             try:
@@ -220,6 +249,8 @@ def _gemini_call(prompt: str, images: list[bytes] | None, max_tokens: int) -> st
             if r.status_code in (403, 404):
                 _gemini_dead.add((ep, model))
             break
+    if _ocr_budget.get() is not None:
+        raise LLMError('OCR provider not configured')
     raise LLMError("Gemini 호출 실패 — " + " | ".join(errors[-6:]))
 
 
@@ -243,6 +274,8 @@ def ask_json(prompt: str, images: list[bytes] | None = None, max_tokens: int = 4
     elif p == "openai":
         call = _openai_call
     else:
+        if _ocr_budget.get() is not None:
+            raise LLMError('OCR provider not configured')
         raise LLMError("LLM 키가 없습니다. GEMINI_API_KEY, ANTHROPIC_API_KEY, OPENAI_API_KEY 중 하나를 설정하거나 "
                        "LLM_PROVIDER=rules 데모 모드를 사용하세요.")
     last_err: Exception | None = None
@@ -251,6 +284,10 @@ def ask_json(prompt: str, images: list[bytes] | None = None, max_tokens: int = 4
             raw = call(prompt, images, max_tokens)
             return _extract_json(raw)
         except json.JSONDecodeError as e:
+            if _ocr_budget.get() is not None:
+                # A completed malformed response cannot be retried within the
+                # single-request OCR budget; preserve its actual failure class.
+                raise LLMError('OCR provider invalid JSON') from e
             last_err = e
             prompt = prompt + "\n\n(이전 응답이 올바른 JSON이 아니었습니다. JSON만 다시 출력하세요.)"
         except Exception as e:  # SDK 오류는 그대로 올린다
