@@ -16,7 +16,7 @@
   <label for="compare-category">품목 먼저 선택
     <select id="compare-category"><option value="">전체 품목</option>{% for category, products in approved|groupby('category') %}<option value="{{ category }}">{{ category or '기타' }} ({{ products|length }})</option>{% endfor %}</select>
   </label>
-  <label for="compare-search">제품명·제조사·모델명 검색<input id="compare-search" type="search" placeholder="예: 세탁기 모델명" autocomplete="off"></label>
+  <label for="compare-search">제품명·제조사·모델명 검색<input id="compare-search" type="search" placeholder="예: 제품명 또는 모델명" autocomplete="off"></label>
   <p id="compare-count" role="status" aria-live="polite">품목이나 검색어로 제품 목록을 좁힐 수 있습니다.</p>
 </div>
 <form class="pick" method="get" action="/compare#compare-basic">

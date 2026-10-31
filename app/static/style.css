@@ -134,7 +134,7 @@ body.menu-open .top { position: relative; z-index: 60; }
 
 /* ---- 버튼 ---- */
 .btn {
-  font-size: .95rem; font-weight: 600; cursor: pointer; line-height: 1;
+  font-size: .95rem; font-weight: 600; cursor: pointer; line-height: 1; min-height: 44px;
   background: var(--paper); color: var(--ink); border: 1px solid var(--line-2);
   padding: 12px 16px; border-radius: var(--r-s); display: inline-flex; align-items: center; gap: 8px; white-space: nowrap;
 }
