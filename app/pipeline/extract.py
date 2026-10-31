@@ -96,6 +96,8 @@ def extract_claims(source_chunks: list[dict[str, Any]], max_claims: int = 14) ->
             idx_map.setdefault(c["chunk"], c)
         out = []
         for i, row in enumerate(data if isinstance(data, list) else [], 1):
+            if not isinstance(row, dict) or not isinstance(row.get("text"), str):
+                continue
             try:
                 src = idx_map.get(int(row.get("chunk", -1)))
             except (TypeError, ValueError):
@@ -139,7 +141,8 @@ def _verify(claims: list[dict[str, Any]]) -> list[dict[str, Any]]:
         data = llm.ask_json(VERIFY_PROMPT.format(body=body), max_tokens=800)
     except llm.LLMError:
         return claims
-    drop = set(data.get("drop") or []) if isinstance(data, dict) else set()
+    drop_values = data.get("drop") if isinstance(data, dict) else None
+    drop = {value for value in drop_values if isinstance(value, str)} if isinstance(drop_values, list) else set()
     kept = [c for c in claims if c["id"] not in drop]
     if len(kept) < max(1, len(claims) // 2):  # 절반 넘게 지우자고 하면 믿지 않는다
         return claims

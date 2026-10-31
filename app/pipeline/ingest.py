@@ -112,10 +112,8 @@ def from_image(title: str, data: bytes) -> Ingested:
 
 
 def _fetch(url: str) -> httpx.Response:
-    with httpx.Client(follow_redirects=True, timeout=25, headers={"User-Agent": UA}) as c:
-        r = c.get(url)
-        r.raise_for_status()
-        return r
+    from ..network_safety import fetch_public
+    return fetch_public(url, headers={"User-Agent": UA})
 
 
 def from_url(url: str, ocr_images: bool = True, product_only: bool = False) -> Ingested:

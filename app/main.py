@@ -19,6 +19,7 @@ from starlette.concurrency import run_in_threadpool
 
 from . import config, db
 from .upload_safety import check_upload
+from .network_safety import PublicURLRejected
 from .display_mask import PUBLIC_TEMPLATES, mask_public_html, catalog_display_label
 from .pipeline import ingest, llm, ocr
 from .pipeline.run import build_card, quick_check, split_fine_print
@@ -744,6 +745,9 @@ async def check_url(request: Request, url: str = Form(""), text: str = Form(""),
             ing = await run_in_threadpool(_read_check_url, url)
         except ingest.product_page.ProductBodyUnavailable as e:
             return render(request, "check.html", base=base, bookmarklet=bm, url=url, q="", error=str(e), upload_fallback=True)
+        except PublicURLRejected as e:
+            return render(request, "check.html", base=base, bookmarklet=bm, url=url, q="",
+                          error=str(e), upload_fallback=True)
         except httpx.HTTPStatusError as e:
             blocked = e.response.status_code in (401, 403)
             message = ("판매사이트가 자동 접속을 거부해 이 링크로는 검색할 수 없습니다. 상세페이지 캡처 이미지나 PDF를 올려 주세요."

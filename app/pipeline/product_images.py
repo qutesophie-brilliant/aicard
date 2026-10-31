@@ -26,19 +26,11 @@ def capture_images(html, url, capture, fetch_bytes=None, reader=None, limit=6):
     duplicates = {src for _,src in candidates if re.search(r'/MO_',src,re.I)
                   and re.sub(r'/MO_', '/PC_', src, flags=re.I) in sources}
     candidates = [(score,src) for score,src in candidates if src not in duplicates]
-    def download(src, redirects=0):
-        with httpx.stream('GET',src,timeout=15,follow_redirects=False) as r:
-            if r.is_redirect:
-                target=urljoin(src,r.headers.get('location',''))
-                if redirects>=2 or urlsplit(target).hostname not in (urlsplit(url).hostname,'images.samsung.com','static.lge.co.kr') or not target.startswith('https://'):
-                    raise ValueError('Unsupported image redirect')
-                return download(target,redirects+1)
-            r.raise_for_status(); data=bytearray()
-            if not r.headers.get('content-type','').startswith('image/'): raise ValueError('Not an image')
-            for block in r.iter_bytes():
-                data.extend(block)
-                if len(data)>8*1024*1024: raise ValueError('Image exceeds 8 MB')
-            return bytes(data)
+    def download(src):
+        from ..network_safety import fetch_public
+        return fetch_public(src, timeout=15, max_bytes=8*1024*1024,
+                            max_redirects=2, image_only=True, https_only=True,
+                            allowed_hosts={urlsplit(url).hostname,'images.samsung.com','static.lge.co.kr'}).content
     fetch_bytes=fetch_bytes or download
     audit=[]; payloads=[]; loaded=[]; total_bytes=0
     for index,(_,src) in enumerate(candidates):
