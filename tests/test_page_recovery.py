@@ -28,6 +28,16 @@ class PageRecoveryTests(unittest.TestCase):
         with self.assertRaises(product_page.ProductBodyUnavailable):
             page_recovery.acquire('<div id="app"></div>', URL, Mock(), renderer)
 
+    def test_failed_frame_triggers_recovery_without_discarding_existing_copy(self):
+        html=BODY.replace('</div>','<iframe src="/detail"></iframe></div>')
+        renderer=Mock(side_effect=product_page.ProductBodyUnavailable('blocked'))
+        fetch=Mock(side_effect=network_safety.PublicURLRejected('blocked'))
+        result,_,docs,stages=page_recovery.acquire(html,URL,fetch,renderer)
+        renderer.assert_called_once()
+        self.assertIn('6kg',result)
+        self.assertEqual('unavailable',stages[-1]['status'])
+        self.assertEqual('unavailable',docs[0]['status'])
+
     def test_login_and_challenge_are_not_retried(self):
         for title in ('NAVER 로그인', 'Just a moment', 'Access Denied'):
             renderer = Mock()

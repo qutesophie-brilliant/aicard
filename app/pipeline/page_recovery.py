@@ -36,22 +36,33 @@ def acquire(html, url, fetch, renderer=None):
         raise product_page.ProductBodyUnavailable('판매사이트가 로그인·접근 제한 또는 상품 없음 화면을 보내 왔습니다. 공개된 상품 상세주소인지 확인해 주세요.')
     prepared, documents = product_documents.prepare(html, url, lambda u: fetch_retry(u, fetch))
     stages = [{'stage': 'html_and_linked_description', 'status': 'read'}]
+    have_body = False
     try:
         product_page.product_body(prepared, url)
-        return prepared, url, documents, stages
+        have_body = True
+        if not any(d['status'] == 'unavailable' for d in documents):
+            return prepared, url, documents, stages
+        stages[0]['status'] = 'partial'
     except product_page.ProductBodyUnavailable:
         stages[0]['status'] = 'insufficient'
     if renderer is None:
         from .rendered_page import render
         renderer = render
-    rendered = renderer(url)
-    final_url = rendered['url']
-    if access_problem(rendered['html'], final_url):
-        raise product_page.ProductBodyUnavailable('판매사이트가 자동 수집에 로그인·접근 확인을 요구해 상품 설명을 받지 못했습니다.')
-    prepared, extra = product_documents.prepare(rendered['html'], final_url, lambda u: fetch_retry(u, fetch))
-    # A blank browser shell is NOT a successful negative AI finding.
-    product_page.product_body(prepared, final_url)
-    documents.extend(extra)
+    try:
+        rendered = renderer(url)
+        final_url = rendered['url']
+        if access_problem(rendered['html'], final_url):
+            raise product_page.ProductBodyUnavailable('판매사이트가 자동 수집에 로그인·접근 확인을 요구해 상품 설명을 받지 못했습니다.')
+        recovered, extra = product_documents.prepare(rendered['html'], final_url, lambda u: fetch_retry(u, fetch))
+        # A blank browser shell is NOT a successful negative AI finding.
+        product_page.product_body(recovered, final_url)
+    except product_page.ProductBodyUnavailable:
+        if not have_body:
+            raise
+        stages.append({'stage':'browser_render', 'status':'unavailable'})
+        return prepared, url, documents, stages
+    prepared = recovered
+    documents = extra
     stages.append({'stage': 'browser_render', 'status': 'read',
                    'requests': rendered.get('requests', 0),
                    'blocked_requests': rendered.get('blocked_requests', 0)})

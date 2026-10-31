@@ -212,7 +212,7 @@ def from_url(url: str, ocr_images: bool = True, product_only: bool = False) -> I
         result = from_product_html(html, source_url, ocr_images=ocr_images)
         result.source_capture['documents'] = documents
         result.source_capture['acquisition'] = stages
-        if any(s['stage'] == 'browser_render' for s in stages):
+        if any(s['stage'] == 'browser_render' and s['status'] == 'read' for s in stages):
             result.notes.insert(0, '페이지가 불러오는 상품 설명을 자동으로 연 뒤 확인했습니다.')
         if documents:
             result.notes.append(f"별도로 연결된 상품 설명 {len(documents)}개 중 {sum(d['status'] == 'read' for d in documents)}개를 가져왔습니다.")
