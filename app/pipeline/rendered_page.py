@@ -85,7 +85,9 @@ def run_browser(url, fetch=None):
     import asyncio
     from playwright.async_api import async_playwright
     from ..network_safety import fetch_public
-    from .ingest import UA
+    # Do not import ingest/config here: config can load a local .env file.
+    UA = ('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
+          '(KHTML, like Gecko) Chrome/124.0 Safari/537.36')
     fetch = fetch or fetch_public
 
     async def work():
