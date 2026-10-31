@@ -19,7 +19,7 @@ from pathlib import Path
 from .product_page import ProductBodyUnavailable
 
 MAX_SECONDS = 38
-MAX_REQUESTS = 90
+MAX_REQUESTS = 128
 MAX_BYTES = 24 * 1024 * 1024
 
 
@@ -110,8 +110,13 @@ def run_browser(url, fetch=None):
                 async def intercept(route):
                     nonlocal count, blocked, total
                     request = route.request
+                    from urllib.parse import urlsplit
+                    host = (urlsplit(request.url).hostname or '').lower()
+                    tracking = any(host == domain or host.endswith('.'+domain) for domain in (
+                        'google-analytics.com','googletagmanager.com','doubleclick.net',
+                        'googlesyndication.com','facebook.net','criteo.com','adnxs.com'))
                     if (request.method != 'GET' or request.resource_type in ('image', 'media', 'font')
-                        or count >= MAX_REQUESTS or total >= MAX_BYTES or time.monotonic() >= deadline):
+                        or tracking or count >= MAX_REQUESTS or total >= MAX_BYTES or time.monotonic() >= deadline):
                         blocked += 1
                         await route.abort()
                         return
@@ -150,6 +155,12 @@ def run_browser(url, fetch=None):
                 for step in range(6):
                     if time.monotonic() >= deadline: break
                     await page.evaluate('''([selector, step]) => {
+                        if (step === 0 || step === 3) {
+                            const labels = /^(상품상세|상품상세정보|상품정보|상세정보|제품정보|상세설명|상품상세보기|상세정보더보기|상세설명펼치기|상품정보더보기)$/;
+                            Array.from(document.querySelectorAll('button,[role="tab"],a[href^="#"]'))
+                                .filter(el => !el.hasAttribute('data-aicard-opened') && labels.test((el.textContent || '').replace(/\\s+/g,'')) && el.getClientRects().length)
+                                .slice(0, 2).forEach(el => { el.setAttribute('data-aicard-opened','1'); el.click(); });
+                        }
                         const nodes = Array.from(document.querySelectorAll(selector));
                         const target = nodes.find(n => n.tagName !== 'IFRAME');
                         if (target && step === 0) target.scrollIntoView();

@@ -48,5 +48,17 @@ class RendererIntegrationTests(unittest.TestCase):
         self.assertIn('6kg',capture['text'])
         self.assertEqual('https://seller.example/description',capture['sections'][0]['source_url'])
 
+    def test_opens_description_once_without_clicking_purchase(self):
+        html='''<html><body><button onclick="document.querySelector('#productDescription').innerHTML=document.querySelector('#productDescription').innerHTML?'':'AI가 온도와 사용 패턴을 분석하여 냉각을 조절합니다. 문을 닫은 상태에서 작동합니다.'">상품 상세정보</button>
+        <button onclick="document.body.innerHTML='PURCHASE_CLICKED'">구매하기</button>
+        <div id="productDescription"></div></body></html>'''
+        def fetch(url,**kw):
+            return httpx.Response(200,text=html,headers={'content-type':'text/html; charset=utf-8'},request=httpx.Request('GET',url))
+        result=rendered_page.run_browser('https://seller.example/product/42',fetch)
+        text=product_page.product_text(product_page.product_body(result['html'],result['url']))
+        self.assertIn('냉각',text)
+        from bs4 import BeautifulSoup
+        self.assertNotIn('PURCHASE_CLICKED',BeautifulSoup(result['html'],'html.parser').get_text())
+
 
 if __name__=='__main__': unittest.main()
