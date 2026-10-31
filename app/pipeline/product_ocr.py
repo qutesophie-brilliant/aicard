@@ -3,14 +3,51 @@ import time
 import contextvars
 import threading
 import logging
+import re
 from concurrent.futures import ThreadPoolExecutor
 from . import llm, ocr
 
 MAX_RECOVERIES = 1
 TOTAL_OCR_SECONDS = 42
+LONG_OCR_SECONDS = 75
+INITIAL_OCR_SECONDS = 28
+LONG_INITIAL_OCR_SECONDS = 50
 BATCH_IMAGES = 4
 _LOCAL_OCR_SLOT = threading.BoundedSemaphore(1)
 _LOG = logging.getLogger('uvicorn.error')
+
+
+def _provider_failure(exc):
+    """Return only allowlisted diagnostics, never exception response content."""
+    if isinstance(exc, TimeoutError) or 'timeout' in type(exc).__name__.lower():
+        return 'timeout'
+    if isinstance(exc, llm.LLMError):
+        match = re.fullmatch(r'OCR provider HTTP (400|401|403|404|429|5\d\d)', str(exc))
+        if match:
+            code = match.group(1)
+            return 'provider_http_' + ('5xx' if code.startswith('5') else code)
+    return 'provider_error'
+
+
+def provider_failure_notes(rows):
+    """Safe, shared consumer explanations for URL and uploaded-image results."""
+    messages = {
+        'timeout': 'AI 문자 인식 응답이 늦어져 일부 이미지의 AI 읽기 결과를 받지 못했습니다.',
+        'provider_http_429': 'AI 문자 인식 서비스의 요청량 제한으로 일부 이미지의 AI 읽기 결과를 받지 못했습니다.',
+        'provider_http_401': 'AI 문자 인식 서비스 연결을 확인해야 해 일부 이미지의 AI 읽기 결과를 받지 못했습니다.',
+        'provider_http_403': 'AI 문자 인식 서비스 연결을 확인해야 해 일부 이미지의 AI 읽기 결과를 받지 못했습니다.',
+        'provider_http_400': 'AI 문자 인식 서비스가 이번 요청을 처리하지 못했습니다.',
+        'provider_http_404': 'AI 문자 인식 서비스 연결을 확인해야 해 이번 요청을 처리하지 못했습니다.',
+        'provider_http_5xx': 'AI 문자 인식 서비스의 일시적인 오류로 일부 이미지의 AI 읽기 결과를 받지 못했습니다.',
+        'provider_error': '일부 이미지의 AI 문자 인식 결과를 정상적으로 받지 못했습니다.',
+    }
+    reasons = set()
+    for row in rows:
+        reason = row.get('provider_failure')
+        if reason in messages:
+            reasons.add(reason)
+        reasons.update(reason for reason in row.get('provider_failures', []) if reason in messages)
+    return list(dict.fromkeys(message for reason, message in messages.items() if reason in reasons))
 
 
 def read_images(images, allow_llm=True, local_timeout_seconds=None, recover_unconfirmed=False):
@@ -21,7 +58,7 @@ def read_images(images, allow_llm=True, local_timeout_seconds=None, recover_unco
     payloads = [tile for group in groups for tile in group]
     if len(payloads) > MAX_TILES:
         raise ValueError('한 번에 읽을 상세 이미지가 너무 많습니다. 파일을 나누어 올려 주세요.')
-    deadline = time.monotonic() + TOTAL_OCR_SECONDS
+    deadline = time.monotonic() + LONG_OCR_SECONDS
     batches = [payloads[start:start + BATCH_IMAGES]
                for start in range(0, len(payloads), BATCH_IMAGES)]
     def read_batch(batch):
@@ -29,7 +66,8 @@ def read_images(images, allow_llm=True, local_timeout_seconds=None, recover_unco
         if deadline - time.monotonic() < 1:
             return [{'text': '', 'engine': 'none', 'status': 'timeout', 'attempts': 0} for _ in batch]
         rows = _read_images(batch, allow_llm, local_timeout_seconds or 8,
-                           recover_unconfirmed, deadline=deadline)
+                           recover_unconfirmed, deadline=deadline,
+                           initial_llm_timeout=LONG_INITIAL_OCR_SECONDS)
         _LOG.info('Consumer OCR batch: images=%d read=%d elapsed=%.1fs statuses=%s',
                   len(batch), sum(bool(row['text']) for row in rows),
                   time.monotonic() - started, ','.join(row['status'] for row in rows))
@@ -55,11 +93,14 @@ def read_images(images, allow_llm=True, local_timeout_seconds=None, recover_unco
                      'status': 'partial' if text and unconfirmed else 'read' if text else parts[0]['status'],
                      'attempts': max(part['attempts'] for part in parts),
                      'tile_count': len(parts), 'unconfirmed_tiles': unconfirmed,
-                     'recovered': any(part.get('recovered') for part in parts)})
+                     'recovered': any(part.get('recovered') for part in parts),
+                     'fallback_attempted': any(part.get('fallback_attempted') for part in parts),
+                     'provider_failures': sorted({part['provider_failure'] for part in parts if part.get('provider_failure')})})
     return rows
 
 
-def _read_images(images, allow_llm=True, local_timeout_seconds=None, recover_unconfirmed=False, deadline=None):
+def _read_images(images, allow_llm=True, local_timeout_seconds=None, recover_unconfirmed=False,
+                 deadline=None, initial_llm_timeout=INITIAL_OCR_SECONDS):
     payloads = [ocr._shrink(data) for data in images]
     rows = [{'text': '', 'engine': 'none', 'status': 'not_read', 'attempts': 0} for _ in payloads]
     if not payloads:
@@ -93,11 +134,14 @@ def _read_images(images, allow_llm=True, local_timeout_seconds=None, recover_unc
     if allow_llm and llm.available():
         failure = None
         try:
-            texts = llm.ocr_images_indexed(payloads, timeout_seconds=min(28, deadline-time.monotonic()))
+            texts = llm.ocr_images_indexed(payloads, timeout_seconds=min(initial_llm_timeout, deadline-time.monotonic()))
         except Exception as exc:
             texts = [None] * len(rows)
-            failure = 'timeout' if 'timeout' in type(exc).__name__.lower() else 'provider_error'
-            _LOG.warning('Consumer OCR provider failed: category=%s type=%s', failure, type(exc).__name__)
+            reason = _provider_failure(exc)
+            failure = 'timeout' if reason == 'timeout' else 'provider_error'
+            for row in rows:
+                row['provider_failure'] = reason
+            _LOG.warning('Consumer OCR provider failed: category=%s type=%s', reason, type(exc).__name__)
         for i, row in enumerate(rows):
             value = texts[i] if i < len(texts) else None
             row.update(attempts=1, engine='llm', status=failure or ('missing_response' if value is None else 'no_text'))
@@ -135,7 +179,8 @@ def _read_images(images, allow_llm=True, local_timeout_seconds=None, recover_unc
                 else:
                     row['status'] = 'missing_response' if value is None else 'no_text'
             except Exception as exc:
-                row['status'] = 'timeout' if 'timeout' in type(exc).__name__.lower() else 'provider_error'
+                row['provider_failure'] = _provider_failure(exc)
+                row['status'] = 'timeout' if row['provider_failure'] == 'timeout' else 'provider_error'
         if recover_unconfirmed:
             # Do not regenerate good text or add further paid calls. At most
             # two unresolved images get local recovery within the same budget.

@@ -206,9 +206,11 @@ def from_product_html(html: str, url: str, ocr_images: bool = False) -> Ingested
     coverage = capture['coverage']
     image_notes = []
     if ocr_images:
+        from .product_ocr import provider_failure_notes
         attempted = coverage.get('image_attempted',0)
         image_notes.append(f"제품 설명 이미지 {image_count}장 중 {attempted}장을 확인 대상으로 선택했고, {read_count}장에서 글자를 읽었습니다.")
         if read_count: image_notes.append(f"글자 읽기: {engine_note}")
+        image_notes.extend(provider_failure_notes(capture.get('images', [])))
         if coverage.get('image_skipped_limit'):
             image_notes.append(f"처리량 제한으로 {coverage['image_skipped_limit']}장은 이번 분석에서 읽기를 시도하지 않았습니다.")
         if coverage.get('image_download_failed'):

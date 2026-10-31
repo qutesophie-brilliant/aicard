@@ -623,18 +623,20 @@ def _read_upload_images(images, allow_llm=True):
     rows = product_ocr.read_images(images, allow_llm=allow_llm,
                                   local_timeout_seconds=8, recover_unconfirmed=True)
     read = sum(bool(row['text'].strip()) for row in rows)
+    provider_notes = product_ocr.provider_failure_notes(rows)
     if not read and any(row.get('status') in ('timeout', 'provider_error', 'missing_response') for row in rows):
-        raise ValueError('글자 인식 처리를 완료하지 못했습니다. 잠시 뒤 다시 시도하거나 필요한 설명 구간만 나누어 올려 주세요.')
+        raise ValueError(' '.join(provider_notes + ['글자 인식 처리를 완료하지 못했습니다. 잠시 뒤 다시 시도하거나 필요한 설명 구간만 나누어 올려 주세요.']))
     engines = {row['engine'] for row in rows if row['text'].strip()}
     result = ocr.OcrResult(texts=[row['text'] for row in rows],
                            engine=next(iter(engines)) if len(engines) == 1 else 'mixed' if engines else 'none')
     result.notes.append(f'확인 대상 이미지 {len(rows)}장 중 {read}장에서 글자를 읽었습니다.')
+    result.notes.extend(provider_notes)
     if read < len(rows):
         result.notes.append(f'이미지 {len(rows)-read}장은 글자 읽기 결과 미확인입니다. 글자가 없다는 뜻은 아니며, 해당 내용은 분석에 포함되지 않았습니다.')
     if any(row.get('tile_count', 1) > 1 for row in rows):
         result.notes.append('긴 상세 이미지는 글자가 작아지지 않도록 나누어 읽고, 원래 이미지 순서로 연결했습니다.')
     if any(row.get('status') == 'partial' for row in rows):
-        result.notes.append('긴 이미지의 일부 구간은 글자 읽기를 확인하지 못했습니다. 확인된 내용만 표시하므로 해당 구간을 나누어 올려 주세요.')
+        result.notes.append('긴 이미지의 일부 구간은 글자 읽기를 확인하지 못했습니다. 확인된 내용만 표시했으며, 같은 원본 파일로 다시 분석할 수 있습니다.')
     if any(row.get('recovered') and row['engine'] != 'llm' for row in rows):
         result.notes.append('AI가 읽지 못한 이미지는 서버 문자 인식으로 다시 읽었습니다.')
     return result
