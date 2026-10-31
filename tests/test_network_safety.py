@@ -58,6 +58,19 @@ class NetworkSafetyTests(unittest.TestCase):
                 safety.fetch_public('https://example.com/product')
         self.assertEqual(len(seen), 1)
 
+    def test_renderer_redirect_is_returned_without_following(self):
+        seen=[]
+        def handler(request):
+            seen.append(request)
+            return httpx.Response(302,headers={'Location':'http://127.0.0.1/private'})
+        with patch.object(safety.socket,'getaddrinfo',side_effect=dns), \
+             patch.object(safety.httpx,'Client',side_effect=self.client_factory(handler)):
+            response=safety.fetch_public('https://example.com/product',follow_redirects=False)
+        self.assertEqual(302,response.status_code)
+        self.assertEqual(1,len(seen))
+        with self.assertRaises(safety.PublicURLRejected):
+            safety.fetch_public(response.headers['location'],follow_redirects=False)
+
     def test_public_redirect_revalidated_and_original_source_kept(self):
         seen = []
         def handler(request):

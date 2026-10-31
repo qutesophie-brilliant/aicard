@@ -186,7 +186,8 @@ def _from_consumer_file(url: str, data: bytes, *, pdf: bool, read_ocr: bool) -> 
 
 
 def from_url(url: str, ocr_images: bool = True, product_only: bool = False) -> Ingested:
-    r = _fetch(url)
+    from .page_recovery import fetch_retry
+    r = fetch_retry(url, _fetch) if product_only else _fetch(url)
     ctype = r.headers.get("content-type", "")
     direct_pdf = 'pdf' in ctype or urlsplit(str(r.url)).path.lower().endswith('.pdf')
     if product_only and (direct_pdf or ctype.startswith('image/')):
@@ -199,11 +200,20 @@ def from_url(url: str, ocr_images: bool = True, product_only: bool = False) -> I
     if product_only:
         from . import cjonstyle
         if cjonstyle.detail_api_url(str(r.url)):
-            return cjonstyle.read_product(str(r.url), ocr_images=ocr_images)
-        from .product_documents import prepare
-        html, documents = prepare(r.text, str(r.url), _fetch)
-        result = from_product_html(html, str(r.url), ocr_images=ocr_images)
+            try:
+                return cjonstyle.read_product(str(r.url), ocr_images=ocr_images)
+            except (product_page.ProductBodyUnavailable, httpx.TimeoutException):
+                pass  # The public detail adapter is a fast path, not a single point of failure.
+            except httpx.HTTPStatusError as exc:
+                if exc.response.status_code not in (404, 502, 503, 504):
+                    raise
+        from .page_recovery import acquire
+        html, source_url, documents, stages = acquire(r.text, str(r.url), _fetch)
+        result = from_product_html(html, source_url, ocr_images=ocr_images)
         result.source_capture['documents'] = documents
+        result.source_capture['acquisition'] = stages
+        if any(s['stage'] == 'browser_render' for s in stages):
+            result.notes.insert(0, '페이지가 불러오는 상품 설명을 자동으로 연 뒤 확인했습니다.')
         if documents:
             result.notes.append(f"별도로 연결된 상품 설명 {len(documents)}개 중 {sum(d['status'] == 'read' for d in documents)}개를 가져왔습니다.")
         if any(d['status'] != 'read' for d in documents):

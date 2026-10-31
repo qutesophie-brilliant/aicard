@@ -46,7 +46,7 @@ def _public_ip(address: str) -> bool:
 def fetch_public(url: str, *, timeout: float = 25, max_bytes: int = 16 * 1024 * 1024,
                  max_redirects: int = 5, headers: dict | None = None,
                  allowed_hosts: set[str] | None = None, image_only: bool = False,
-                 https_only: bool = False) -> httpx.Response:
+                 https_only: bool = False, follow_redirects: bool = True) -> httpx.Response:
     current = url
     for hop in range(max_redirects + 1):
         original, addresses = public_addresses(current)
@@ -84,7 +84,7 @@ def fetch_public(url: str, *, timeout: float = 25, max_bytes: int = 16 * 1024 * 
                     raise
         if response is None:
             raise PublicURLRejected('페이지에 연결하지 못했습니다.')
-        if not response.is_redirect:
+        if not response.is_redirect or not follow_redirects:
             return response
         location = response.headers.get('location')
         if not location or hop == max_redirects:

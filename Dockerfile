@@ -7,10 +7,13 @@ RUN python -c "import zipfile; zipfile.ZipFile('deploy_bundle.zip').extractall('
 # Tracked application source is authoritative after the legacy data bundle overlay.
 # Otherwise the bundle silently restores old Python code during every deployment.
 COPY app/ app/
+COPY requirements.txt requirements.txt
 COPY README.md README.md
 COPY eval/heldout7/result_20261015.txt eval/heldout7/result_20261015.txt
 RUN apt-get update && apt-get install -y --no-install-recommends tesseract-ocr tesseract-ocr-kor && rm -rf /var/lib/apt/lists/*
 RUN pip install --no-cache-dir -r requirements.txt
+ENV PLAYWRIGHT_BROWSERS_PATH=/opt/aicard-browsers
+RUN python -m playwright install --with-deps --only-shell chromium && rm -rf /var/lib/apt/lists/*
 ENV PUBLIC_DEPLOY=1 PYTHONUNBUFFERED=1 PORT=8080
 EXPOSE 8080
 CMD ["bash", "run.sh"]
