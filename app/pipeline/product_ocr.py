@@ -17,6 +17,18 @@ _LOCAL_OCR_SLOT = threading.BoundedSemaphore(1)
 _LOG = logging.getLogger('uvicorn.error')
 
 
+def _provider_http_status(exc):
+    """Keep every valid HTTP status without parsing arbitrary exception text."""
+    status = getattr(exc, 'status_code', None)
+    if type(status) is int and 100 <= status <= 599:
+        return status
+    if isinstance(exc, llm.LLMError):
+        match = re.fullmatch(r'OCR provider HTTP ([1-5][0-9]{2})', str(exc))
+        if match:
+            return int(match.group(1))
+    return None
+
+
 def _provider_failure(exc):
     """Return only allowlisted diagnostics, never exception response content."""
     import httpx
@@ -27,12 +39,9 @@ def _provider_failure(exc):
     if isinstance(exc, (httpx.InvalidURL, httpx.UnsupportedProtocol)):
         return 'provider_configuration'
     # SDK exceptions expose status_code separately from their (private) body.
-    status = getattr(exc, 'status_code', None)
-    if type(status) is int:
-        if status in (400, 401, 403, 404, 429):
-            return 'provider_http_' + str(status)
-        if 500 <= status <= 599:
-            return 'provider_http_5xx'
+    status = _provider_http_status(exc)
+    if status is not None:
+        return 'provider_http_' + str(status)
     if isinstance(exc, llm.LLMError):
         known = {
             'OCR provider invalid JSON': 'provider_invalid_json',
@@ -46,10 +55,6 @@ def _provider_failure(exc):
         }
         if str(exc) in known:
             return known[str(exc)]
-        match = re.fullmatch(r'OCR provider HTTP (400|401|403|404|429|5\d\d)', str(exc))
-        if match:
-            code = match.group(1)
-            return 'provider_http_' + ('5xx' if code.startswith('5') else code)
         return 'provider_error'
     for kind, reason in (
         (ImportError, 'provider_dependency'), (MemoryError, 'provider_memory'),
@@ -77,7 +82,14 @@ def _provider_diagnostic(exc):
         if module in ('app.pipeline.llm', 'app.pipeline.product_ocr'):
             site = module.rsplit('.', 1)[-1] + ':' + str(traceback.tb_lineno)
         traceback = traceback.tb_next
-    return provider + '/' + kind + '/' + site
+    code = provider + '/' + kind + '/' + site
+    status = _provider_http_status(exc)
+    if status is not None:
+        code += '/HTTP' + str(status)
+        provider_status = getattr(exc, 'provider_status', None)
+        if isinstance(provider_status, str) and provider_status in llm.OCR_ERROR_STATUSES:
+            code += '/' + provider_status
+    return code
 
 
 def provider_failure_notes(rows):
@@ -86,6 +98,7 @@ def provider_failure_notes(rows):
         'timeout': 'AI 문자 인식 응답이 늦어져 일부 이미지의 AI 읽기 결과를 받지 못했습니다.',
         'provider_http_429': 'AI 문자 인식 서비스의 요청량 제한으로 일부 이미지의 AI 읽기 결과를 받지 못했습니다.',
         'provider_http_401': 'AI 문자 인식 서비스 연결을 확인해야 해 일부 이미지의 AI 읽기 결과를 받지 못했습니다.',
+        'provider_http_402': 'AI 문자 인식 서비스의 결제 또는 사용 한도 확인이 필요해 읽기 결과를 받지 못했습니다.',
         'provider_http_403': 'AI 문자 인식 서비스 연결을 확인해야 해 일부 이미지의 AI 읽기 결과를 받지 못했습니다.',
         'provider_http_400': 'AI 문자 인식 서비스가 이번 요청을 처리하지 못했습니다.',
         'provider_http_404': 'AI 문자 인식 서비스 연결을 확인해야 해 이번 요청을 처리하지 못했습니다.',
@@ -112,15 +125,27 @@ def provider_failure_notes(rows):
         'provider_error': '일부 이미지의 AI 문자 인식 결과를 정상적으로 받지 못했습니다.',
     }
     reasons, diagnostics = set(), set()
+    diagnostic_pattern = (
+        r'(gemini|openai|anthropic|rules|unknown)/[A-Za-z][A-Za-z0-9_]{0,63}/'
+        r'(external|(llm|product_ocr):[1-9][0-9]{0,5})'
+        r'(/HTTP[1-5][0-9]{2}(/(' + '|'.join(sorted(llm.OCR_ERROR_STATUSES)) + r'))?)?'
+    )
     for row in rows:
-        reason = row.get('provider_failure')
-        if reason in messages:
-            reasons.add(reason)
-        reasons.update(reason for reason in row.get('provider_failures', []) if reason in messages)
+        for reason in [row.get('provider_failure'), *row.get('provider_failures', [])]:
+            if isinstance(reason, str) and (reason in messages or re.fullmatch(r'provider_http_[1-5][0-9]{2}', reason)):
+                reasons.add(reason)
         diagnostics.update(code for code in row.get('provider_diagnostics', [])
-                           if isinstance(code, str) and re.fullmatch(
-                               r'(gemini|openai|anthropic|rules|unknown)/[A-Za-z][A-Za-z0-9_]{0,63}/(external|(llm|product_ocr):[1-9][0-9]{0,5})', code))
-    notes = list(dict.fromkeys(message for reason, message in messages.items() if reason in reasons))
+                           if isinstance(code, str) and re.fullmatch(diagnostic_pattern, code))
+    notes = []
+    for reason in sorted(reasons):
+        match = re.fullmatch(r'provider_http_([1-5][0-9]{2})', reason)
+        if match:
+            status = match.group(1)
+            message = messages.get(reason, messages['provider_http_5xx'] if status.startswith('5') else messages['provider_http_400'])
+            notes.append(message + ' (HTTP ' + status + ')')
+        else:
+            notes.append(messages[reason])
+    notes = list(dict.fromkeys(notes))
     if diagnostics:
         notes.append('오류 확인 코드: ' + sorted(diagnostics)[0] + '.')
     return notes

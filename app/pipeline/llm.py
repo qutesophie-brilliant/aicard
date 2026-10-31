@@ -28,6 +28,15 @@ class LLMError(RuntimeError):
     pass
 
 
+# Only these fixed provider enums may leave the OCR transport boundary.
+OCR_ERROR_STATUSES = frozenset({
+    'OK', 'CANCELLED', 'UNKNOWN', 'INVALID_ARGUMENT', 'DEADLINE_EXCEEDED',
+    'NOT_FOUND', 'ALREADY_EXISTS', 'PERMISSION_DENIED', 'UNAUTHENTICATED',
+    'RESOURCE_EXHAUSTED', 'FAILED_PRECONDITION', 'ABORTED', 'OUT_OF_RANGE',
+    'UNIMPLEMENTED', 'INTERNAL', 'UNAVAILABLE', 'DATA_LOSS', 'PAYMENT_REQUIRED',
+})
+
+
 # A separate budget for quick URL-image OCR. Existing formal-card calls keep
 # their prior retry/timeout behavior outside this context.
 _ocr_budget = contextvars.ContextVar('aicard_ocr_budget', default=None)
@@ -232,14 +241,23 @@ def _gemini_call(prompt: str, images: list[bytes] | None, max_tokens: int) -> st
                         raise LLMError('OCR provider empty response')
                     return ''.join(texts)
                 return "".join(p.get("text", "") for p in cands[0].get("content", {}).get("parts", []))
+            if _ocr_budget.get() is not None:
+                failure = LLMError(f'OCR provider HTTP {r.status_code}')
+                failure.status_code = r.status_code
+                try:
+                    error = r.json().get('error', {})
+                    status = error.get('status') if isinstance(error, dict) else None
+                    if isinstance(status, str) and status in OCR_ERROR_STATUSES:
+                        failure.provider_status = status
+                except Exception:
+                    pass
+                raise failure
             msg = ""
             try:
                 msg = r.json().get("error", {}).get("message", "")
             except Exception:
                 msg = r.text
             errors.append(f"{model} @ {url.split('/')[2]}: HTTP {r.status_code} {msg[:160]}")
-            if _ocr_budget.get() is not None:
-                raise LLMError(f'OCR provider HTTP {r.status_code}')
             if r.status_code == 429 and ("PerDay" in r.text or "per day" in r.text.lower()):
                 _gemini_dead.add((ep, model))   # 하루 한도 소진: 오늘은 이 모델을 건너뛴다
                 break

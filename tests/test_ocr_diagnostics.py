@@ -13,9 +13,41 @@ class OcrDiagnosticTests(unittest.TestCase):
             status_code = 429
         self.assertEqual('provider_http_429', product_ocr._provider_failure(SDKError('private body')))
         SDKError.status_code = 503
-        self.assertEqual('provider_http_5xx', product_ocr._provider_failure(SDKError('private body')))
+        self.assertEqual('provider_http_503', product_ocr._provider_failure(SDKError('private body')))
         SDKError.status_code = '429 private'
         self.assertEqual('provider_error', product_ocr._provider_failure(SDKError('private body')))
+
+    def test_every_valid_http_status_survives_classification_and_public_notes(self):
+        class SDKError(Exception):
+            pass
+        for status in range(100, 600):
+            with self.subTest(status=status):
+                exc = SDKError('private body')
+                exc.status_code = status
+                category = 'provider_http_' + str(status)
+                self.assertEqual(category, product_ocr._provider_failure(exc))
+                self.assertEqual(category, product_ocr._provider_failure(llm.LLMError('OCR provider HTTP ' + str(status))))
+                self.assertIn('HTTP ' + str(status), ' '.join(product_ocr.provider_failure_notes([{'provider_failure': category}])))
+        for status in [99, 600, 999, True, '402', None]:
+            exc = SDKError('private body')
+            exc.status_code = status
+            self.assertEqual('provider_error', product_ocr._provider_failure(exc))
+
+    def test_http_support_code_accepts_only_numeric_status_and_allowlisted_enum(self):
+        exc = llm.LLMError('OCR provider HTTP 402')
+        exc.provider_status = 'PAYMENT_REQUIRED'
+        with patch.object(llm, 'provider', return_value='gemini'):
+            code = product_ocr._provider_diagnostic(exc)
+        self.assertEqual('gemini/LLMError/external/HTTP402/PAYMENT_REQUIRED', code)
+        rows = [{'provider_failure': 'provider_http_402', 'provider_diagnostics': [code, code + '/secret', 'gemini/LLMError/external/HTTP999']}]
+        notes = ' '.join(product_ocr.provider_failure_notes(rows))
+        self.assertIn('HTTP 402', notes)
+        self.assertIn(code, notes)
+        self.assertNotIn('secret', notes)
+        self.assertNotIn('HTTP999', notes)
+        exc.provider_status = 'private key'
+        with patch.object(llm, 'provider', return_value='gemini'):
+            self.assertEqual('gemini/LLMError/external/HTTP402', product_ocr._provider_diagnostic(exc))
 
     def test_builtin_failure_families_are_distinct(self):
         for kind, expected in [

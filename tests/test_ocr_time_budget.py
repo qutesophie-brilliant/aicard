@@ -62,11 +62,11 @@ class OcrTimeBudgetTests(unittest.TestCase):
         self.assertEqual('\n'.join(str(i) for i in range(20)), rows[0]['text'])
 
     def test_http_failures_are_allowlisted_without_error_message_content(self):
-        for code in (400, 401, 403, 404, 429, 500, 503, 599):
-            expected = 'provider_http_' + ('5xx' if code >= 500 else str(code))
+        for code in (302, 400, 401, 402, 403, 404, 418, 429, 500, 503, 599):
+            expected = 'provider_http_' + str(code)
             self.assertEqual(expected, product_ocr._provider_failure(llm.LLMError(f'OCR provider HTTP {code}')))
         self.assertEqual('provider_runtime', product_ocr._provider_failure(RuntimeError('OCR provider HTTP 429')))
-        for exc in (llm.LLMError('OCR provider HTTP 418'), llm.LLMError('OCR provider HTTP 429 secret-response')):
+        for exc in (llm.LLMError('OCR provider HTTP 999'), llm.LLMError('OCR provider HTTP 429 secret-response')):
             self.assertEqual('provider_error', product_ocr._provider_failure(exc))
         self.assertEqual('timeout', product_ocr._provider_failure(httpx.ReadTimeout('secret-response')))
 

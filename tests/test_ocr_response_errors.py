@@ -108,12 +108,21 @@ class OcrResponseErrorTests(unittest.TestCase):
         self.assertNotIn('secret', ' '.join(result.notes))
 
     def test_http_errors_still_stop_without_routing_or_retries(self):
-        for code in [400, 401, 403, 404, 429, 500, 503]:
+        for code in [302, 400, 401, 402, 403, 404, 408, 418, 429, 451, 500, 503, 599]:
             with provider(httpx.Response(code, json={'error': {'message': 'secret'}})) as send, \
                  patch.object(config, 'GEMINI_ENDPOINTS', ['https://first.example/{model}', 'https://second.example/{model}']):
                 with self.assertRaisesRegex(llm.LLMError, f'^OCR provider HTTP {code}$'):
                     llm.ocr_images_indexed([b'image'])
             self.assertEqual(1, send.call_count)
+
+    def test_http_transport_exposes_safe_status_without_private_response(self):
+        for status, expected in [('PAYMENT_REQUIRED', 'PAYMENT_REQUIRED'), ('RESOURCE_EXHAUSTED', 'RESOURCE_EXHAUSTED'), ('secret-key', None), ({'secret': 1}, None)]:
+            exc = self.assert_failure(httpx.Response(402, json={'error': {'status': status, 'message': 'secret body'}}), 'provider_http_402')
+            self.assertEqual(402, exc.status_code)
+            self.assertEqual(expected, getattr(exc, 'provider_status', None))
+            self.assertEqual('OCR provider HTTP 402', str(exc))
+        for payload in [[], {'error': None}]:
+            self.assert_failure(httpx.Response(418, json=payload), 'provider_http_418')
 
     def test_formal_json_retry_is_unchanged(self):
         with provider(response('{}')), patch('httpx.post', side_effect=[response('{broken'), response('{"ok":true}')]) as send:
