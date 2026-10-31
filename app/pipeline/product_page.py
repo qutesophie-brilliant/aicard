@@ -168,7 +168,9 @@ def product_body(html: str, url: str) -> BeautifulSoup:
     selected = BeautifulSoup("<section></section>", "html.parser")
     for node in roots:
         selected.section.append(node)
-    if not roots and structured:
+    if (not roots or (len(re.sub(r'\s+', '', selected.get_text())) < 30
+                      and not any(image_source(im) for im in selected.select('img')))) and structured:
+        selected.section.clear()
         selected.section.append(BeautifulSoup(structured, 'html.parser'))
     # Some editors emit escaped HTML rather than child nodes.
     for node in list(selected.select('div,p,section')):

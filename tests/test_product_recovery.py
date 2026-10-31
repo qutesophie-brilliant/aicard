@@ -22,7 +22,7 @@ class ProductRecoveryTests(unittest.TestCase):
 
     def test_embedded_product_json_excludes_recommendations(self):
         data={'props':{'pageProps':{'product':{'detailHtml':'<p>AI가 온도를 분석하여 냉장실을 조절합니다. 문을 닫고 사용합니다.</p>'},'recommendations':{'product':{'detailHtml':'다른 제품 AI 설명'}}}}}
-        html='<script id="__NEXT_DATA__" type="application/json">'+json.dumps(data)+'</script>'
+        html='<div id="productDetail"></div><script id="__NEXT_DATA__" type="application/json">'+json.dumps(data)+'</script>'
         text=product_page.product_text(product_page.product_body(html,URL))
         self.assertIn('냉장실',text); self.assertNotIn('다른 제품',text)
 
