@@ -106,7 +106,7 @@ def quick_check(name: str, url: str, sales_text: str, fine_text: str = "", use_l
             from . import quick_diagrams
             claims = quick_diagrams.link_within_units(claims, docs)
         else:
-            claims = link.link_claims(claims, index)
+            claims = link.link_claims(claims, index, exclude_testimonials=True)
         # Quick-check joins nearby fragments. Do not count a repeated slogan plus
         # table labels as an additional related explanation.
         for claim in claims:

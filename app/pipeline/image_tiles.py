@@ -21,7 +21,9 @@ def split_image(data):
         width, height = image.size
         if width * height > MAX_PIXELS:
             raise ValueError('이미지 해상도가 너무 큽니다. 제품 설명을 나누어 올려 주세요.')
-        if max(width, height) <= TILE_SIDE or max(width, height) / min(width, height) < 2:
+        # PDF clip coordinates may rasterize one extra edge pixel. The normal
+        # OCR resize removes it; do not create a second tile for that rounding.
+        if max(width, height) <= TILE_SIDE + 1 or max(width, height) / min(width, height) < 2:
             return [data]
         scale = min(1, MAX_SHORT_SIDE / min(width, height))
         size = (max(1, round(width * scale)), max(1, round(height * scale)))

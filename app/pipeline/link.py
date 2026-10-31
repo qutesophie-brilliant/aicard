@@ -105,13 +105,19 @@ def _join_fragment(index: ChunkIndex, src: dict[str, Any], max_lines: int = 3) -
     return {"doc_id": doc_id, "chunk": idx, "quote": " ".join(parts), "kind": "판매페이지(앞뒤 이어 읽음)", "score": 0.0, "joined": True}
 
 
-def link_claims(claims: list[dict[str, Any]], index: ChunkIndex) -> list[dict[str, Any]]:
+_TESTIMONIAL = re.compile(
+    r"강추(?:합니다|해요|드립니다|예요|요)|전속\s*모델|(?:구매|사용)\s*후기|"
+    r"(?:고객(?:님)?(?:들)?|여러분).{0,80}(?:관심|성원).{0,80}감사", re.S
+)
+
+
+def link_claims(claims: list[dict[str, Any]], index: ChunkIndex, *, exclude_testimonials: bool = False) -> list[dict[str, Any]]:
     cand_map: dict[str, list[dict[str, Any]]] = {}
     condition_context = index.condition_context()
     # 9회차: 조건·한계 문장은 근거 문장과 떨어져 있거나 후보에 들지 않는 일이 많았다(조건 표시 일치 55%의 주원인).
     # 제품 문서 전체에서 조건·한계를 적은 문장을 모아 두고, 근거가 정해진 뒤 그 근거와 같은 기능의 조건을 붙인다.
     cond_pool = [t for t in index.by_kind(("판매페이지", "사양표", "설명서", "공식 자료"))
-                 if _is_cond(t["quote"])]
+                 if _is_cond(t["quote"]) and not (exclude_testimonials and _TESTIMONIAL.search(t["quote"]))]
     for claim in claims:
         src = claim["source"]
         cands = index.search(claim["text"], k=10, exclude=(src["doc_id"], src["chunk"]),
@@ -310,6 +316,11 @@ def link_claims(claims: list[dict[str, Any]], index: ChunkIndex) -> list[dict[st
                           "kind": "판매페이지(문구 자체)", "score": 0.0, "self": True})
         uniq, qs = [], set()
         for c in cands:  # 같은 문장이 여러 경로로 들어온 경우 하나만 남긴다
+            # Quick checks must not mistake a testimonial or promotional thanks
+            # for a technical explanation merely because it shares product words.
+            # Formal-card generation retains its established review pipeline.
+            if exclude_testimonials and _TESTIMONIAL.search(c["quote"]):
+                continue
             k = re.sub(r"\s+", "", c["quote"])[:80]
             if k not in qs:
                 qs.add(k); uniq.append(c)

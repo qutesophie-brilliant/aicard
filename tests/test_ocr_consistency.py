@@ -64,12 +64,14 @@ class OcrConsistencyTests(unittest.TestCase):
     def test_ai_connection_error_retains_local_fallback_and_source_order(self):
         with patch.object(ocr,'_shrink',side_effect=lambda b:b),patch.object(llm,'available',return_value=True),\
              patch.object(llm,'ocr_images_indexed',side_effect=httpx.ConnectError('offline')) as model,\
-             patch.object(ocr,'read_images',return_value=ocr.OcrResult(texts=['첫 원문','둘째 원문'],engine='tesseract')) as local:
+             patch.object(ocr,'read_images',side_effect=lambda images, **kw: ocr.OcrResult(
+                 texts=[{b'a':'첫 원문',b'b':'둘째 원문'}[image] for image in images],engine='tesseract')) as local:
             rows=product_ocr.read_images([b'a',b'b'])
         self.assertEqual(['첫 원문','둘째 원문'],[r['text'] for r in rows])
         self.assertTrue(all(r['engine']=='tesseract' and r['recovered'] for r in rows))
         self.assertEqual(1,model.call_count)
-        local.assert_called_once_with([b'a',b'b'],allow_llm=False)
+        self.assertEqual([[b'a'], [b'b']], [call.args[0] for call in local.call_args_list])
+        self.assertTrue(all(0 < call.kwargs['local_timeout_seconds'] <= 8 for call in local.call_args_list))
 
     def test_local_fallback_keeps_source_identity(self):
         with patch.object(ocr,'_shrink',side_effect=lambda b:b),patch.object(ocr,'read_images',side_effect=[

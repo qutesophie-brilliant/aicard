@@ -39,6 +39,21 @@ class CheckedUpload:
     content_type: str
 
 
+def check_image_batch(payloads):
+    """Bound aggregate decoded image memory before reconstructing any file."""
+    total_pixels = 0
+    for filename, content_type, data in payloads:
+        if Path(filename).suffix.lower() not in IMAGE_FORMATS:
+            continue
+        try:
+            with Image.open(io.BytesIO(data)) as image:
+                total_pixels += image.width * image.height
+        except (UnidentifiedImageError, OSError, ValueError, Image.DecompressionBombError) as exc:
+            raise UploadSafetyError('이미지를 읽지 못했습니다. JPG·PNG로 다시 저장해 올려 주세요.') from exc
+        if total_pixels > MAX_PIXELS:
+            raise UploadSafetyError('한 번에 올린 이미지의 전체 해상도가 너무 큽니다. 파일을 나누어 올려 주세요.')
+
+
 def _pdf_names(text: str):
     """Read PDF name tokens, excluding strings, comments, and hexadecimal data.
 

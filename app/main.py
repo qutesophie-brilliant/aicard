@@ -623,6 +623,8 @@ def _read_upload_images(images, allow_llm=True):
     rows = product_ocr.read_images(images, allow_llm=allow_llm,
                                   local_timeout_seconds=8, recover_unconfirmed=True)
     read = sum(bool(row['text'].strip()) for row in rows)
+    if not read and any(row.get('status') in ('timeout', 'provider_error', 'missing_response') for row in rows):
+        raise ValueError('글자 인식 처리를 완료하지 못했습니다. 잠시 뒤 다시 시도하거나 필요한 설명 구간만 나누어 올려 주세요.')
     engines = {row['engine'] for row in rows if row['text'].strip()}
     result = ocr.OcrResult(texts=[row['text'] for row in rows],
                            engine=next(iter(engines)) if len(engines) == 1 else 'mixed' if engines else 'none')
@@ -643,6 +645,8 @@ def _read_check_uploads(payloads: list[tuple[str, str, bytes]]) -> tuple[list[st
     if not _check_ocr_gate.acquire(blocking=False):
         raise ValueError("다른 파일의 글자를 읽고 있습니다. 잠시 뒤 다시 시도해 주세요.")
     try:
+        from .upload_safety import check_image_batch
+        check_image_batch(payloads)
         # Validate the entire batch before sending any image to external OCR.
         checked = [check_upload(filename, ctype, data,
                     max_bytes=config.CHECK_MAX_FILE_MB * 1024 * 1024)

@@ -7,6 +7,7 @@ from PIL import Image, ImageDraw, PngImagePlugin
 
 from app.pipeline import image_tiles, ocr, product_ocr
 from app.upload_safety import check_upload
+from app import main, upload_safety
 
 
 def picture(size=(320, 4000), metadata=False):
@@ -90,6 +91,38 @@ class LongImageTests(unittest.TestCase):
     def test_only_exact_overlap_lines_are_removed(self):
         self.assertEqual('처음\n조건 6kg\n마지막', image_tiles.join_texts(['처음\n조건 6kg', '조건 6kg\n마지막']))
         self.assertEqual('조건 6kg\n조건 8kg', image_tiles.join_texts(['조건 6kg', '조건 8kg']))
+
+    def test_seven_small_images_share_one_deadline_and_keep_all_sources(self):
+        inputs = [picture((20, 30)) for _ in range(7)]
+        calls = []
+        def reader(images, *args, **kwargs):
+            start = sum(size for size, _ in calls)
+            calls.append((len(images), kwargs['deadline']))
+            return [reading(f'source {start + i}') for i in range(len(images))]
+        with patch.object(product_ocr, '_read_images', side_effect=reader):
+            rows = product_ocr.read_images(inputs, allow_llm=False)
+        self.assertEqual([6, 1], [size for size, _ in calls])
+        self.assertEqual(calls[0][1], calls[1][1])
+        self.assertEqual([f'source {i}' for i in range(7)], [row['text'] for row in rows])
+        self.assertTrue(all(row['tile_count'] == 1 for row in rows))
+
+    def test_pdf_edge_rounding_does_not_create_a_second_tile(self):
+        raw = picture((400, 1601))
+        self.assertEqual([raw], image_tiles.split_image(raw))
+        with Image.open(io.BytesIO(ocr._shrink(raw))) as image:
+            self.assertEqual(1600, max(image.size))
+
+    def test_combined_pixel_budget_rejects_before_decode_or_ocr(self):
+        raw = picture((20, 30))
+        payloads = [('first.png', 'image/png', raw), ('second.png', 'image/png', raw)]
+        with patch.object(upload_safety, 'MAX_PIXELS', 1000), \
+             patch.object(main, 'check_upload') as decode, \
+             patch.object(main, '_read_upload_images') as reader, \
+             patch.object(Image.Image, 'load', side_effect=AssertionError('decoded too early')):
+            with self.assertRaisesRegex(upload_safety.UploadSafetyError, '전체 해상도'):
+                main._read_check_uploads(payloads)
+        decode.assert_not_called()
+        reader.assert_not_called()
 
 
 class LongPdfTests(unittest.TestCase):

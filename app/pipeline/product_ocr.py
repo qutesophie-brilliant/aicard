@@ -1,9 +1,15 @@
 """Indexed consumer OCR with bounded recovery; formal-card OCR keeps its old path."""
 import time
+import contextvars
+import threading
+import logging
+from concurrent.futures import ThreadPoolExecutor
 from . import llm, ocr
 
 MAX_RECOVERIES = 1
 TOTAL_OCR_SECONDS = 42
+_LOCAL_OCR_SLOT = threading.BoundedSemaphore(1)
+_LOG = logging.getLogger('uvicorn.error')
 
 
 def read_images(images, allow_llm=True, local_timeout_seconds=None, recover_unconfirmed=False):
@@ -15,14 +21,28 @@ def read_images(images, allow_llm=True, local_timeout_seconds=None, recover_unco
     if len(payloads) > MAX_TILES:
         raise ValueError('한 번에 읽을 상세 이미지가 너무 많습니다. 파일을 나누어 올려 주세요.')
     deadline = time.monotonic() + TOTAL_OCR_SECONDS
-    readings = []
-    for start in range(0, len(payloads), ocr.LLM_BATCH):
-        batch = payloads[start:start + ocr.LLM_BATCH]
+    batches = [payloads[start:start + ocr.LLM_BATCH]
+               for start in range(0, len(payloads), ocr.LLM_BATCH)]
+    def read_batch(batch):
+        started = time.monotonic()
         if deadline - time.monotonic() < 1:
-            readings.extend({'text': '', 'engine': 'none', 'status': 'timeout', 'attempts': 0} for _ in batch)
-        else:
-            readings.extend(_read_images(batch, allow_llm, local_timeout_seconds or 8,
-                                         recover_unconfirmed, deadline=deadline))
+            return [{'text': '', 'engine': 'none', 'status': 'timeout', 'attempts': 0} for _ in batch]
+        rows = _read_images(batch, allow_llm, local_timeout_seconds or 8,
+                           recover_unconfirmed, deadline=deadline)
+        _LOG.info('Consumer OCR batch: images=%d read=%d elapsed=%.1fs statuses=%s',
+                  len(batch), sum(bool(row['text']) for row in rows),
+                  time.monotonic() - started, ','.join(row['status'] for row in rows))
+        return rows
+    if allow_llm and llm.available() and len(batches) > 1:
+        # Network waits overlap so the last part of a long product page gets
+        # the same time budget as the first. Results stay in source order.
+        # CPU-heavy local fallback is separately limited to one worker.
+        with ThreadPoolExecutor(max_workers=4) as pool:
+            futures = [pool.submit(contextvars.copy_context().run, read_batch, batch)
+                       for batch in batches]
+            readings = [row for future in futures for row in future.result()]
+    else:
+        readings = [row for batch in batches for row in read_batch(batch)]
     rows, offset = [], 0
     for group in groups:
         parts = readings[offset:offset + len(group)]
@@ -45,16 +65,24 @@ def _read_images(images, allow_llm=True, local_timeout_seconds=None, recover_unc
         return rows
     deadline = deadline or time.monotonic() + TOTAL_OCR_SECONDS
     def read_local(payloads):
-        if local_timeout_seconds is None:
-            return ocr.read_images(payloads, allow_llm=False)
         texts, engines, notes = [], set(), []
         for payload in payloads:
             remaining = deadline - time.monotonic()
             if remaining < 1:
                 texts.append('')
                 continue
-            result = ocr.read_images([payload], allow_llm=False,
-                                    local_timeout_seconds=min(local_timeout_seconds, remaining))
+            if not _LOCAL_OCR_SLOT.acquire(timeout=max(0, remaining)):
+                texts.append('')
+                continue
+            try:
+                remaining = deadline - time.monotonic()
+                if remaining < 1:
+                    texts.append('')
+                    continue
+                result = ocr.read_images([payload], allow_llm=False,
+                                        local_timeout_seconds=min(local_timeout_seconds or 8, remaining))
+            finally:
+                _LOCAL_OCR_SLOT.release()
             texts.append(result.text.strip())
             notes.extend(result.notes)
             if result.text.strip():
@@ -68,6 +96,7 @@ def _read_images(images, allow_llm=True, local_timeout_seconds=None, recover_unc
         except Exception as exc:
             texts = [None] * len(rows)
             failure = 'timeout' if 'timeout' in type(exc).__name__.lower() else 'provider_error'
+            _LOG.warning('Consumer OCR provider failed: category=%s type=%s', failure, type(exc).__name__)
         for i, row in enumerate(rows):
             value = texts[i] if i < len(texts) else None
             row.update(attempts=1, engine='llm', status=failure or ('missing_response' if value is None else 'no_text'))

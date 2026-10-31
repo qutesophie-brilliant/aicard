@@ -158,6 +158,12 @@ def _gemini_call(prompt: str, images: list[bytes] | None, max_tokens: int) -> st
         combos = [_gemini_ok] + [c for c in combos if c != _gemini_ok]
     errors: list[str] = []
     for ep, model in combos:
+        # Transcription does not need the default medium reasoning of 3.8.
+        # Keep this local to bounded consumer OCR, leaving formal analysis intact.
+        if _ocr_budget.get() is not None and model == 'gemini-3.8-flash':
+            body['generationConfig']['thinkingConfig'] = {'thinkingLevel': 'LOW'}
+        else:
+            body['generationConfig'].pop('thinkingConfig', None)
         url = ep.format(model=model)
         for attempt in range(3):
             try:

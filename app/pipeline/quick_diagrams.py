@@ -50,7 +50,7 @@ def link_within_units(claims, docs):
     for unit in dict.fromkeys(unit_by_doc.values()):
         subset = [c for c in claims if unit_by_doc.get(c['source']['doc_id']) == unit and not _is_title(c['text'])]
         if subset:
-            link_claims(subset, ChunkIndex([d for d in docs if unit_by_doc[d['id']] == unit]))
+            link_claims(subset, ChunkIndex([d for d in docs if unit_by_doc[d['id']] == unit]), exclude_testimonials=True)
     for claim in claims:
         if _is_title(claim['text']):
             claim.update(evidence=[], status='자료 부족', basis_state='없음', conditions_noted=False, conditions='')
