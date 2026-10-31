@@ -26,6 +26,13 @@ def _provider_failure(exc):
         return 'provider_network'
     if isinstance(exc, (httpx.InvalidURL, httpx.UnsupportedProtocol)):
         return 'provider_configuration'
+    # SDK exceptions expose status_code separately from their (private) body.
+    status = getattr(exc, 'status_code', None)
+    if type(status) is int:
+        if status in (400, 401, 403, 404, 429):
+            return 'provider_http_' + str(status)
+        if 500 <= status <= 599:
+            return 'provider_http_5xx'
     if isinstance(exc, llm.LLMError):
         known = {
             'OCR provider invalid JSON': 'provider_invalid_json',
@@ -43,7 +50,34 @@ def _provider_failure(exc):
         if match:
             code = match.group(1)
             return 'provider_http_' + ('5xx' if code.startswith('5') else code)
+        return 'provider_error'
+    for kind, reason in (
+        (ImportError, 'provider_dependency'), (MemoryError, 'provider_memory'),
+        (AttributeError, 'provider_attribute'), (TypeError, 'provider_type'),
+        (ValueError, 'provider_value'), (NameError, 'provider_name'),
+        (LookupError, 'provider_lookup'), (AssertionError, 'provider_assertion'),
+        (RuntimeError, 'provider_runtime'), (OSError, 'provider_system'),
+    ):
+        if isinstance(exc, kind):
+            return reason
     return 'provider_error'
+
+
+def _provider_diagnostic(exc):
+    """Support code: controlled provider, exception class, our code line only."""
+    provider = llm.provider()
+    provider = provider if provider in ('gemini', 'openai', 'anthropic', 'rules') else 'unknown'
+    kind = type(exc).__name__
+    if not re.fullmatch(r'[A-Za-z][A-Za-z0-9_]{0,63}', kind):
+        kind = 'OtherError'
+    site = 'external'
+    traceback = exc.__traceback__
+    while traceback is not None:
+        module = traceback.tb_frame.f_globals.get('__name__')
+        if module in ('app.pipeline.llm', 'app.pipeline.product_ocr'):
+            site = module.rsplit('.', 1)[-1] + ':' + str(traceback.tb_lineno)
+        traceback = traceback.tb_next
+    return provider + '/' + kind + '/' + site
 
 
 def provider_failure_notes(rows):
@@ -65,15 +99,31 @@ def provider_failure_notes(rows):
         'provider_configuration': 'AI 문자 인식 서비스의 연결 설정을 확인해야 해 결과를 받지 못했습니다.',
         'request_budget': '설정된 AI 문자 인식 호출 한도에 도달해 추가 요청을 보내지 않았습니다.',
         'time_budget': '설정된 AI 문자 인식 대기 시간이 지나 추가 요청을 보내지 않았습니다.',
+        'provider_dependency': 'AI 문자 인식에 필요한 서버 구성요소를 불러오지 못했습니다.',
+        'provider_memory': 'AI 문자 인식 중 서버 메모리가 부족해 처리를 완료하지 못했습니다.',
+        'provider_attribute': 'AI 문자 인식 연결 정보 처리 중 서버 오류가 발생했습니다.',
+        'provider_type': 'AI 문자 인식 요청의 데이터 형식을 처리하는 중 서버 오류가 발생했습니다.',
+        'provider_value': 'AI 문자 인식 요청값을 처리하는 중 서버 오류가 발생했습니다.',
+        'provider_name': 'AI 문자 인식 실행 과정에서 서버 코드 오류가 발생했습니다.',
+        'provider_lookup': 'AI 문자 인식에 필요한 정보를 찾는 중 서버 오류가 발생했습니다.',
+        'provider_assertion': 'AI 문자 인식의 내부 확인 과정에서 서버 오류가 발생했습니다.',
+        'provider_runtime': 'AI 문자 인식을 실행하는 중 서버 오류가 발생했습니다.',
+        'provider_system': 'AI 문자 인식 중 서버의 시스템 오류가 발생했습니다.',
         'provider_error': '일부 이미지의 AI 문자 인식 결과를 정상적으로 받지 못했습니다.',
     }
-    reasons = set()
+    reasons, diagnostics = set(), set()
     for row in rows:
         reason = row.get('provider_failure')
         if reason in messages:
             reasons.add(reason)
         reasons.update(reason for reason in row.get('provider_failures', []) if reason in messages)
-    return list(dict.fromkeys(message for reason, message in messages.items() if reason in reasons))
+        diagnostics.update(code for code in row.get('provider_diagnostics', [])
+                           if isinstance(code, str) and re.fullmatch(
+                               r'(gemini|openai|anthropic|rules|unknown)/[A-Za-z][A-Za-z0-9_]{0,63}/(external|(llm|product_ocr):[1-9][0-9]{0,5})', code))
+    notes = list(dict.fromkeys(message for reason, message in messages.items() if reason in reasons))
+    if diagnostics:
+        notes.append('오류 확인 코드: ' + sorted(diagnostics)[0] + '.')
+    return notes
 
 
 def read_images(images, allow_llm=True, local_timeout_seconds=None, recover_unconfirmed=False):
@@ -121,7 +171,8 @@ def read_images(images, allow_llm=True, local_timeout_seconds=None, recover_unco
                      'tile_count': len(parts), 'unconfirmed_tiles': unconfirmed,
                      'recovered': any(part.get('recovered') for part in parts),
                      'fallback_attempted': any(part.get('fallback_attempted') for part in parts),
-                     'provider_failures': sorted({part['provider_failure'] for part in parts if part.get('provider_failure')})})
+                     'provider_failures': sorted({part['provider_failure'] for part in parts if part.get('provider_failure')}),
+                     'provider_diagnostics': sorted({code for part in parts for code in part.get('provider_diagnostics', [])})})
     return rows
 
 
@@ -164,10 +215,12 @@ def _read_images(images, allow_llm=True, local_timeout_seconds=None, recover_unc
         except Exception as exc:
             texts = [None] * len(rows)
             reason = _provider_failure(exc)
+            diagnostic = _provider_diagnostic(exc)
             failure = 'timeout' if reason == 'timeout' else 'provider_error'
             for row in rows:
                 row['provider_failure'] = reason
-            _LOG.warning('Consumer OCR provider failed: category=%s type=%s', reason, type(exc).__name__)
+                row['provider_diagnostics'] = [diagnostic]
+            _LOG.warning('Consumer OCR provider failed: category=%s code=%s', reason, diagnostic)
         for i, row in enumerate(rows):
             value = texts[i] if i < len(texts) else None
             row.update(attempts=1, engine='llm', status=failure or ('missing_response' if value is None else 'no_text'))
@@ -206,8 +259,9 @@ def _read_images(images, allow_llm=True, local_timeout_seconds=None, recover_unc
                     row['status'] = 'missing_response' if value is None else 'no_text'
             except Exception as exc:
                 row['provider_failure'] = _provider_failure(exc)
+                row['provider_diagnostics'] = [_provider_diagnostic(exc)]
                 row['status'] = 'timeout' if row['provider_failure'] == 'timeout' else 'provider_error'
-                _LOG.warning('Consumer OCR recovery failed: category=%s type=%s', row['provider_failure'], type(exc).__name__)
+                _LOG.warning('Consumer OCR recovery failed: category=%s code=%s', row['provider_failure'], row['provider_diagnostics'][0])
         if recover_unconfirmed:
             # Do not regenerate good text or add further paid calls. At most
             # two unresolved images get local recovery within the same budget.

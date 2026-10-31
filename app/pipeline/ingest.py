@@ -5,7 +5,7 @@
 """
 import re
 from dataclasses import dataclass, field
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlsplit, urlunsplit, unquote
 
 import httpx
 from bs4 import BeautifulSoup
@@ -116,9 +116,81 @@ def _fetch(url: str) -> httpx.Response:
     return fetch_public(url, headers={"User-Agent": UA})
 
 
+def _from_consumer_file(url: str, data: bytes, *, pdf: bool, read_ocr: bool) -> Ingested:
+    """Direct file links use the same bounded OCR as consumer uploads."""
+    import hashlib
+    import io
+    from PIL import Image
+    from ..upload_safety import check_upload, IMAGE_FORMATS
+    from . import ocr, product_ocr, quick_diagrams
+
+    if pdf:
+        filename, content_type = 'source.pdf', 'application/pdf'
+    else:
+        try:
+            with Image.open(io.BytesIO(data)) as probe:
+                suffix = next((ext for ext, fmt in IMAGE_FORMATS.items() if fmt == probe.format), None)
+            if suffix is None:
+                raise ValueError('지원하지 않는 이미지 형식입니다. JPG·PNG로 저장해 올려 주세요.')
+        except (OSError, ValueError, Image.DecompressionBombError) as exc:
+            raise product_page.ProductBodyUnavailable('이미지 파일을 읽지 못했습니다. JPG·PNG 파일이나 제품 설명이 있는 주소를 확인해 주세요.') from exc
+        filename, content_type = 'source' + suffix, 'image/' + ('jpeg' if suffix in ('.jpg', '.jpeg') else suffix[1:])
+    try:
+        checked = check_upload(filename, content_type, data, max_bytes=config.CHECK_MAX_FILE_MB * 1024 * 1024)
+    except ValueError as exc:
+        raise product_page.ProductBodyUnavailable(str(exc)) from exc
+    readings = []
+
+    def reader(images, allow_llm=True):
+        if not read_ocr:
+            return ocr.OcrResult(texts=[''] * len(images), notes=['이미지 속 글자는 읽지 않았습니다.'])
+        rows = product_ocr.read_images(images, allow_llm=allow_llm,
+                                       local_timeout_seconds=8, recover_unconfirmed=True)
+        readings.extend(rows)
+        engines = {row['engine'] for row in rows if row['text'].strip()}
+        result = ocr.OcrResult(texts=[row['text'] for row in rows],
+                              engine=next(iter(engines)) if len(engines) == 1 else 'mixed' if engines else 'none')
+        result.notes.extend(product_ocr.provider_failure_notes(rows))
+        unread = sum(not row['text'].strip() or row['status'] == 'partial' for row in rows)
+        if unread:
+            result.notes.append('일부 이미지 또는 구간의 글자 읽기를 확인하지 못했습니다. 확인된 내용만 분석하며 같은 원본으로 다시 시도할 수 있습니다.')
+        return result
+
+    try:
+        result = (ocr.read_pdf(checked.data, allow_llm=config.CHECK_OCR_LLM, max_pages=12, image_reader=reader)
+                  if pdf else reader([checked.data], allow_llm=config.CHECK_OCR_LLM))
+    except ValueError as exc:
+        raise product_page.ProductBodyUnavailable(str(exc)) from exc
+    if not result.text.strip():
+        message = ' '.join(result.notes + ['파일에서 읽을 수 있는 글자를 확인하지 못했습니다. 같은 원본으로 다시 시도하거나 설명 글을 붙여 넣어 주세요.'])
+        raise product_page.ProductBodyUnavailable(message)
+    capture = quick_diagrams.capture_uploads(result.texts, url)
+    digest = hashlib.sha256(data).hexdigest()
+    base_url = urlunsplit(urlsplit(url)._replace(fragment=''))
+    for section in capture['sections']:
+        section.update(snapshot_sha256=digest, ocr_engine=result.engine)
+        if pdf:
+            section['source_url'] = base_url + '#page=' + str(section['upload_unit'] + 1)
+    if not pdf and readings:
+        row = dict(readings[0], url=url, image_number=1, image_sha256=digest,
+                   download_attempts=1, ocr_attempts=readings[0]['attempts'])
+        capture['images'] = [row]
+    capture.update(source_response_sha256=digest)
+    capture['coverage'].update(image_ocr_unconfirmed=sum(not row['text'].strip() or row['status'] == 'partial' for row in readings),
+                               direct_file=True)
+    title = unquote(urlsplit(url).path.rsplit('/', 1)[-1]) or ('PDF 문서' if pdf else '제품 설명 이미지')
+    notes = ['주소에서 내려받은 PDF를 페이지별로 확인했습니다.' if pdf else '주소에서 내려받은 원문 이미지를 확인했습니다.']
+    notes.extend(result.notes)
+    return Ingested(title=title, text=result.text, chunks=chunk_text(result.text),
+                    notes=notes, source_capture=capture)
+
+
 def from_url(url: str, ocr_images: bool = True, product_only: bool = False) -> Ingested:
     r = _fetch(url)
     ctype = r.headers.get("content-type", "")
+    direct_pdf = 'pdf' in ctype or urlsplit(str(r.url)).path.lower().endswith('.pdf')
+    if product_only and (direct_pdf or ctype.startswith('image/')):
+        return _from_consumer_file(str(r.url), r.content, pdf=direct_pdf, read_ocr=ocr_images)
     if "pdf" in ctype or url.lower().endswith(".pdf"):
         return from_pdf(url.rsplit("/", 1)[-1], r.content)
     if ctype.startswith("image/"):

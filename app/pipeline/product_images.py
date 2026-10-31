@@ -78,7 +78,7 @@ def capture_images(html, url, capture, fetch_bytes=None, reader=None, limit=6):
             result=readings[i]
             text=merge_ocr_lines(result['text'])
             row.update(text=text,engine=result['engine'],status=result['status'],ocr_attempts=result['attempts'])
-            for key in ('initial_status','retry_skipped','recovered','fallback_attempted','tile_count','unconfirmed_tiles','provider_failure','provider_failures'):
+            for key in ('initial_status','retry_skipped','recovered','fallback_attempted','tile_count','unconfirmed_tiles','provider_failure','provider_failures','provider_diagnostics'):
                 if key in result: row[key]=result[key]
             if text.strip():
                 capture['sections'].append({'section_id':len(capture['sections']),'feature_scope':'',

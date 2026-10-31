@@ -497,8 +497,8 @@ textarea { min-height: 150px; line-height: 1.6; }
 .drop-t b { display: block; font-size: 1.02rem; }
 .drop-t span { display: block; color: var(--ink-2); font-size: .9rem; margin-top: 4px; }
 .drop-b { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-top: 14px; }
-.drop-list { display: grid; gap: 6px; margin-top: 12px; }
-.drop-list li { display: flex; justify-content: space-between; gap: 10px; align-items: center; background: var(--paper); border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; font-size: .9rem; }
+.drop-list { display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; margin-top: 12px; }
+.drop-list li { display: flex; min-width: 0; justify-content: space-between; gap: 10px; align-items: center; background: var(--paper); border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; font-size: .9rem; }
 .drop-list li span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .drop-list button { border: 0; background: none; color: var(--ink-3); cursor: pointer; font-size: .86rem; padding: 4px 6px; }
 .drop-list button:hover { color: var(--amber-ink); }
