@@ -1,9 +1,14 @@
 {% extends "base.html" %}
-{% block title %}요청을 받았습니다 | AI 정보카드{% endblock %}
+{% block title %}{{ '정정 요청' if is_correction else '카드 요청' }}을 받았습니다 | AI 정보카드{% endblock %}
 {% block content %}
 <section class="page-head">
-  <h1>요청을 받았습니다</h1>
-  <p class="lede">{{ pname }} 카드 요청을 접수했습니다. 접수번호는 {{ rid }}번입니다. 검토자가 판매페이지·설명서·공공 DB 등 관련 자료를 확인한 뒤 공개 여부를 결정합니다. 처리 기간은 요청량과 자료 확보 상황에 따라 달라집니다.</p>
+  <h1>{{ '정정 요청' if is_correction else '카드 요청' }}을 받았습니다</h1>
+  {% if is_correction %}
+  <p class="lede">{{ pname }} 카드의 정정 요청을 접수했습니다. 접수번호는 {{ rid }}번입니다. 관리자가 제보 내용과 원문을 대조하여 수정 여부를 검토합니다. 알려 주셔서 감사합니다.</p>
+  {% else %}
+  <p class="lede">{{ pname }} 카드 요청을 접수했습니다. 접수번호는 {{ rid }}번입니다.</p>
+  {% include "_request_schedule.html" %}
+  {% endif %}
 </section>
 <div class="tools" style="margin:16px 0 60px">
   <a class="btn primary" href="/#find">제품 카드 보기</a>

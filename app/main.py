@@ -803,7 +803,8 @@ def check_request(request: Request, url: str = Form(""), name: str = Form(""), n
     if not (url or name):
         raise HTTPException(400)
     rid = db.add_request(url, name, note)
-    return render(request, "check_thanks.html", rid=rid, pname=name)
+    return render(request, "check_thanks.html", rid=rid, pname=name,
+                  is_correction=bool(re.fullmatch(r"/card/\d+", url.strip())))
 
 
 @app.get("/capture/receive", response_class=HTMLResponse)

@@ -10,7 +10,7 @@
     <span class="lb-brand"><img src="/static/logo.png" alt="">바로 확인 · 자동 분석</span>
     <span class="lb-cat">{{ 'AI로 관련 문장 연결' if card.quick_llm else '규칙으로 관련 문장 연결' }}</span>
   </div>
-  <p class="review-state automatic">입력한 자료를 자동으로 분석한 결과입니다. 관리자 검토·승인을 마친 정식 카드와 구분됩니다.</p>
+  <p class="review-state automatic">입력자에게 제공하는 미승인 자동 분석 결과입니다. 정식 카드로 저장·공개되지 않으며, 관리자의 원문 대조와 승인을 마친 카드와 구분됩니다.</p>
   <div class="lb-head">
     <div>
       <h2 class="lb-name">{{ pname }}</h2>
@@ -75,6 +75,7 @@
   <section class="qa">
     <h3>정식 카드 요청하기</h3>
     <p class="lead">정식 카드를 요청하면 검토자가 해당 제품의 설명서와 공공 DB 등 관련 자료를 대조합니다. 검토 결과에 따라 공개 여부를 결정하며, 요청자의 연락처는 수집하지 않습니다.</p>
+    {% include "_request_schedule.html" %}
     <form class="form" method="post" action="/check/request" style="margin-top:12px">
       <input type="hidden" name="url" value="{{ url }}">
       <label>제품 이름 <input type="text" name="name" value="{{ pname }}" required></label>
