@@ -14,7 +14,7 @@ from PIL import Image, ImageOps, UnidentifiedImageError
 
 
 MAX_PIXELS = 25_000_000
-MAX_IMAGE_SIDE = 1600  # same upper bound already used by the OCR pipeline
+MAX_IMAGE_SIDE = 1600
 MAX_PDF_PAGES = 200
 MAX_PDF_OBJECTS = 20_000
 IMAGE_FORMATS = {
@@ -114,9 +114,10 @@ def _check_image(data: bytes, expected_format: str) -> CheckedUpload:
                 raise UploadSafetyError('이미지 해상도가 너무 큽니다. 필요한 제품 설명 부분을 나누어 캡처한 뒤 올려 주세요.')
             probe.verify()
         with Image.open(io.BytesIO(data)) as source:
-            # Match the previous OCR size limit, honour display orientation, and
-            # create a pixel-only PNG so metadata/trailing payload is not sent.
-            source.thumbnail((MAX_IMAGE_SIDE, MAX_IMAGE_SIDE))
+            # Keep long screenshots legible: OCR splits them into bounded tiles.
+            # Ordinary photographs still use the existing size limit.
+            if max(source.size) / min(source.size) < 2:
+                source.thumbnail((MAX_IMAGE_SIDE, MAX_IMAGE_SIDE))
             oriented = ImageOps.exif_transpose(source)
             if 'A' in oriented.getbands() or 'transparency' in oriented.info:
                 rgba = oriented.convert('RGBA')

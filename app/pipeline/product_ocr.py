@@ -7,11 +7,43 @@ TOTAL_OCR_SECONDS = 42
 
 
 def read_images(images, allow_llm=True, local_timeout_seconds=None, recover_unconfirmed=False):
+    from .image_tiles import split_image, join_texts, MAX_TILES
+    groups = [split_image(data) for data in images]
+    if len(groups) <= ocr.LLM_BATCH and all(len(group) == 1 for group in groups):
+        return _read_images(images, allow_llm, local_timeout_seconds, recover_unconfirmed)
+    payloads = [tile for group in groups for tile in group]
+    if len(payloads) > MAX_TILES:
+        raise ValueError('한 번에 읽을 상세 이미지가 너무 많습니다. 파일을 나누어 올려 주세요.')
+    deadline = time.monotonic() + TOTAL_OCR_SECONDS
+    readings = []
+    for start in range(0, len(payloads), ocr.LLM_BATCH):
+        batch = payloads[start:start + ocr.LLM_BATCH]
+        if deadline - time.monotonic() < 1:
+            readings.extend({'text': '', 'engine': 'none', 'status': 'timeout', 'attempts': 0} for _ in batch)
+        else:
+            readings.extend(_read_images(batch, allow_llm, local_timeout_seconds or 8,
+                                         recover_unconfirmed, deadline=deadline))
+    rows, offset = [], 0
+    for group in groups:
+        parts = readings[offset:offset + len(group)]
+        offset += len(group)
+        text = join_texts([part['text'] for part in parts])
+        unconfirmed = sum(not part['text'].strip() for part in parts)
+        engines = {part['engine'] for part in parts if part['text'].strip()}
+        rows.append({'text': text, 'engine': next(iter(engines)) if len(engines) == 1 else 'mixed' if engines else 'none',
+                     'status': 'partial' if text and unconfirmed else 'read' if text else parts[0]['status'],
+                     'attempts': max(part['attempts'] for part in parts),
+                     'tile_count': len(parts), 'unconfirmed_tiles': unconfirmed,
+                     'recovered': any(part.get('recovered') for part in parts)})
+    return rows
+
+
+def _read_images(images, allow_llm=True, local_timeout_seconds=None, recover_unconfirmed=False, deadline=None):
     payloads = [ocr._shrink(data) for data in images]
     rows = [{'text': '', 'engine': 'none', 'status': 'not_read', 'attempts': 0} for _ in payloads]
     if not payloads:
         return rows
-    deadline = time.monotonic() + TOTAL_OCR_SECONDS
+    deadline = deadline or time.monotonic() + TOTAL_OCR_SECONDS
     def read_local(payloads):
         if local_timeout_seconds is None:
             return ocr.read_images(payloads, allow_llm=False)

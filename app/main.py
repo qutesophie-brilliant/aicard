@@ -620,10 +620,8 @@ _check_ocr_gate = threading.BoundedSemaphore(1)
 def _read_upload_images(images, allow_llm=True):
     """Consumer uploads use indexed OCR and bounded recovery, never formal-card edits."""
     from .pipeline import product_ocr
-    rows = []
-    for offset in range(0, len(images), ocr.LLM_BATCH):
-        rows.extend(product_ocr.read_images(images[offset:offset + ocr.LLM_BATCH],
-                    allow_llm=allow_llm, local_timeout_seconds=8, recover_unconfirmed=True))
+    rows = product_ocr.read_images(images, allow_llm=allow_llm,
+                                  local_timeout_seconds=8, recover_unconfirmed=True)
     read = sum(bool(row['text'].strip()) for row in rows)
     engines = {row['engine'] for row in rows if row['text'].strip()}
     result = ocr.OcrResult(texts=[row['text'] for row in rows],
@@ -631,6 +629,10 @@ def _read_upload_images(images, allow_llm=True):
     result.notes.append(f'확인 대상 이미지 {len(rows)}장 중 {read}장에서 글자를 읽었습니다.')
     if read < len(rows):
         result.notes.append(f'이미지 {len(rows)-read}장은 글자 읽기 결과 미확인입니다. 글자가 없다는 뜻은 아니며, 해당 내용은 분석에 포함되지 않았습니다.')
+    if any(row.get('tile_count', 1) > 1 for row in rows):
+        result.notes.append('긴 상세 이미지는 글자가 작아지지 않도록 나누어 읽고, 원래 이미지 순서로 연결했습니다.')
+    if any(row.get('status') == 'partial' for row in rows):
+        result.notes.append('긴 이미지의 일부 구간은 글자 읽기를 확인하지 못했습니다. 확인된 내용만 표시하므로 해당 구간을 나누어 올려 주세요.')
     if any(row.get('recovered') and row['engine'] != 'llm' for row in rows):
         result.notes.append('AI가 읽지 못한 이미지는 서버 문자 인식으로 다시 읽었습니다.')
     return result
@@ -658,6 +660,8 @@ def _read_check_uploads(payloads: list[tuple[str, str, bytes]]) -> tuple[list[st
             if upload.content_type == "application/pdf":
                 try:
                     keep(ocr.read_pdf(data, allow_llm=config.CHECK_OCR_LLM, image_reader=_read_upload_images))
+                except ValueError:
+                    raise
                 except Exception as e:
                     raise ValueError(f"PDF를 읽지 못했습니다. 손상되거나 암호가 설정된 파일인지 확인해 주세요. ({filename})") from e
             else:

@@ -91,8 +91,9 @@ class UploadSafetyTests(unittest.TestCase):
                     sizes.append(image.size)
             return ocr.OcrResult(texts=['scanned page'], engine='test')
         ocr.read_pdf(raw, allow_llm=False, image_reader=reader)
-        self.assertEqual(1, len(sizes))
-        self.assertLessEqual(max(sizes[0]), ocr.MAX_SIDE)
+        self.assertGreater(len(sizes), 1)
+        self.assertTrue(all(max(size) <= ocr.MAX_SIDE + 1 for size in sizes))
+        self.assertTrue(all(size[0] >= 1000 for size in sizes))
 
     def test_javascript_launch_and_external_actions_rejected(self):
         actions = [

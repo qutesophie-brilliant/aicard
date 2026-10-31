@@ -9,12 +9,19 @@ def capture_images(html, url, capture, fetch_bytes=None, reader=None, limit=6):
     import httpx
     from .ingest import chunk_text, merge_ocr_lines
     body=product_page.product_body(html,url)
+    source_host=urlsplit(url).hostname or ''
+    allowed_hosts={source_host,'images.samsung.com','static.lge.co.kr'}
+    cj_hosts={'image.cjonstyle.net','itemimage.cjonstyle.net'} if source_host in ('display.cjonstyle.com','base.cjonstyle.com') else set()
+    allowed_hosts.update(cj_hosts)
     candidates=[]; seen=set()
     for im in body.select('img'):
         src=urljoin(url, product_page.image_source(im))
+        parsed=urlsplit(src)
+        if parsed.scheme == 'http' and parsed.netloc in cj_hosts:
+            src=parsed._replace(scheme='https').geturl()
         if not src or src==url or not src.startswith('https://'): continue
-        host=urlsplit(src).hostname or ''; source_host=urlsplit(url).hostname or ''
-        if host != source_host and host not in ('images.samsung.com','static.lge.co.kr'): continue
+        host=urlsplit(src).hostname or ''
+        if host not in allowed_hosts: continue
         if re.search(r'icon|logo|\.svg|_mo[_.]|-m(?:-|\.)',src,re.I) or src in seen: continue
         seen.add(src)
         score=2 if re.search(r'AI|인공지능|학습|스스로|알아서',im.get('alt',''),re.I) else 0
@@ -30,7 +37,7 @@ def capture_images(html, url, capture, fetch_bytes=None, reader=None, limit=6):
         from ..network_safety import fetch_public
         return fetch_public(src, timeout=15, max_bytes=8*1024*1024,
                             max_redirects=2, image_only=True, https_only=True,
-                            allowed_hosts={urlsplit(url).hostname,'images.samsung.com','static.lge.co.kr'}).content
+                            allowed_hosts=allowed_hosts).content
     fetch_bytes=fetch_bytes or download
     audit=[]; payloads=[]; loaded=[]; total_bytes=0
     for index,(_,src) in enumerate(candidates):
@@ -52,7 +59,7 @@ def capture_images(html, url, capture, fetch_bytes=None, reader=None, limit=6):
             import io
             from PIL import Image
             with Image.open(io.BytesIO(data)) as im:
-                if im.width * im.height > 16_000_000: raise ValueError('Image exceeds OCR pixel budget')
+                if im.width * im.height > 25_000_000: raise ValueError('Image exceeds OCR pixel budget')
             total_bytes += len(data)
             if total_bytes > 32*1024*1024: raise ValueError('Images exceed combined byte budget')
             row['image_sha256']=hashlib.sha256(data).hexdigest()
@@ -71,7 +78,7 @@ def capture_images(html, url, capture, fetch_bytes=None, reader=None, limit=6):
             result=readings[i]
             text=merge_ocr_lines(result['text'])
             row.update(text=text,engine=result['engine'],status=result['status'],ocr_attempts=result['attempts'])
-            for key in ('initial_status','retry_skipped','recovered','fallback_attempted'):
+            for key in ('initial_status','retry_skipped','recovered','fallback_attempted','tile_count','unconfirmed_tiles'):
                 if key in result: row[key]=result[key]
             if text.strip():
                 capture['sections'].append({'section_id':len(capture['sections']),'feature_scope':'',
@@ -81,7 +88,7 @@ def capture_images(html, url, capture, fetch_bytes=None, reader=None, limit=6):
     capture['coverage'].update(image_candidates=len(candidates),image_attempted=min(len(candidates),limit),
         image_duplicate_variants=len(duplicates),image_skipped_limit=sum(r['status']=='skipped_limit' for r in audit),
         image_download_failed=sum(r['status'] in ('download_failed','download_timeout') for r in audit),
-        image_ocr_unconfirmed=sum(r['status'] in ('no_text','missing_response','timeout','provider_error','not_read') for r in audit),
+        image_ocr_unconfirmed=sum(r['status'] in ('no_text','missing_response','timeout','provider_error','not_read','partial') for r in audit),
         image_ocr_retried=sum(r['ocr_attempts']>1 for r in audit),
         sections=len(capture['sections']),image_text_read=any(r['text'] for r in audit),image_unread=sum(not r['text'] for r in audit))
     return capture

@@ -125,6 +125,9 @@ def from_url(url: str, ocr_images: bool = True, product_only: bool = False) -> I
         return from_image(url.rsplit("/", 1)[-1], r.content)
 
     if product_only:
+        from . import cjonstyle
+        if cjonstyle.detail_api_url(str(r.url)):
+            return cjonstyle.read_product(str(r.url), ocr_images=ocr_images)
         return from_product_html(r.text, str(r.url), ocr_images=ocr_images)
     soup = BeautifulSoup(r.text, "html.parser")
     title = (soup.title.string.strip() if soup.title and soup.title.string else url)

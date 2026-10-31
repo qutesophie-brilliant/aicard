@@ -168,6 +168,7 @@ def read_pdf(data: bytes, allow_llm: bool = True, max_pages: int = 12, image_rea
     """글자가 든 PDF는 그대로 꺼내고, 스캔·이미지 PDF는 페이지를 그림으로 바꿔 읽는다."""
     import pymupdf
     res = OcrResult(engine="pdf")
+    from .image_tiles import MAX_SHORT_SIDE, MAX_TILES, OVERLAP, join_texts
     doc = pymupdf.open(stream=data, filetype="pdf")
     scans: list[bytes] = []
     idx: list[int] = []
@@ -180,19 +181,36 @@ def read_pdf(data: bytes, allow_llm: bool = True, max_pages: int = 12, image_rea
             res.texts.append(t)
         else:
             res.texts.append("")
-            # Bound allocation before rendering unusually large PDF pages.
-            # The image OCR path already resizes inputs to MAX_SIDE.
-            longest = max(page.rect.width, page.rect.height)
-            if longest <= 0:
+            width, height = page.rect.width, page.rect.height
+            longest, shortest = max(width, height), min(width, height)
+            if shortest <= 0:
                 raise ValueError("PDF page has invalid dimensions")
-            scale = min(130 / 72, MAX_SIDE / longest)
-            scans.append(page.get_pixmap(matrix=pymupdf.Matrix(scale, scale)).tobytes("png"))
-            idx.append(i)
+            # Clip before rasterization: long screenshot PDFs keep readable
+            # letter sizes without allocating a full giant page bitmap.
+            long_page = longest / shortest >= 2
+            scale = min(130 / 72, (MAX_SHORT_SIDE / shortest) if long_page else (MAX_SIDE / longest))
+            start = 0.0
+            while True:
+                end = min(longest, start + MAX_SIDE / scale)
+                if len(scans) >= MAX_TILES:
+                    doc.close()
+                    raise ValueError('PDF의 상세 이미지가 너무 많습니다. 필요한 설명 부분을 나누어 올려 주세요.')
+                clip = pymupdf.Rect(0, start, width, end) if height >= width else pymupdf.Rect(start, 0, end, height)
+                scans.append(page.get_pixmap(matrix=pymupdf.Matrix(scale, scale), clip=clip).tobytes("png"))
+                idx.append(i)
+                if end >= longest:
+                    break
+                start = end - OVERLAP / scale
+    doc.close()
     if scans:
         sub = (image_reader or read_images)(scans, allow_llm=allow_llm)
+        page_texts = {}
         for j, i in enumerate(idx):
-            if j < len(sub.texts):
-                res.texts[i] = sub.texts[j]
+            page_texts.setdefault(i, []).append(sub.texts[j] if j < len(sub.texts) else '')
+        for i, texts in page_texts.items():
+            res.texts[i] = join_texts(texts)
+        if len(idx) > len(page_texts):
+            res.notes.append('긴 PDF 페이지는 구간을 나누어 읽고 원래 페이지 순서로 연결했습니다.')
         res.notes.extend(sub.notes)
         res.engine = sub.engine or res.engine
     return res

@@ -23,6 +23,7 @@
     <ul>{% for image in card.image_sources %}<li>
       <a href="{{ image.url }}" target="_blank" rel="noopener">원문 이미지 {{ image.image_number }}</a>:
       {% if image.status == 'read' %}글자 읽음{% if image.ocr_attempts > 1 %} · 재시도 후 확인{% endif %}
+      {% elif image.status == 'partial' %}일부 구간 글자 읽음 · 미확인 구간은 나누어 다시 올려 주세요
       {% elif image.status == 'skipped_limit' %}이번 분석에서 미시도 · 처리량 제한
       {% elif image.status in ('download_failed','download_timeout') %}이미지 수집 실패{% if image.status == 'download_timeout' %} · 응답 시간 초과{% endif %}
       {% elif image.status == 'timeout' %}글자 읽기 응답 시간 초과
