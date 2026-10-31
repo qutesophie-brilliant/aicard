@@ -200,7 +200,15 @@ def from_url(url: str, ocr_images: bool = True, product_only: bool = False) -> I
         from . import cjonstyle
         if cjonstyle.detail_api_url(str(r.url)):
             return cjonstyle.read_product(str(r.url), ocr_images=ocr_images)
-        return from_product_html(r.text, str(r.url), ocr_images=ocr_images)
+        from .product_documents import prepare
+        html, documents = prepare(r.text, str(r.url), _fetch)
+        result = from_product_html(html, str(r.url), ocr_images=ocr_images)
+        result.source_capture['documents'] = documents
+        if documents:
+            result.notes.append(f"별도로 연결된 상품 설명 {len(documents)}개 중 {sum(d['status'] == 'read' for d in documents)}개를 가져왔습니다.")
+        if any(d['status'] != 'read' for d in documents):
+            result.notes.append('가져오지 못한 별도 설명은 결과에 포함되지 않습니다.')
+        return result
     soup = BeautifulSoup(r.text, "html.parser")
     title = (soup.title.string.strip() if soup.title and soup.title.string else url)
     if product_only:
@@ -292,6 +300,8 @@ def from_product_html(html: str, url: str, ocr_images: bool = False) -> Ingested
         if coverage.get('image_ocr_retried'):
             image_notes.append(f"이미지 {coverage['image_ocr_retried']}장은 재시도하거나 다른 방식으로 글자 읽기를 한 번 더 시도했습니다.")
         image_notes.append("읽지 못했거나 시도하지 않은 이미지의 내용은 결과에 포함되지 않습니다.")
+    # Include actual OCR text in downstream extraction, not only HTML copy.
+    capture['text'] = '\n'.join(section['text'] for section in capture['sections'])
     return Ingested(title=title, text=capture['text'], chunks=chunk_text(capture['text']),
                     source_capture=capture,
                     notes=['제품 설명과 포함된 세부정보를 확인했습니다.'] + (image_notes if ocr_images else ['이미지 속 글자는 읽지 않았습니다.']))

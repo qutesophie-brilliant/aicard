@@ -770,7 +770,7 @@ async def check_url(request: Request, url: str = Form(""), text: str = Form(""),
             return render(request, "check.html", base=base, bookmarklet=bm, url=url, q="",
                           error=str(e), upload_fallback=True)
         except httpx.HTTPStatusError as e:
-            blocked = e.response.status_code in (401, 403)
+            blocked = e.response.status_code in (401, 403, 429)
             message = ("판매사이트가 자동 접속을 거부해 이 링크로는 검색할 수 없습니다. 상세페이지 캡처 이미지나 PDF를 올려 주세요."
                        if blocked else "판매사이트에서 페이지를 보내 주지 않아 이 링크로 확인하지 못했습니다. 잠시 뒤 다시 시도하거나 상세페이지 캡처를 올려 주세요.")
             return render(request, "check.html", base=base, bookmarklet=bm, url=url, q="", error=message, upload_fallback=True)

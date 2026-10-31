@@ -5,25 +5,19 @@ from urllib.parse import urljoin, urlsplit
 from . import product_page, ocr
 from .. import config
 
-def capture_images(html, url, capture, fetch_bytes=None, reader=None, limit=6):
+def capture_images(html, url, capture, fetch_bytes=None, reader=None, limit=24):
     import httpx
     from .ingest import chunk_text, merge_ocr_lines
     body=product_page.product_body(html,url)
     source_host=urlsplit(url).hostname or ''
-    allowed_hosts={source_host,'images.samsung.com','static.lge.co.kr'}
     cj_hosts={'image.cjonstyle.net','itemimage.cjonstyle.net'} if source_host in ('display.cjonstyle.com','base.cjonstyle.com') else set()
-    allowed_hosts.update(cj_hosts)
-    if source_host == 'rental.lghellovision.net':
-        allowed_hosts.add('rentalcdn.lghellovision.net')
     candidates=[]; seen=set()
     for im in body.select('img'):
         src=urljoin(url, product_page.image_source(im))
         parsed=urlsplit(src)
         if parsed.scheme == 'http' and parsed.netloc in cj_hosts:
             src=parsed._replace(scheme='https').geturl()
-        if not src or src==url or not src.startswith('https://'): continue
-        host=urlsplit(src).hostname or ''
-        if host not in allowed_hosts: continue
+        if not src or src==url or urlsplit(src).scheme not in ('http','https'): continue
         if re.search(r'icon|logo|\.svg|_mo[_.]|-m(?:-|\.)',src,re.I) or src in seen: continue
         seen.add(src)
         score=2 if re.search(r'AI|인공지능|학습|스스로|알아서',im.get('alt',''),re.I) else 0
@@ -37,16 +31,21 @@ def capture_images(html, url, capture, fetch_bytes=None, reader=None, limit=6):
     candidates = [(score,src) for score,src in candidates if src not in duplicates]
     def download(src):
         from ..network_safety import fetch_public
-        return fetch_public(src, timeout=15, max_bytes=8*1024*1024,
-                            max_redirects=2, image_only=True, https_only=True,
-                            allowed_hosts=allowed_hosts).content
+        # The product body identifies candidate CDNs. Each fetch and redirect
+        # still validates/pins a public IP and checks image type and byte size.
+        return fetch_public(src, timeout=10, max_bytes=8*1024*1024,
+                            max_redirects=2, image_only=True).content
     fetch_bytes=fetch_bytes or download
-    audit=[]; payloads=[]; loaded=[]; total_bytes=0
+    import math
+    import time
+    from .image_tiles import MAX_PIXELS, MAX_TILES, TILE_SIDE, OVERLAP, MAX_SHORT_SIDE
+    audit=[]; payloads=[]; loaded=[]; total_bytes=0; total_tiles=0
+    download_deadline = time.monotonic() + 35
     for index,(_,src) in enumerate(candidates):
         row={'url':src,'text':'','engine':'none','status':'pending','image_number':index+1,
              'download_attempts':0,'ocr_attempts':0}
         audit.append(row)
-        if index >= limit:
+        if index >= limit or time.monotonic() >= download_deadline:
             row['status']='skipped_limit'
             continue
         try:
@@ -61,10 +60,19 @@ def capture_images(html, url, capture, fetch_bytes=None, reader=None, limit=6):
             import io
             from PIL import Image
             with Image.open(io.BytesIO(data)) as im:
-                from .image_tiles import MAX_PIXELS
                 if im.width * im.height > MAX_PIXELS: raise ValueError('Image exceeds OCR pixel budget')
-            total_bytes += len(data)
-            if total_bytes > 32*1024*1024: raise ValueError('Images exceed combined byte budget')
+                width, height = im.size
+                if max(width,height) <= TILE_SIDE + 1 or max(width,height)/min(width,height) < 2:
+                    tiles = 1
+                else:
+                    scale = min(1,MAX_SHORT_SIDE/min(width,height))
+                    length = max(round(width*scale),round(height*scale))
+                    tiles = 1 + math.ceil(max(0,length-TILE_SIDE)/(TILE_SIDE-OVERLAP))
+            # Too much detail must not discard everything already read.
+            if total_bytes + len(data) > 32*1024*1024 or total_tiles + tiles > MAX_TILES:
+                row['status']='skipped_limit'
+                continue
+            total_bytes += len(data); total_tiles += tiles
             row['image_sha256']=hashlib.sha256(data).hexdigest()
             payloads.append(data);loaded.append(row)
         except Exception as e:
@@ -88,7 +96,7 @@ def capture_images(html, url, capture, fetch_bytes=None, reader=None, limit=6):
                     'text':text,'diagram_text':result['text'],'chunks':chunk_text(text,ocr=True),'source_url':row['url'],
                     'snapshot_sha256':row['image_sha256'],'source_type':'image_ocr','ocr_engine':row['engine']})
     capture['images']=audit
-    capture['coverage'].update(image_candidates=len(candidates),image_attempted=min(len(candidates),limit),
+    capture['coverage'].update(image_candidates=len(candidates),image_attempted=sum(r['download_attempts'] > 0 for r in audit),
         image_duplicate_variants=len(duplicates),image_skipped_limit=sum(r['status']=='skipped_limit' for r in audit),
         image_download_failed=sum(r['status'] in ('download_failed','download_timeout') for r in audit),
         image_ocr_unconfirmed=sum(r['status'] in ('no_text','missing_response','timeout','provider_error','not_read','partial') for r in audit),

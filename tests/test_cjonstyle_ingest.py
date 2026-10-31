@@ -67,22 +67,24 @@ class CjOnStyleIngestTests(unittest.TestCase):
                 with self.assertRaises(ProductBodyUnavailable):
                     cjonstyle.read_product(PAGE, ocr_images=False)
 
-    def test_cj_image_hosts_are_scoped_and_http_is_upgraded(self):
+    def test_explicit_product_cdn_images_are_discovered_and_cj_http_is_upgraded(self):
         data = io.BytesIO()
         Image.new('RGB', (50, 50), 'white').save(data, format='PNG')
         html = ('<div class="product-description"><img src="' + IMAGE.replace('https:', 'http:')
-                + '"><img src="https://evil.test/unrelated.jpg"></div>')
+                + '"><img src="https://cdn.example.test/detail.jpg"></div>'
+                + '<aside><img src="https://other.test/unrelated.jpg"></aside>')
         downloaded = []
         def download(url):
             downloaded.append(url)
             return data.getvalue()
-        for page, expected in ((API, [IMAGE]), ('https://example.test/item', [])):
+        for page, expected in ((API, [IMAGE, 'https://cdn.example.test/detail.jpg']),
+                               ('https://example.test/item', [IMAGE.replace('https:', 'http:'), 'https://cdn.example.test/detail.jpg'])):
             downloaded.clear()
             capture = {'sections': [], 'coverage': {}}
             product_images.capture_images(html, page, capture, fetch_bytes=download,
                                           reader=lambda _: OcrResult(texts=['AI 기능 설명을 읽었습니다.'], engine='test'))
             self.assertEqual(expected, downloaded)
-        self.assertEqual([], capture['images'])
+        self.assertEqual(2, len(capture['images']))
 
     def test_partial_long_image_is_not_reported_as_complete(self):
         data = io.BytesIO()

@@ -17,10 +17,14 @@ def _squash(text):
     return re.sub(r'\s+', '', text)
 
 
-def capture_product_html(html, url):
+def capture_product_html(html, url, _body=None):
     from .ingest import chunk_text
     raw = BeautifulSoup(html, 'html.parser')
-    body = product_page.product_body(html, url)
+    body = _body if _body is not None else product_page.product_body(html, url)
+    remote = []
+    for node in list(body.select('[data-source-url]')):
+        remote.append((node['data-source-url'], str(node)))
+        node.decompose()
     text = product_page.product_text(body)
     # DOM headings terminate an earlier footnote scope. A following title must
     # never become the owner of a condition appearing before that title.
@@ -63,6 +67,13 @@ def capture_product_html(html, url):
             seen.add(key)
             section.update(section_id=len(unique), snapshot_sha256=digest)
             unique.append(section)
+    for remote_url, fragment in remote:
+        child = capture_product_html(fragment, remote_url,
+                                     _body=BeautifulSoup(fragment.replace('data-source-url=', 'data-origin='), 'html.parser'))
+        for section in child['sections']:
+            section['section_id'] = len(unique)
+            unique.append(section)
+    text = '\n'.join(section['text'] for section in unique)
     unresolved = []
     # Only controls associated with a known product area are relevant here.
     # The selector removes buttons; inspect raw controls but require a target

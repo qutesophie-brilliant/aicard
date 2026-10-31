@@ -1,5 +1,6 @@
 """Select product copy before quick-check extraction; never fall back to site-wide text."""
 import re
+import json
 from urllib.parse import urlsplit
 
 from bs4 import BeautifulSoup, Comment
@@ -23,9 +24,82 @@ _UNAVAILABLE = (
 
 def image_source(image):
     """Resolve lazy image attributes used by product-detail editors."""
-    return next((image.get(key) for key in
-                 ('ec-data-src', 'data-src', 'data-original', 'src')
+    lazy = next((image.get(key) for key in
+                 ('ec-data-src', 'data-src', 'data-original', 'data-lazy-src', 'data-echo')
                  if image.get(key) and not image.get(key).startswith('data:')), '')
+    if lazy:
+        return lazy
+    srcset = image.get('data-srcset') or image.get('srcset')
+    if not srcset and image.find_parent('picture'):
+        source = image.find_parent('picture').find('source', srcset=True)
+        srcset = source.get('srcset') if source else ''
+    if srcset:
+        # Largest explicitly supplied variant; no URL construction or alt-text OCR.
+        choices = []
+        for entry in srcset.split(','):
+            parts = entry.strip().split()
+            if parts and not parts[0].startswith('data:'):
+                try: size = float(parts[1].rstrip('wx')) if len(parts) > 1 else 1
+                except ValueError: size = 1
+                choices.append((size, parts[0]))
+        if choices:
+            return max(choices)[1]
+    return image.get('src', '') if not image.get('src', '').startswith('data:') else ''
+
+
+DETAIL_SELECTOR = (
+    '[itemprop="description"], #productDescription, #product-description, '
+    '.product-description, .product__description, #product-detail, '
+    '#productDetail, #prodDetail, #prdDetail, .product-detail, .product_detail, '
+    '#compGoodsFeatures, #prdDetailContent, #prdDetailCont, #goods_description, '
+    '#goodsDescription, #goods_contents, #goodsContents, .goods_description, '
+    '#sit_inf_explan, .prod_view_detail, '
+    '.xans-product-additional #prdDetail .cont, #detailIfrm, #ifrmDesc, '
+    '#productDescriptionArea'
+)
+
+
+def structured_description(soup):
+    """Only a single Product's description, never reviews, offers or a product list."""
+    products = []
+    def visit(value, depth=0):
+        if depth > 8: return
+        if isinstance(value, list):
+            for child in value[:100]: visit(child, depth + 1)
+        elif isinstance(value, dict):
+            types = value.get('@type', [])
+            types = [types] if isinstance(types, str) else types
+            if isinstance(types, list) and 'Product' in types:
+                products.append(value)
+            for key in ('@graph', 'mainEntity'):
+                if key in value: visit(value[key], depth + 1)
+    for script in soup.select('script[type="application/ld+json"]'):
+        try: visit(json.loads(script.string or script.get_text()))
+        except (ValueError, TypeError): pass
+    if len(products) != 1: return ''
+    description = products[0].get('description')
+    return description if isinstance(description, str) and len(description) <= 500000 else ''
+
+
+def embedded_description(soup):
+    """Read JSON data, not JavaScript. Only explicit product detail fields."""
+    descriptions = []
+    def visit(value, product=False, depth=0):
+        if depth > 8 or not isinstance(value, dict): return
+        if product:
+            for key in ('detailHtml', 'descriptionHtml', 'detailContent', 'detailDescription'):
+                text = value.get(key)
+                if isinstance(text, str) and 30 <= len(text) <= 500000:
+                    descriptions.append(text)
+        for key in ('props','pageProps','data','product','productInfo','productDetail','goods','goodsInfo'):
+            child = value.get(key)
+            if isinstance(child, dict):
+                visit(child, product or key in ('product','productInfo','productDetail','goods','goodsInfo'), depth+1)
+    for script in soup.select('script[type="application/json"], script#__NEXT_DATA__'):
+        try: visit(json.loads(script.string or script.get_text()))
+        except (ValueError, TypeError): pass
+    descriptions = list(dict.fromkeys(descriptions))
+    return descriptions[0] if len(descriptions) == 1 else ''
 
 
 def product_body(html: str, url: str) -> BeautifulSoup:
@@ -35,6 +109,7 @@ def product_body(html: str, url: str) -> BeautifulSoup:
     Unknown layouts need a product description node, rather than a body/main fallback.
     """
     soup = BeautifulSoup(html, "html.parser")
+    structured = structured_description(soup) or embedded_description(soup)
     host = (urlsplit(url).hostname or "").lower()
     if host == "rental.lghellovision.net":
         # The seller embeds escaped editor HTML inside a detail/review wrapper.
@@ -74,12 +149,10 @@ def product_body(html: str, url: str) -> BeautifulSoup:
         # recommendations and customer reviews that are not product claims.
         selector = "#compGoodsFeatures"
     else:
-        selector = (
-            '[itemprop="description"], #productDescription, #product-description, '
-            '.product-description, .product__description, #product-detail, '
-            '#productDetail, #prodDetail, #prdDetail, .product-detail, .product_detail'
-        )
+        selector = DETAIL_SELECTOR
     nodes = soup.select(selector)
+    if not nodes or all(n.name == 'iframe' for n in nodes):
+        nodes = soup.select(DETAIL_SELECTOR)
     if host in ("lge.co.kr", "www.lge.co.kr") and nodes:
         for root in nodes:
             for common in list(root.select('.KRP0021')):
@@ -95,6 +168,22 @@ def product_body(html: str, url: str) -> BeautifulSoup:
     selected = BeautifulSoup("<section></section>", "html.parser")
     for node in roots:
         selected.section.append(node)
+    if not roots and structured:
+        selected.section.append(BeautifulSoup(structured, 'html.parser'))
+    # Some editors emit escaped HTML rather than child nodes.
+    for node in list(selected.select('div,p,section')):
+        if not node.find(True) and re.search(r'<(?:img|p|div|table)\b', node.get_text(), re.I):
+            fragment = BeautifulSoup(node.get_text(), 'html.parser')
+            node.clear()
+            node.append(fragment)
+    for node in list(selected.select('script,style,iframe,object,embed')):
+        node.decompose()
+    for node in list(selected.find_all(True)):
+        if node.parent is None: continue
+        identity = ' '.join([node.get('id', ''), *node.get('class', [])])
+        identity = re.sub(r'([a-z])([A-Z])', r'\1 \2', identity)
+        if _NOISE.search(identity) and 'usp-banner-wrap' not in node.get('class', []):
+            node.decompose()
     text = selected.get_text(" ", strip=True)
     # Empty/short shells and title-only pages are inconclusive, not negative AI findings.
     if len(re.sub(r"\s+", "", text)) < 30 and not any(image_source(im) for im in selected.select('img')):
