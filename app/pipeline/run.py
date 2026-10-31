@@ -89,6 +89,8 @@ def quick_check(name: str, url: str, sales_text: str, fine_text: str = "", use_l
         raise ValueError("본문 글자를 받지 못했습니다.")
     with (contextlib.nullcontext() if use_llm else llm.rules_only()):
         index = ChunkIndex(docs)
+        if index.bm25 is None:
+            raise ValueError("입력한 자료에서 분석할 수 있는 글자를 찾지 못했습니다. 상품 설명이 보이는 캡처·PDF를 올리거나 설명 글을 붙여 넣어 주세요.")
         card = new_card({"name": name, "maker": "", "model": "", "category": "즉석 확인"})
         card["sources"] = [{"doc_id": d["id"], "kind": d["kind"], "title": d["title"], "url": d["url"],
                             "n_chunks": len(d["chunks"])} for d in docs]

@@ -33,8 +33,10 @@ class ChunkIndex:
         for d in docs:
             for i, c in enumerate(d["chunks"]):
                 self.entries.append((d["id"], i, c, d["kind"]))
-        corpus = [tokenize(e[2]) for e in self.entries] or [["_"]]
-        self.bm25 = BM25Okapi(corpus)
+        corpus = [tokenize(e[2]) for e in self.entries]
+        # Some fetched pages contain only separators or unsupported characters.
+        # Keep source positions intact, but never construct BM25 with no terms.
+        self.bm25 = BM25Okapi(corpus) if any(corpus) else None
 
     def condition_context(self):
         return [{'doc_id': d, 'chunk': i, 'quote': t, 'kind': k,
@@ -42,7 +44,7 @@ class ChunkIndex:
 
     def search(self, query: str, k: int = 6, exclude: tuple[int, int] | None = None,
                prefer_kinds: tuple[str, ...] = ()) -> list[dict[str, Any]]:
-        if not self.entries:
+        if self.bm25 is None:
             return []
         scores = self.bm25.get_scores(tokenize(query))
         ranked = sorted(range(len(scores)), key=lambda i: scores[i], reverse=True)
