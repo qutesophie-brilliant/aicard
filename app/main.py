@@ -583,9 +583,18 @@ def _rate_ok(ip: str, limit: int = 30, window: int = 3600) -> bool:
     import time as _t
     now_t = _t.time()
     hits = [t for t in _check_hits.get(ip, []) if now_t - t < window]
-    hits.append(now_t)
     _check_hits[ip] = hits
-    return len(hits) <= limit
+    if len(hits) >= limit:
+        return False
+    hits.append(now_t)
+    return True
+
+
+def _refund_check_ocr(key: str, ticket):
+    """A failed page fetch must not consume the expensive OCR allowance."""
+    hits = _check_hits.get(key, [])
+    if ticket is not None and ticket in hits:
+        hits.remove(ticket)
 
 
 def _check_summary(card: dict[str, Any]) -> dict[str, Any]:
@@ -761,20 +770,28 @@ async def check_url(request: Request, url: str = Form(""), text: str = Form(""),
     elif url.startswith("http"):
         if not _rate_ok(ip + ":ocr", limit=config.CHECK_OCR_PER_HOUR):
             return render(request, "check.html", base=base, bookmarklet=bm, url=url, q="",
-                          error="이미지 확인 요청이 많습니다. 잠시 뒤 다시 시도해 주세요.")
+                          error=f"시간당 분석 한도({config.CHECK_OCR_PER_HOUR}회)에 도달했습니다. 한도가 회복된 뒤 다시 시도해 주세요.")
+        # Capture this request's reservation before awaiting; another request
+        # may arrive while the retailer is responding.
+        ocr_hits = _check_hits.get(ip + ':ocr', [])
+        ocr_ticket = ocr_hits[-1] if ocr_hits else None
         try:
             ing = await run_in_threadpool(_read_check_url, url)
         except ingest.product_page.ProductBodyUnavailable as e:
+            _refund_check_ocr(ip + ':ocr', ocr_ticket)
             return render(request, "check.html", base=base, bookmarklet=bm, url=url, q="", error=str(e), upload_fallback=True)
         except PublicURLRejected as e:
+            _refund_check_ocr(ip + ':ocr', ocr_ticket)
             return render(request, "check.html", base=base, bookmarklet=bm, url=url, q="",
                           error=str(e), upload_fallback=True)
         except httpx.HTTPStatusError as e:
+            _refund_check_ocr(ip + ':ocr', ocr_ticket)
             blocked = e.response.status_code in (401, 403, 429)
             message = ("판매사이트가 자동 접속을 거부해 이 링크로는 검색할 수 없습니다. 상세페이지 캡처 이미지나 PDF를 올려 주세요."
                        if blocked else "판매사이트에서 페이지를 보내 주지 않아 이 링크로 확인하지 못했습니다. 잠시 뒤 다시 시도하거나 상세페이지 캡처를 올려 주세요.")
             return render(request, "check.html", base=base, bookmarklet=bm, url=url, q="", error=message, upload_fallback=True)
         except Exception:
+            _refund_check_ocr(ip + ':ocr', ocr_ticket)
             return render(request, "check.html", base=base, bookmarklet=bm, url=url, q="",
                           error="페이지를 가져오지 못했습니다. 쇼핑몰의 접근 제한이나 일시적인 연결 문제일 수 있습니다. 상세페이지를 캡처한 이미지나 PDF를 올리거나, 제품 설명을 복사해 붙여 넣어 주세요. PC라면 ‘주소 입력이 안 될 때’의 버튼으로 보낼 수도 있습니다.")
         source_capture = ing.source_capture
