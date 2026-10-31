@@ -626,7 +626,7 @@ def _read_upload_images(images, allow_llm=True):
     read = sum(bool(row['text'].strip()) for row in rows)
     provider_notes = product_ocr.provider_failure_notes(rows)
     if not read and any(row.get('status') in ('timeout', 'provider_error', 'missing_response') for row in rows):
-        raise ValueError(' '.join(provider_notes + ['글자 인식 처리를 완료하지 못했습니다. 잠시 뒤 다시 시도하거나 필요한 설명 구간만 나누어 올려 주세요.']))
+        raise ValueError(' '.join(provider_notes + ['글자 인식 처리를 완료하지 못했습니다. 잠시 뒤 같은 파일로 다시 시도하거나, 제품 설명 글을 붙여 넣어 확인해 주세요.']))
     engines = {row['engine'] for row in rows if row['text'].strip()}
     result = ocr.OcrResult(texts=[row['text'] for row in rows],
                            engine=next(iter(engines)) if len(engines) == 1 else 'mixed' if engines else 'none')
