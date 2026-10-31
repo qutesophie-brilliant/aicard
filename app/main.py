@@ -18,6 +18,7 @@ from fastapi.templating import Jinja2Templates
 from starlette.concurrency import run_in_threadpool
 
 from . import config, db
+from .upload_safety import check_upload
 from .display_mask import PUBLIC_TEMPLATES, mask_public_html, catalog_display_label
 from .pipeline import ingest, llm, ocr
 from .pipeline.run import build_card, quick_check, split_fine_print
@@ -639,7 +640,10 @@ def _read_check_uploads(payloads: list[tuple[str, str, bytes]]) -> tuple[list[st
     if not _check_ocr_gate.acquire(blocking=False):
         raise ValueError("다른 파일의 글자를 읽고 있습니다. 잠시 뒤 다시 시도해 주세요.")
     try:
-        from PIL import Image
+        # Validate the entire batch before sending any image to external OCR.
+        checked = [check_upload(filename, ctype, data,
+                    max_bytes=config.CHECK_MAX_FILE_MB * 1024 * 1024)
+                   for filename, ctype, data in payloads]
         imgs: list[bytes] = []
         texts: list[str] = []
         notes: list[str] = []
@@ -648,18 +652,14 @@ def _read_check_uploads(payloads: list[tuple[str, str, bytes]]) -> tuple[list[st
             texts.extend(r.texts)
             notes.extend(r.notes)
             notes.append("글자 읽기: " + engines.get(r.engine, "문자 인식"))
-        for filename, ctype, data in payloads:
-            if ctype == "application/pdf" or filename.lower().endswith(".pdf"):
+        for (filename, _, _), upload in zip(payloads, checked):
+            data = upload.data
+            if upload.content_type == "application/pdf":
                 try:
                     keep(ocr.read_pdf(data, allow_llm=config.CHECK_OCR_LLM, image_reader=_read_upload_images))
                 except Exception as e:
                     raise ValueError(f"PDF를 읽지 못했습니다. 손상되거나 암호가 설정된 파일인지 확인해 주세요. ({filename})") from e
             else:
-                try:
-                    with Image.open(io.BytesIO(data)) as image:
-                        image.verify()
-                except Exception as e:
-                    raise ValueError(f"이미지를 읽지 못했습니다. JPG·PNG 캡처로 다시 올려 주세요. ({filename})") from e
                 imgs.append(data)
         if imgs:
             keep(_read_upload_images(imgs, allow_llm=config.CHECK_OCR_LLM))

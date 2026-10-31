@@ -180,7 +180,13 @@ def read_pdf(data: bytes, allow_llm: bool = True, max_pages: int = 12, image_rea
             res.texts.append(t)
         else:
             res.texts.append("")
-            scans.append(page.get_pixmap(dpi=130).tobytes("png"))
+            # Bound allocation before rendering unusually large PDF pages.
+            # The image OCR path already resizes inputs to MAX_SIDE.
+            longest = max(page.rect.width, page.rect.height)
+            if longest <= 0:
+                raise ValueError("PDF page has invalid dimensions")
+            scale = min(130 / 72, MAX_SIDE / longest)
+            scans.append(page.get_pixmap(matrix=pymupdf.Matrix(scale, scale)).tobytes("png"))
             idx.append(i)
     if scans:
         sub = (image_reader or read_images)(scans, allow_llm=allow_llm)
