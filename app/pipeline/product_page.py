@@ -35,6 +35,18 @@ def product_body(html: str, url: str) -> BeautifulSoup:
     Unknown layouts need a product description node, rather than a body/main fallback.
     """
     soup = BeautifulSoup(html, "html.parser")
+    host = (urlsplit(url).hostname or "").lower()
+    if host == "rental.lghellovision.net":
+        # The seller embeds escaped editor HTML inside a detail/review wrapper.
+        # Select the editor first: the shared wrapper is otherwise noise, and
+        # its AI review summary must never become a product feature.
+        editors = soup.select('.panel-area__detail-info .detail-img')
+        fragments = []
+        for editor in editors:
+            fragments.append(editor.decode_contents() if editor.find(True)
+                             else editor.get_text())
+        soup = BeautifulSoup('<div class="product-description">' +
+                             '\n'.join(fragments) + '</div>', 'html.parser')
     for node in list(soup.select("script,style,noscript,nav,header,footer,svg,button,[role=button],[role=navigation],[role=menu]")):
         if node.parent is not None:
             node.decompose()
@@ -46,7 +58,6 @@ def product_body(html: str, url: str) -> BeautifulSoup:
         if _NOISE.search(identity) and 'usp-banner-wrap' not in node.get('class', []):
             node.decompose()
 
-    host = (urlsplit(url).hostname or "").lower()
     if host in ("navimro.com", "www.navimro.com"):
         selector = ".spec-sum > .spec .desc_info"
     elif host == "prod.danawa.com":

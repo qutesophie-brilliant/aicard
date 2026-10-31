@@ -13,6 +13,8 @@ def capture_images(html, url, capture, fetch_bytes=None, reader=None, limit=6):
     allowed_hosts={source_host,'images.samsung.com','static.lge.co.kr'}
     cj_hosts={'image.cjonstyle.net','itemimage.cjonstyle.net'} if source_host in ('display.cjonstyle.com','base.cjonstyle.com') else set()
     allowed_hosts.update(cj_hosts)
+    if source_host == 'rental.lghellovision.net':
+        allowed_hosts.add('rentalcdn.lghellovision.net')
     candidates=[]; seen=set()
     for im in body.select('img'):
         src=urljoin(url, product_page.image_source(im))
@@ -59,7 +61,8 @@ def capture_images(html, url, capture, fetch_bytes=None, reader=None, limit=6):
             import io
             from PIL import Image
             with Image.open(io.BytesIO(data)) as im:
-                if im.width * im.height > 25_000_000: raise ValueError('Image exceeds OCR pixel budget')
+                from .image_tiles import MAX_PIXELS
+                if im.width * im.height > MAX_PIXELS: raise ValueError('Image exceeds OCR pixel budget')
             total_bytes += len(data)
             if total_bytes > 32*1024*1024: raise ValueError('Images exceed combined byte budget')
             row['image_sha256']=hashlib.sha256(data).hexdigest()
