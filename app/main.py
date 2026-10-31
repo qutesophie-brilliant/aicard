@@ -820,7 +820,17 @@ async def api_check(request: Request):
     ip = request.client.host if request.client else "?"
     if not _rate_ok(ip):
         raise HTTPException(429)
-    data = await request.json()
+    payload = bytearray()
+    async for chunk in request.stream():
+        if len(payload) + len(chunk) > 1600000:
+            raise HTTPException(413, '상품 설명이 너무 큽니다. 필요한 구간을 캡처해 올려 주세요.')
+        payload.extend(chunk)
+    try:
+        data = json.loads(payload)
+    except (ValueError, UnicodeDecodeError):
+        raise HTTPException(400, '상품 설명을 읽을 수 없습니다.')
+    if not isinstance(data, dict) or any(not isinstance(data.get(k,''), str) for k in ('title','url','sales_text','fine_text','product_html')):
+        raise HTTPException(400, '상품 설명 형식을 확인해 주세요.')
     name = (data.get("title") or "").split("|")[0].strip()[:60] or "제품"
     url = (data.get("url") or "")[:500]
     hit = _match_published(url)
@@ -828,13 +838,39 @@ async def api_check(request: Request):
         # 검토자가 확인한 카드가 있으면 즉석 분석 대신 그 카드로 보낸다
         return HTMLResponse(f'<script>location.replace("/card/{hit["id"]}?from=check")</script>'
                             f'<p class="lede">이 제품은 이미 검토자가 확인한 카드가 있습니다. <a href="/card/{hit["id"]}?from=check">카드 보기</a></p>')
+    notes = []
+    source_capture = None
+    if data.get('product_html'):
+        if not _rate_ok(ip + ':ocr', limit=config.CHECK_OCR_PER_HOUR):
+            raise HTTPException(429, '시간당 분석 한도에 도달했습니다. 잠시 뒤 다시 시도해 주세요.')
+        ticket = _check_hits[ip + ':ocr'][-1]
+        def read_capture():
+            from .pipeline.browser_capture import read
+            if not _check_ocr_gate.acquire(blocking=False):
+                raise ValueError('다른 자료를 분석하고 있습니다. 잠시 뒤 다시 시도해 주세요.')
+            try:
+                return read(data['product_html'], url)
+            finally:
+                try: release_ocr_heap()
+                finally: _check_ocr_gate.release()
+        try:
+            ing = await run_in_threadpool(read_capture)
+        except ValueError as e:
+            _refund_check_ocr(ip + ':ocr', ticket)
+            raise HTTPException(400, str(e))
+        except Exception:
+            _refund_check_ocr(ip + ':ocr', ticket)
+            raise HTTPException(502, '받은 상품 설명의 분석을 완료하지 못했습니다. 잠시 뒤 다시 시도해 주세요.')
+        data['sales_text'], data['fine_text'] = split_fine_print(ing.text)
+        notes = ing.notes
+        source_capture = ing.source_capture
     use_llm = config.CHECK_LLM and _rate_ok(ip + ":llm", limit=config.CHECK_LLM_PER_HOUR)
     try:
-        card, docs = await run_in_threadpool(quick_check, name, url, data.get("sales_text", ""), data.get("fine_text", ""), use_llm=use_llm)
+        card, docs = await run_in_threadpool(quick_check, name, url, data.get("sales_text", ""), data.get("fine_text", ""), use_llm=use_llm, source_capture=source_capture)
     except ValueError as e:
         raise HTTPException(400, str(e))
     return render(request, "_check_body.html", card=card, docs=docs, pname=name,
-                  url=url, s=_check_summary(card), notes=[])
+                  url=url, s=_check_summary(card), notes=notes)
 
 
 @app.post("/check/request")
@@ -875,6 +911,14 @@ def _bookmarklet(base: str, receive: str = "/capture/receive") -> str:
     보안 정책(CSP)이 엄격한 쇼핑몰은 다른 주소로 직접 보내는 요청(fetch)을 막는다. 그래서 정보카드의
     수신 창을 새로 열고, 창끼리 메시지(postMessage)로 본문을 넘긴다. 수신 창은 정보카드 서비스와 같은
     주소라서 자기 서버로 저장할 수 있다."""
+    if receive == '/check/receive':
+        from .pipeline.product_page import DETAIL_SELECTOR
+        js = (APP_DIR / 'static' / 'check-capture.js').read_text(encoding='utf-8')
+        selector = DETAIL_SELECTOR + ', .panel-area__detail-info, section.wcms-usp-scope.pc, .spec_list, .spec-sum > .spec .desc_info'
+        js = js.replace('__BASE__', json.dumps(base)).replace('__RECEIVE__', json.dumps(receive)).replace('__SELECTOR__', json.dumps(selector))
+        # Bookmark URLs cannot retain raw newlines (including // comments).
+        from urllib.parse import quote
+        return 'javascript:' + quote(js, safe='')
     js = (
         "(()=>{"
         # 상품평·메뉴·추천 상품 영역은 글자를 읽기 전에 뺀다(상품평 문장이 'AI 표시 문구'로 잡히는 것을 막는다)

@@ -3,20 +3,29 @@
 {% block content %}
 <section class="page-head" id="wait">
   <h1>제품 페이지를 받는 중입니다</h1>
-  <p class="lede" id="msg">쇼핑몰 창에서 글이 도착하면 바로 결과가 나옵니다. 몇 초 걸릴 수 있습니다.</p>
+  <p class="lede" id="msg" role="status" aria-live="polite">쇼핑몰에서 보낸 상품 설명을 기다리고 있습니다.</p>
+  <p><a href="/check" class="btn">바로 확인으로 돌아가기</a></p>
 </section>
 <div id="out" class="narrow"></div>
 <script>
 (function(){
+  let started = false;
+  const timer = setTimeout(() => {
+    if (!started) document.getElementById('msg').textContent = '상품 설명이 도착하지 않았습니다. 상품 페이지에서 상세 설명을 펼친 뒤 즐겨찾기의 ‘AI 정보카드로 확인’을 다시 눌러 주세요. 판매처 보안 설정에 따라 전송이 제한될 수 있습니다.';
+  }, 15000);
   window.addEventListener('message', async (e) => {
-    if (!e.data || e.data.type !== 'aicard-capture') return;
-    document.getElementById('msg').textContent = '받았습니다. 확인하는 중…';
+    if (started || !window.opener || e.source !== window.opener || !e.data || e.data.type !== 'aicard-capture') return;
+    try { if (new URL(e.data.url).origin !== e.origin || !/^https?:$/.test(new URL(e.data.url).protocol)) return; } catch (_) { return; }
+    started = true; clearTimeout(timer);
+    document.getElementById('msg').textContent = '상품 설명을 받았습니다. 상세 이미지의 글자도 읽고 있습니다. 약 1분 정도 걸리며, 이미지 수에 따라 더 오래 걸릴 수 있습니다.';
+    try {
     const r = await fetch('/api/check', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(e.data)});
-    if (!r.ok) { document.getElementById('msg').textContent = '확인하지 못했습니다. 잠시 뒤 다시 눌러 주세요. (' + r.status + ')'; return; }
+    if (!r.ok) { let detail; try { detail = (await r.json()).detail; } catch (_) {} document.getElementById('msg').textContent = typeof detail === 'string' ? detail : '확인하지 못했습니다. 잠시 뒤 상품 페이지에서 다시 눌러 주세요.'; return; }
     const html = await r.text();
     const m = html.match(/location\.replace\("([^"]+)"\)/); if (m) { location.replace(m[1]); return; }
     document.getElementById('out').innerHTML = html;
     document.getElementById('wait').hidden = true;
+    } catch (_) { document.getElementById('msg').textContent = '서버 연결이 끊겼습니다. 잠시 뒤 상품 페이지에서 다시 눌러 주세요.'; }
   });
   if (window.opener) window.opener.postMessage('aicard-ready', '*');
 })();
