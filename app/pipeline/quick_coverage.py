@@ -24,6 +24,10 @@ def _matches(key: str, text: str) -> bool:
     if key == "data":
         return bool(_DATA_SUBJECT.search(text))
     if key == "optout":
+        # A refrigerator compartment's power switch does not show that its AI
+        # feature can be disabled. Require a named intelligent/automatic function.
+        if not re.search(r'\bAI\b|인공지능|학습|생성형|음성|인식|감지|스마트|자동', text, re.I):
+            return False
         return bool(_OPTOUT.search(text) and _AI_CONTEXT.search(text))
     if key == "safety":
         return bool(_SAFETY.search(text))

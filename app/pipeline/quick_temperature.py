@@ -171,7 +171,12 @@ def connect(claims, docs):
             additions.append(_evidence(*limit_passage, condition=True))
         existing = claim.setdefault('evidence', [])
         for evidence in additions:
-            if not any(_compact(e['quote']) == _compact(evidence['quote']) for e in existing):
+            matching = next((e for e in existing if _compact(e['quote']) == _compact(evidence['quote'])), None)
+            if matching is not None:
+                # A sentence-preserving OCR chunk may already quote this exact
+                # passage. Retain the verified scope/provenance without a duplicate.
+                matching.update(evidence)
+            else:
                 existing.append(evidence)
         condition = next((e for e in additions if e.get('condition_type') == 'operating'), None)
         if claim.get('status') != '추가 확인 필요':

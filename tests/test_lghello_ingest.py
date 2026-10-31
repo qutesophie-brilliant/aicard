@@ -18,6 +18,26 @@ HTML = '''<title>AI 김치냉장고</title><div class="tab-box__detail-review">
 
 
 class LgHelloTests(unittest.TestCase):
+    def test_quick_ocr_does_not_merge_container_trial_into_ai_temperature(self):
+        from app.pipeline.run import quick_check
+        raw = ('* 시험방법 : 밀폐 챔버에서 김치통의 냄새 성분 농도를 측정\n'
+               '- 김치통 정보 (제조자 / 판매자) : 뉴서광 / 삼성전자\n'
+               '사용 패턴에 맞춰 적정 온도를 유지하는 AI 정온 모드\n'
+               'AI 정온 모드는 사용 패턴에 따른 맞춤운전으로 온도 상승 폭을 최소화합니다.\n'
+               '* AI 정온 기능을 사용하려면 앱 연동과 무선 네트워크 연결이 필요합니다.\n'
+               '상칸 김치보관 모드 냉장 모드 OFF 모드\n* 각 칸별 모드는 on/off 가능합니다.')
+        capture = {'coverage': {}, 'sections': [{'section_id': 0, 'feature_scope': '',
+            'text': raw.replace('\n', ' '), 'chunks': [raw.replace('\n', ' ')],
+            'diagram_text': raw, 'source_type': 'image_ocr', 'source_url': PAGE,
+            'snapshot_sha256': 'test'}]}
+        card, docs = quick_check('냉장고', PAGE, '', source_capture=capture)
+        self.assertTrue(card['claims'])
+        self.assertFalse(card['items']['optout']['evidence'])
+        for doc in docs.values():
+            self.assertFalse(any('김치통' in q and 'AI 정온' in q for q in doc['chunks']))
+        for claim in card['claims']:
+            self.assertFalse(any('밀폐 챔버' in e['quote'] for e in claim['evidence']))
+
     def test_escaped_detail_inside_review_wrapper_preserves_only_product(self):
         body = product_body(HTML, PAGE)
         self.assertEqual(['/uploads/editor/detail.png'], [im['src'] for im in body.select('img')])

@@ -85,6 +85,14 @@ def quick_check(name: str, url: str, sales_text: str, fine_text: str = "", use_l
     if source_capture:
         from .source_capture import section_documents
         docs = section_documents(source_capture, 10000)
+        if not use_llm:
+            # OCR line merging for the formal pipeline can join a preceding
+            # test footnote to the next feature heading. Quick previews retain
+            # the original OCR boundaries and join only explicit continuations.
+            for doc in docs:
+                if doc.get('source_type') == 'image_ocr' and doc.get('diagram_text'):
+                    doc['text'] = doc['diagram_text']
+                    doc['chunks'] = quick_text.chunks(doc['diagram_text'])
     if not docs:
         raise ValueError("본문 글자를 받지 못했습니다.")
     with (contextlib.nullcontext() if use_llm else llm.rules_only()):
