@@ -9,13 +9,9 @@
     <a class="btn primary" href="/new">제품 등록</a>
     <a class="btn" href="/capture">브라우저에서 담기</a>
     <a class="btn" href="/export/claims.csv">라벨링용 CSV 내려받기</a>
+    <a class="btn" href="/review/traffic">페이지 이용 통계</a>
   </div>
 </section>
-{% if views %}
-<details style="margin-top:22px"><summary class="meta" style="cursor:pointer">최근 30일 방문 수(쿠키 없이 서버에서 센 값) — 합계 {{ views|sum(attribute='n') }}</summary>
-<table class="table"><tr><th>화면</th><th>조회</th></tr>{% for v in views[:20] %}<tr><td>{{ v.path }}</td><td>{{ v.n }}</td></tr>{% endfor %}</table>
-</details>
-{% endif %}
 {% if requests %}
 <h2 style="margin-top:28px;font-size:1.15rem">소비자 카드 요청 {{ requests|length }}건</h2>
 <table class="table">

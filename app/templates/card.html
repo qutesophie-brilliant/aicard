@@ -6,6 +6,22 @@
   {% if from_check %}<div class="notice" style="margin:0 0 14px">넣으신 주소의 제품은 이미 검토자가 원문을 확인한 카드가 있습니다. 즉석 분석 대신 이 카드를 보여 드립니다.</div>{% endif %}
   {% if preview %}<div class="notice" style="margin:0 0 14px">검토자 미리보기입니다. 아직 공개되지 않은 카드입니다. <a href="/review/{{ product.id }}">검토 화면으로</a></div>{% endif %}
   {% with h='h1' %}{% include "_label.html" %}{% endwith %}
+  <details class="purchase-questions" id="purchase-questions">
+    <summary><span>구매 전, 제조사에 확인할 질문</span><small>모델명이 포함된 질문을 복사할 수 있습니다</small></summary>
+    <div class="purchase-questions-body">
+      <p>카드와 원문을 읽은 뒤 남은 질문만 골라 문의하세요. 아래 내용은 문의용 질문이며, 제조사가 확인한 답변이 아닙니다.</p>
+      <label for="purchase-question-text">{{ product.name }} 문의 문안</label>
+      <textarea id="purchase-question-text" rows="10" readonly>제품: {{ product.maker }} {{ product.name }}{% if product.model %} ({{ product.model }}){% endif %}
+
+{% if sum.n_claims %}1. 이 모델의 AI 기능이 작동하는 조건과 제한을 설명한 공식 자료를 알려 주세요.{% else %}1. 이 모델에서 AI 기능으로 소개하는 기능이 있다면, 해당 설명과 사용 조건을 확인할 공식 자료를 알려 주세요.{% endif %}
+2. 기능을 사용할 때 어떤 정보를 수집하며, 어디에서 처리하고 얼마나 보관하나요?
+{% if sum.n_claims %}3. AI 기능을 끌 수 있나요? 끄면 어떤 기능이나 작동 방식이 달라지나요?{% else %}3. AI 기능을 제공하는 모델이라면 해당 기능을 끌 수 있나요? 끈 뒤의 작동 방식도 알려 주세요.{% endif %}
+4. 오작동 시 대응 방법과 업데이트 지원 기간, 문의·보증 절차를 알려 주세요.
+5. 이 모델에 해당하는 안전·전파 인증의 등록 정보와 확인 경로를 알려 주세요.</textarea>
+      <div class="purchase-question-actions"><button class="btn primary" type="button" data-copy-questions>질문 복사</button><a href="#card-review-{{ product.id }}">대조한 출처·승인 기록 보기</a></div>
+      <p class="question-copy-status" role="status" aria-live="polite"></p>
+    </div>
+  </details>
   <div class="card-after">
     <a class="btn" href="/compare?a={{ product.id }}">다른 제품과 비교</a>
     <button type="button" class="btn" onclick="window.print()">인쇄</button>
@@ -14,4 +30,5 @@
   </div>
   <p class="page-note">‘작동 설명 없음’은 회사가 공개한 자료에서 찾지 못했다는 뜻입니다. 기능이 없다거나 표시가 거짓이라는 판정이 아닙니다.</p>
 </div>
+<script src="/static/purchase-questions.js?v=20261031"></script>
 {% endblock %}

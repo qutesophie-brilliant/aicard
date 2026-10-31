@@ -44,7 +44,10 @@ class PublicScopeGuardTests(unittest.TestCase):
         self.assertEqual(approved, db.get_product(self.pid)['approved_at'])
 
     def test_public_card_compare_and_json_all_use_guard(self):
-        for url in (f'/card/{self.pid}', f'/compare?a={self.pid}&b={self.pid}'):
+        other = db.create_product('두 번째 점검용 제품', '점검용 제조사', 'TEST-2', '인덕션')
+        db.save_card(other, new_card(db.get_product(other)), {'provider': 'test'})
+        db.set_product_status(other, 'approved', '기존 시험 승인')
+        for url in (f'/card/{self.pid}', f'/compare?a={self.pid}&b={other}'):
             response = self.client.get(url)
             self.assertEqual(200, response.status_code)
             self.assertIn('환불·해지 안내의 적용 대상', response.text)
@@ -52,7 +55,8 @@ class PublicScopeGuardTests(unittest.TestCase):
         card = self.client.get(f'/api/card/{self.pid}.json').json()
         cards = self.client.get('/api/cards.json').json()
         self.assertEqual('추가 확인 필요', card['items']['remedy']['status'])
-        self.assertEqual('추가 확인 필요', cards[0]['card']['items']['remedy']['status'])
+        tested = next(row for row in cards if row['id'] == self.pid)
+        self.assertEqual('추가 확인 필요', tested['card']['items']['remedy']['status'])
         self.assertEqual(self.card, db.get_card(self.pid))
 
     def test_reviewer_view_remains_original(self):

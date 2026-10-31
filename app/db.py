@@ -46,6 +46,10 @@ CREATE TABLE IF NOT EXISTS views (
   day TEXT NOT NULL, path TEXT NOT NULL, n INTEGER DEFAULT 0,
   PRIMARY KEY (day, path)
 );
+CREATE TABLE IF NOT EXISTS traffic_daily (
+  day TEXT NOT NULL, path TEXT NOT NULL, source TEXT NOT NULL, n INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (day, path, source)
+);
 CREATE TABLE IF NOT EXISTS review_log (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   product_id INTEGER, action TEXT, detail TEXT, at TEXT
@@ -205,11 +209,45 @@ def count_requests(status: str = "new") -> int:
         return int(con.execute("SELECT COUNT(*) FROM requests WHERE status=?", (status,)).fetchone()[0])
 
 
-# ---------- 방문 수(쿠키·개인정보 없음) ----------
-def count_view(path: str) -> None:
-    day = datetime.now().strftime("%Y-%m-%d")
+# ---------- 페이지 조회 집계(개별 방문 기록 없이 일별 합계만 저장) ----------
+def count_view(path: str, source: str = "direct") -> None:
+    from .traffic import public_path, SOURCE_LABELS, today
+    path = public_path(path)
+    if path is None:
+        return
+    source = source if source in SOURCE_LABELS else "other"
     with connect() as con:
-        con.execute("INSERT INTO views(day,path,n) VALUES(?,?,1) ON CONFLICT(day,path) DO UPDATE SET n=n+1", (day, path[:120]))
+        con.execute("INSERT INTO traffic_daily(day,path,source,n) VALUES(?,?,?,1) "
+                    "ON CONFLICT(day,path,source) DO UPDATE SET n=n+1", (today(), path, source))
+
+
+def traffic_stats() -> dict[str, Any]:
+    from datetime import date, timedelta
+    from .traffic import today, PAGE_LABELS, SOURCE_LABELS
+    end = today()
+    start = (date.fromisoformat(end) - timedelta(days=29)).isoformat()
+    week = (date.fromisoformat(end) - timedelta(days=6)).isoformat()
+    with connect() as con:
+        rows = [dict(r) for r in con.execute(
+            "SELECT day,path,source,n FROM traffic_daily WHERE day BETWEEN ? AND ?", (start, end))]
+        first = con.execute("SELECT MIN(day) FROM traffic_daily").fetchone()[0]
+    paths, sources, daily = {}, {}, {}
+    for row in rows:
+        paths[row["path"]] = paths.get(row["path"], 0) + row["n"]
+        sources[row["source"]] = sources.get(row["source"], 0) + row["n"]
+        daily[row["day"]] = daily.get(row["day"], 0) + row["n"]
+    return {
+        "start": start, "end": end, "first": first,
+        "total": sum(row["n"] for row in rows),
+        "week": sum(row["n"] for row in rows if row["day"] >= week),
+        "today": daily.get(end, 0),
+        "paths": [{"path": p, "label": PAGE_LABELS.get(p, "제품 카드 " + p.rsplit("/", 1)[-1]), "n": n}
+                  for p, n in sorted(paths.items(), key=lambda item: (-item[1], item[0]))],
+        "sources": [{"label": SOURCE_LABELS.get(s, "기타 외부"), "n": n}
+                    for s, n in sorted(sources.items(), key=lambda item: (-item[1], item[0]))],
+        "days": [{"day": day, "n": daily.get(day, 0)} for day in
+                 [(date.fromisoformat(end) - timedelta(days=i)).isoformat() for i in range(14)]],
+    }
 
 
 def view_stats(days: int = 30) -> list[dict[str, Any]]:

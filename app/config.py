@@ -56,6 +56,9 @@ CHECK_MAX_FILE_MB = int(os.getenv("CHECK_MAX_FILE_MB", "8"))
 # 검토자 화면 보호용 토큰. 비어 있으면 누구나 접근 가능(로컬 개발용).
 REVIEW_TOKEN = os.getenv("REVIEW_TOKEN", "")
 
+# Production aggregate page views; local development does not count unless explicitly enabled.
+TRAFFIC_ENABLED = os.getenv("TRAFFIC_ENABLED", "1" if os.getenv("PUBLIC_DEPLOY") == "1" else "0") == "1"
+
 # 확인상태 4종 — 1차 제안서 <표 2>와 동일
 STATUSES = ["근거 확인", "조건 확인", "자료 부족", "추가 확인 필요"]
 

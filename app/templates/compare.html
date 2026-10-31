@@ -10,52 +10,49 @@
   <h1>제품 비교</h1>
   <p class="lede">같은 품목의 두 제품을 선택하면 AI 기능·사용 조건·권익 정보를 다섯 공통 질문별로 비교할 수 있습니다. 각 설명에 연결된 제조사 원문도 함께 확인할 수 있습니다.</p>
 </section>
-<section class="compare-filter" aria-label="비교할 제품 찾기">
+<section class="compare-workbench" aria-label="비교할 제품 선택">
+<div class="compare-workbench-head"><span class="eyebrow">같은 질문, 나란히 확인</span><h2>어떤 두 제품을 비교할까요?</h2><p>첫 번째 제품을 고르면 같은 품목의 제품을 보여 드립니다.</p></div>
+<div class="compare-filter" aria-label="비교할 제품 찾기">
   <label for="compare-category">품목 먼저 선택
     <select id="compare-category"><option value="">전체 품목</option>{% for category, products in approved|groupby('category') %}<option value="{{ category }}">{{ category or '기타' }} ({{ products|length }})</option>{% endfor %}</select>
   </label>
   <label for="compare-search">제품명·제조사·모델명 검색<input id="compare-search" type="search" placeholder="예: 세탁기 모델명" autocomplete="off"></label>
-  <p id="compare-count" role="status" aria-live="polite">품목을 고르거나 왼쪽 제품을 선택하면 같은 품목의 제품을 찾을 수 있습니다.</p>
-</section>
-<style>.compare-filter{display:flex;gap:1rem;flex-wrap:wrap;align-items:end;margin:1.5rem 0;padding:1.25rem;border:1px solid #d8e1e5;border-radius:12px}.compare-filter label{min-width:0;display:grid;gap:.5rem;flex:1 1 240px}.compare-filter input,.compare-filter select{width:100%;min-height:44px;padding:.7rem;font:inherit}.compare-filter p{flex-basis:100%;margin:0}.compare-facts{padding:1rem 0}.compare-facts dl{display:grid;grid-template-columns:6rem 1fr;gap:.5rem}.compare-facts dd{margin:0;overflow-wrap:anywhere}@media(max-width:600px){.compare-filter{padding:1rem}.compare-filter label{flex-basis:100%}.compare-facts dl{grid-template-columns:5rem minmax(0,1fr)}.pick select{font-size:16px;min-height:48px}} </style>
-<form class="pick" method="get" action="/compare">
-  <label for="compare-a">왼쪽 제품
+  <p id="compare-count" role="status" aria-live="polite">품목이나 검색어로 제품 목록을 좁힐 수 있습니다.</p>
+</div>
+<form class="pick" method="get" action="/compare#compare-basic">
+  <label for="compare-a"><span class="pick-title"><span aria-hidden="true">01</span> 첫 번째 제품</span>
     <select id="compare-a" name="a" aria-label="왼쪽 제품">
       <option value="">고르기</option>
       {% for category, products in approved|groupby('category') %}<optgroup label="{{ category or '기타' }}">{% for p in products|sort(attribute='name') %}<option value="{{ p.id }}" data-category="{{ category }}" data-search="{{ p.name }} {{ p.maker }} {{ p.model }}" {% if a == p.id %}selected{% endif %}>{{ p.name }}{% if p.release %} · {{ p.release.date }} 출시{% endif %}{% if p.model and p.model not in p.name %} · {{ p.model }}{% endif %}</option>{% endfor %}</optgroup>{% endfor %}
     </select>
+    <span class="pick-selection" id="selection-a">제품을 선택해 주세요.</span>
   </label>
   <span class="vs">와</span>
-  <label for="compare-b">오른쪽 제품
+  <label for="compare-b"><span class="pick-title"><span aria-hidden="true">02</span> 두 번째 제품</span>
     <select id="compare-b" name="b" aria-label="오른쪽 제품">
       <option value="">고르기</option>
       {% for category, products in approved|groupby('category') %}<optgroup label="{{ category or '기타' }}">{% for p in products|sort(attribute='name') %}<option value="{{ p.id }}" data-category="{{ category }}" data-search="{{ p.name }} {{ p.maker }} {{ p.model }}" {% if b == p.id %}selected{% endif %}>{{ p.name }}{% if p.release %} · {{ p.release.date }} 출시{% endif %}{% if p.model and p.model not in p.name %} · {{ p.model }}{% endif %}</option>{% endfor %}</optgroup>{% endfor %}
     </select>
+    <span class="pick-selection" id="selection-b">함께 비교할 제품을 선택해 주세요.</span>
   </label>
   <button class="btn primary" type="submit">나란히 보기</button>
+  <p id="compare-selection-status" class="pick-status" role="status" aria-live="polite">같은 품목의 서로 다른 제품 두 개를 선택해 주세요.</p>
 </form>
+</section>
 
-<script>
-(function(){
- const category=document.getElementById('compare-category'), search=document.getElementById('compare-search');
- const selects=['compare-a','compare-b'].map(id=>document.getElementById(id));
- const originals=selects.map(el=>Array.from(el.children).map(n=>n.cloneNode(true)));
- function filter(){let count=0;selects.forEach((el,i)=>{const selected=el.value;el.replaceChildren();originals[i].forEach(original=>{const group=original.cloneNode(true);if(group.tagName==='OPTGROUP'){Array.from(group.children).forEach(option=>{const match=(!category.value||option.dataset.category===category.value)&&(!search.value.trim()||option.dataset.search.toLocaleLowerCase().includes(search.value.trim().toLocaleLowerCase()));if(!match)option.remove();});if(!group.children.length)return;count+=i===0?group.children.length:0;}el.append(group);});el.value=Array.from(el.options).some(o=>o.value===selected)?selected:'';});document.getElementById('compare-count').textContent='선택 가능한 제품 '+count+'개 · 품목이나 검색어를 바꾸면 목록에서 제외된 선택은 해제됩니다.';}
- category.addEventListener('change',filter);search.addEventListener('input',filter);
- selects[0].addEventListener('change',()=>{const option=selects[0].selectedOptions[0];if(option&&option.value){category.value=option.dataset.category;search.value='';filter();}});
- const left=selects[0].selectedOptions[0],right=selects[1].selectedOptions[0];
- if(left&&right&&left.value&&right.value&&left.dataset.category===right.dataset.category){category.value=left.dataset.category;filter();}
-})();
-</script>
-{% if pair|length == 2 %}
-<section class="cmp-q compare-facts"><h2>비교 제품 기본 정보</h2><div class="pair">{% for row in pair %}<div><h3>{{ row.product.name }}</h3><dl><dt>품목</dt><dd>{{ row.product.category or '미확인' }}</dd><dt>제조사</dt><dd>{{ row.product.maker or '미확인' }}</dd><dt>모델명</dt><dd>{{ row.product.model or '미확인' }}</dd><dt>출시 시점</dt><dd>{% if row.release %}{{ row.release.date }} <a href="{{ row.release.url }}" target="_blank" rel="noopener">제조사 출시정보 원문</a><small style="display:block">{{ row.release.label }}: {{ row.release.quote }}</small>{% else %}확인된 출시 정보 없음{% endif %}</dd></dl></div>{% endfor %}</div><p class="meta">출시 시점은 제조사 근거가 확인된 경우에만 표시합니다. 카드 등록일과 자료 수집일은 제품 출시일이 아닙니다.</p></section>
+<script src="/static/compare.js?v=20261031"></script>
+{% if pair|length == 2 and pair[0].product.id != pair[1].product.id and pair[0].product.category == pair[1].product.category %}
+<nav class="compare-jump" aria-label="비교 항목 바로 가기">
+  <a href="#compare-basic">기본 정보</a><a href="#compare-what">AI 기능·조건</a><a href="#compare-data">내 데이터</a><a href="#compare-optout">AI 끄기</a><a href="#compare-trouble">문제 대응</a><a href="#compare-public">공공 인증·리콜</a>
+</nav>
+<section class="cmp-q compare-facts" id="compare-basic"><h2>비교 제품 기본 정보</h2><div class="pair">{% for row in pair %}<div><h3>{{ row.product.name }}</h3><dl><dt>품목</dt><dd>{{ row.product.category or '미확인' }}</dd><dt>제조사</dt><dd>{{ row.product.maker or '미확인' }}</dd><dt>모델명</dt><dd>{{ row.product.model or '미확인' }}</dd><dt>출시 시점</dt><dd>{% if row.release %}{{ row.release.date }} <a href="{{ row.release.url }}" target="_blank" rel="noopener">제조사 출시정보 원문</a><small style="display:block">{{ row.release.label }}: {{ row.release.quote }}</small>{% else %}확인된 출시 정보 없음{% endif %}</dd></dl></div>{% endfor %}</div><p class="meta">출시 시점은 제조사 근거가 확인된 경우에만 표시합니다. 카드 등록일과 자료 수집일은 제품 출시일이 아닙니다.</p></section>
 <p class="cmp-note">이 화면에서는 제조사 공개자료에 제시된 설명과 조건을 비교합니다. 제품의 성능을 직접 시험한 결과는 아닙니다. ‘적혀 있지 않음’은 확인한 자료에서 설명을 찾지 못했다는 뜻이며, 기능의 부재를 의미하지 않습니다.</p>
 <div class="cmp-labels">
   {% for row in pair %}{% with product=row.product, card=row.card, docs=row.docs, sum=row.sum, compact=True %}{% include "_label.html" %}{% endwith %}{% endfor %}
 </div>
 
 {# 질문 1 #}
-<section class="cmp-q">
+<section class="cmp-q" id="compare-what">
   <h2>{{ QUESTION_TEXT['what'] }}</h2>
   <div class="pair">
     {% for row in pair %}
@@ -64,7 +61,7 @@
       {% if row.sum.n_claims %}
       <ul class="claims">
         {% for c in row.card.claims %}{% set s = eff(c) %}
-        <li class="{{ STATUS_CLASS[s] }}"><div class="cl-head">{{ chip(s) }}<q>{{ c.text }}</q>{% if s != '자료 부족' and c.basis_kind in BASIS_LABEL %}<span class="kind kind-{{ c.basis_kind }}">{{ BASIS_LABEL[c.basis_kind] }}</span>{% endif %}{% if c.basis_kind_global and c.basis_kind_global != c.basis_kind %}<span class="kind kind-global">해외 자료: {{ BASIS_LABEL[c.basis_kind_global] }}</span>{% endif %}</div>{% if c.conditions %}<p class="cond">{{ c.conditions }}</p>{% endif %}</li>
+        <li class="{{ STATUS_CLASS[s] }}"><div class="cl-head">{{ chip(s) }}<q>{{ c.text }}</q>{% if s != '자료 부족' and c.basis_kind in BASIS_LABEL %}<span class="kind kind-{{ c.basis_kind }}">{{ BASIS_LABEL[c.basis_kind] }}</span>{% endif %}{% if c.basis_kind_global and c.basis_kind_global != c.basis_kind %}<span class="kind kind-global">해외 자료: {{ BASIS_LABEL[c.basis_kind_global] }}</span>{% endif %}</div>{% if c.conditions %}<p class="cond">{{ c.conditions }}</p>{% endif %}{{ evidence(c.evidence, row.docs) }}</li>
         {% endfor %}
       </ul>
       {% else %}<p class="lead none">대조한 자료에서 AI 표시 문구를 찾지 못했습니다. 제품에 AI 기능이 없다는 뜻은 아닙니다.</p>{% endif %}
@@ -76,7 +73,7 @@
 </section>
 
 {% for qkey, keys in [('data', ['data']), ('optout', ['optout']), ('trouble', ['safety', 'remedy'])] %}
-<section class="cmp-q">
+<section class="cmp-q" id="compare-{{ qkey }}">
   <h2>{% if qkey == 'data' and pair[0].product.category == pair[1].product.category %}{{ qtext('data', pair[0].product.category) }}{% else %}{{ QUESTION_TEXT[qkey] }}{% endif %}</h2>
   <div class="pair">
     {% for row in pair %}
@@ -91,7 +88,7 @@
 </section>
 {% endfor %}
 
-<section class="cmp-q">
+<section class="cmp-q" id="compare-public">
   <h2>{{ QUESTION_TEXT['public'] }}</h2>
   <div class="pair">
     {% for row in pair %}{% set pdb = row.card.public_db %}
@@ -113,6 +110,8 @@
   </div>
 </section>
 <p class="cmp-note">각 카드에서 설명 전문과 연결된 원문을 확인할 수 있습니다. 공개자료가 바뀌었거나 카드 내용과 다르면 해당 카드에서 정정을 요청할 수 있습니다.</p>
+{% elif pair|length == 2 %}
+<p class="notice">같은 품목의 서로 다른 제품 두 개를 선택해 주세요.</p>
 {% elif approved|length < 2 %}
 <div class="notice" style="margin-bottom:60px">비교하려면 공개된 카드가 두 장 이상 있어야 합니다.</div>
 {% else %}

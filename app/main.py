@@ -144,12 +144,13 @@ async def _count_views(request: Request, call_next):
     resp.headers.setdefault("X-Content-Type-Options", "nosniff")
     resp.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
     resp.headers.setdefault("X-Frame-Options", "SAMEORIGIN")
-    p = request.url.path
-    if request.method == "GET" and resp.status_code == 200 and (p == "/" or p.startswith(("/card/", "/compare", "/about", "/check"))):
+    from .traffic import request_view
+    view = request_view(request, resp, enabled=config.TRAFFIC_ENABLED, reviewer_token=config.REVIEW_TOKEN)
+    if view:
         try:
-            db.count_view(p.split("?")[0])
+            await run_in_threadpool(db.count_view, *view)
         except Exception:
-            pass
+            pass  # Analytics must not interrupt the public page response.
     return resp
 
 
@@ -951,6 +952,16 @@ def review_list(request: Request):
     if config.REVIEW_TOKEN and request.query_params.get("token"):
         resp.set_cookie("aicard_token", config.REVIEW_TOKEN, httponly=True, samesite="lax")
     return resp
+
+
+@app.get("/review/traffic", response_class=HTMLResponse)
+def review_traffic(request: Request):
+    if not is_reviewer(request):
+        return RedirectResponse("/review/login?next=/review/traffic", status_code=303)
+    response = render(request, "review_traffic.html", stats=db.traffic_stats(),
+                      enabled=config.TRAFFIC_ENABLED, legacy_views=db.view_stats(30))
+    response.headers["Cache-Control"] = "no-store"
+    return response
 
 
 # 새 품목 12개(에어컨·세탁기). 카드를 다시 만들면 제품 번호가 바뀌므로, 번호 대신 수집 이름으로 찾는다

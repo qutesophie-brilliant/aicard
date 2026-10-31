@@ -42,6 +42,13 @@
     {% endif %}
   </div>
 
+  {% if not compact and h == 'h1' %}
+  <nav class="card-quick-path" aria-label="이 카드에서 바로 확인">
+    <a href="#q-what">원문·사용 조건</a>
+    <a href="/compare?a={{ product.id }}">다른 제품과 비교 <span aria-hidden="true">→</span></a>
+    <a href="#card-review-{{ product.id }}">승인 기록·정정 요청</a>
+  </nav>
+  {% endif %}
   <div class="lb-verdict">
     {% if sum.n_claims == 0 %}
     <p class="lb-big">대조한 자료에서 AI 표시 문구를 찾지 못했습니다<small>제품에 AI 기능이 없다는 판정은 아닙니다. 수집한 자료의 범위와 다른 항목의 설명을 함께 확인해 주십시오.</small></p>
@@ -176,7 +183,7 @@
     <p class="meta">조회 결과가 없다는 이유만으로 미인증 제품이거나 리콜이 없다고 단정할 수는 없습니다. 모델명·조회일·검색 범위를 함께 확인해 주세요.</p>
   </section>
 
-  <div class="lb-foot">
+  <div class="lb-foot" id="card-review-{{ product.id }}">
     <span class="stamp"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5L20 7"/></svg>{% if product.approved_at %}공개 승인 기록 · {{ product.approved_at|kdate }}{% else %}공개 전 검토 대기{% endif %}</span>
     <p class="lb-src">대조한 자료: {% set seen = [] %}{% for s in card.sources %}{% if s.kind not in seen %}{% if seen %}, {% endif %}{% if s.url %}<a href="{{ s.url }}" target="_blank" rel="noopener">{{ s.kind }}</a>{% else %}{{ s.kind }}{% endif %}{% set _ = seen.append(s.kind) %}{% endif %}{% endfor %}{% if pdb.rra.found %}, 국립전파연구원 적합성평가{% endif %}{% if pdb.kc.found %}, 제품안전정보센터{% endif %}.{% if product.approved_at %} 검토자가 공개를 승인했습니다.{% else %} 아직 검토자가 원문을 확인하지 않은 초안입니다.{% endif %}</p>
   </div>

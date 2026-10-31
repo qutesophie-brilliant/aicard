@@ -1,0 +1,31 @@
+{% set evidence_path = evidence_path|default('/about') %}
+<section class="research-summary" aria-labelledby="research-summary-title">
+  <div class="research-summary-heading">
+    <div><p class="eyebrow">개발과 검증</p><h2 id="research-summary-title">조건 연결과 정보 탐색을 각각 시험했습니다</h2></div>
+    <a href="{{ evidence_path }}#research-detail">시험 방법·결과 보기 <span aria-hidden="true">→</span></a>
+  </div>
+  <div class="research-cards">
+    <a class="research-card" href="{{ evidence_path }}#development-check">
+      <span class="research-type">개발자료 · 48문구</span><h3>조건 표시 일치율</h3>
+      <p class="research-number">95.8<span>%</span></p>
+      <p class="research-before">코드 보완 전 70.8% → 보완 후 95.8%</p>
+      <p>같은 문구·기준 답안·저장된 AI 응답을 고정해 연결 코드의 수정 효과를 확인했습니다.</p>
+      <span class="research-link">34/48 → 46/48 · 대조 방법 <span aria-hidden="true">↗</span></span>
+    </a>
+    <a class="research-card" href="{{ evidence_path }}#usability">
+      <span class="research-type">사용성 시험 · 소비자 6명</span><h3>평균 정답 수</h3>
+      <p class="research-number research-pair"><span>2.8</span><i aria-hidden="true">→</i>4.3<small>개</small></p>
+      <p class="research-before">판매페이지 → 정보카드 · 총 5개 질문</p>
+      <p>같은 다섯 정보를 찾는 과제에서 카드로 맞게 찾은 정보가 평균적으로 늘었습니다.</p>
+      <span class="research-link">과제와 응답 기록 <span aria-hidden="true">↗</span></span>
+    </a>
+    <a class="research-card" href="{{ evidence_path }}#usability">
+      <span class="research-type">같은 사용성 시험 · 소비자 6명</span><h3>평균 탐색 시간</h3>
+      <p class="research-number research-pair"><span>197</span><i aria-hidden="true">→</i>85<small>초</small></p>
+      <p class="research-before">판매페이지 → 정보카드</p>
+      <p>정보를 찾는 데 걸린 평균 시간이 줄었습니다. 정답 수와 함께 확인한 결과입니다.</p>
+      <span class="research-link">측정 방법과 해석 범위 <span aria-hidden="true">↗</span></span>
+    </a>
+  </div>
+  <p class="research-scope">95.8%는 개발자료의 조건 표시 일치율입니다. 별도 라벨 대조 결과인 <a href="{{ evidence_path }}#evaluation">설명 상태 82.8%(48/58)·조건 표시 89.1%(41/46)</a>와 구분하며, 전체 카드의 정확도를 뜻하지 않습니다.</p>
+</section>
