@@ -4,7 +4,7 @@
 {% block content %}
 <section class="page-head">
   <h1>카드 {{ tot.products }}장 전체 통계</h1>
-  <p class="lede">{{ cat_line }}을 제조사의 공개자료와 대조한 결과입니다. 문구별 집계는 <b>문구 수</b>로, 권익 정보의 공백은 <b>카드 수</b>로 표시합니다. 제품이나 제조사의 우열을 평가한 통계는 아닙니다.</p>
+  <p class="lede">{{ cat_line }}의 공개 카드를 집계했습니다. 문구별 집계는 <b>문구 수</b>로, 권익 정보의 공백은 <b>카드 수</b>로 표시합니다. 제품이나 제조사의 우열을 평가한 통계는 아닙니다.</p>
 </section>
 
 <div class="prose">
@@ -17,7 +17,7 @@
   </ul>
 
   <h2>작동 설명의 종류</h2>
-  <p>‘작동 설명 있음’인 {{ tot.linked }}개 문구를 설명 유형별로 집계했습니다. 아직 종류가 분류되지 않은 문구도 합계에 포함합니다.</p>
+  <p>‘작동 설명 있음’인 {{ tot.linked }}개 문구를 설명 유형별로 집계했습니다. 설명 유형을 아직 분류하지 않은 문구도 합계에 포함합니다.</p>
   <table class="map metric-map">
     <tr><th>작동 설명의 종류</th><th>문구 수</th></tr>
     <tr><td>학습·모델로 설명</td><td>{{ tot.basis.learn }}개</td></tr>

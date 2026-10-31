@@ -51,7 +51,7 @@
   {% endif %}
   <div class="lb-verdict">
     {% if sum.n_claims == 0 %}
-    <p class="lb-big">대조한 자료에서 AI 표시 문구를 찾지 못했습니다<small>제품에 AI 기능이 없다는 판정은 아닙니다. 수집한 자료의 범위와 다른 항목의 설명을 함께 확인해 주십시오.</small></p>
+    <p class="lb-big">대조한 자료에서 AI 표시 문구를 찾지 못했습니다<small>제품에 AI 기능이 없다는 판정은 아닙니다. 수집한 자료의 범위와 다른 항목의 설명을 함께 확인해 주세요.</small></p>
     {% else %}
     {% set bc = basis_counts(card) %}
     <p class="lb-big"><span class="sr">‘AI’라고 적은 문구 {{ sum.n_claims }}개 중 {{ sum.linked }}개에 회사가 작동 설명을 적어 두었습니다.</span><span aria-hidden="true">‘AI’라고 적은 문구 <em>{{ sum.n_claims }}</em>개 중 <em>{{ sum.linked }}</em>개에<br>회사가 작동 설명을 적어 두었습니다</span>{% if not compact and (sum.counts['자료 부족'] or sum.counts['추가 확인 필요']) %}<small class="lb-rest">나머지 {{ sum.n_claims - sum.linked }}개는 {% if sum.counts['자료 부족'] %}설명을 찾지 못한 문구 {{ sum.counts['자료 부족'] }}개{% endif %}{% if sum.counts['자료 부족'] and sum.counts['추가 확인 필요'] %}와 {% endif %}{% if sum.counts['추가 확인 필요'] %}추가 확인이 필요한 문구 {{ sum.counts['추가 확인 필요'] }}개{% endif %}입니다. 추가 확인 문구는 ‘설명 있음’에 넣지 않았습니다.</small>{% endif %}</p>
@@ -192,7 +192,7 @@
     <form class="form" method="post" action="/check/request">
       <input type="hidden" name="url" value="/card/{{ product.id }}">
       <input type="hidden" name="name" value="{{ product.name }}">
-      <label>어떤 점이 틀렸는지 <span class="help">예: "두 번째 문구의 조건은 설명서 12쪽에 있습니다". 연락처는 받지 않습니다.</span><input type="text" name="note" maxlength="300" required></label>
+      <label>수정이 필요한 내용 <span class="help">예: "두 번째 문구의 조건은 설명서 12쪽에 있습니다". 연락처는 받지 않습니다.</span><input type="text" name="note" maxlength="300" required></label>
       <div><button class="btn primary" type="submit">검토자에게 보내기</button></div>
     </form>
   </details>

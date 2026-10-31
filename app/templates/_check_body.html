@@ -62,7 +62,7 @@
   </section>
 
   <section class="qa">
-    <h3>소비자 권익 항목에 관한 문장이 있나요?</h3>
+    <h3>소비자 권익 항목별 확인 결과</h3>
     {% for key in COVERAGE_ITEMS %}{% set it = card['items'][key] %}
     <div class="block" id="qi-{{ key }}">
       <h4>{{ ITEM_SHORT[key] }} {% if it.evidence %}{{ yes() }}{% else %}{{ no() }}{% endif %}</h4>
