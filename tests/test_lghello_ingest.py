@@ -18,6 +18,15 @@ HTML = '''<title>AI 김치냉장고</title><div class="tab-box__detail-review">
 
 
 class LgHelloTests(unittest.TestCase):
+    def test_temperature_sentence_wrap_preserves_complete_claim_and_footnote_boundary(self):
+        from app.pipeline.quick_text import chunks
+        prefix = 'AI 정온 모드는 냉장고 사용 패턴에 따른 맞춤운전으로'
+        result = chunks(prefix + '\n온도 상승 폭을 최소화합니다.\n* 앱 연동이 필요합니다.')
+        self.assertEqual(prefix + ' 온도 상승 폭을 최소화합니다.', result[0])
+        self.assertEqual('* 앱 연동이 필요합니다.', result[1])
+        self.assertEqual([prefix, '* 별도의 시험 조건입니다.'],
+                         chunks(prefix + '\n* 별도의 시험 조건입니다.'))
+
     def test_quick_ocr_does_not_merge_container_trial_into_ai_temperature(self):
         from app.pipeline.run import quick_check
         raw = ('* 시험방법 : 밀폐 챔버에서 김치통의 냄새 성분 농도를 측정\n'
