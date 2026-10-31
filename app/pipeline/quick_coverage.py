@@ -36,7 +36,7 @@ def _matches(key: str, text: str) -> bool:
     explicit_trial=re.search(r'^(?:[\s*※-])*(?:시험|실험|테스트)\s*(?:부하|조건|환경|방법|모델)\s*[:：]',text)
     kind=condition_type(text)
     return not explicit_trial and kind != 'test' and bool(_AI_CONTEXT.search(text)) and (
-        kind=='operating' or len(coverage._KEYWORDS[key].findall(text)) >= 2)
+        kind=='operating' or len(set(coverage._KEYWORDS[key].findall(text))) >= 2)
 
 
 def fill(index):

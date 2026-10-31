@@ -22,6 +22,16 @@ class QuickUploadFlowTests(unittest.TestCase):
         self.assertFalse(quick_coverage._matches('conditions','재고는 최대 6개 이하에서 주문할 수 있습니다.'))
         self.assertTrue(quick_coverage._matches('conditions','인공지능 세탁은 세탁량 6kg 이하에서 동작합니다.'))
 
+    def test_repeated_award_index_word_is_not_an_operating_condition(self):
+        text = ('2023년 대한민국 소비자 만족지수 1위 2022년 대한민국 히트상품 대상 '
+                '소비자 만족지수 1위 히트상품 대상 대한민국 브랜드 선호도 2년 연속 1위 '
+                '헤르젠 쌀냉장고 AI Care 고객 리뷰 후기 실제 구매자의 리뷰를 확인해보세요.')
+        self.assertFalse(quick_coverage._matches('conditions', text))
+        card, _ = quick_check('조건 분류 점검', '', text, '')
+        self.assertFalse(card['items']['conditions']['evidence'])
+        self.assertTrue(quick_coverage._matches(
+            'conditions', 'AI 인식은 어두운 환경에서 성능이 저하될 수 있습니다.'))
+
     def test_same_page_nested_intro_is_shown_once(self):
         docs=[{'id':1,'url':'https://example.test/product'},{'id':2,'url':'https://example.test/product'}]
         short={'doc_id':1,'quote':'손빨래의 정교함을 구현한 섬세한 6모션 세탁','kind':'판매페이지'}
