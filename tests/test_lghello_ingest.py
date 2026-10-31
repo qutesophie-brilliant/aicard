@@ -30,9 +30,11 @@ class LgHelloTests(unittest.TestCase):
     def test_quick_ocr_does_not_merge_container_trial_into_ai_temperature(self):
         from app.pipeline.run import quick_check
         raw = ('* 시험방법 : 밀폐 챔버에서 김치통의 냄새 성분 농도를 측정\n'
+               '- 시험 모델 : 일반김치통 DA97-18687D, 냄새케어김치통 : DA97-25085A - 대상 모델 DA97-25085* - 김치통 정보 (제조자 / 판매자) : 뉴서광 / 삼성전자 사용 패턴에 맞춰\n'
                '- 김치통 정보 (제조자 / 판매자) : 뉴서광 / 삼성전자\n'
                '사용 패턴에 맞춰 적정 온도를 유지하는 AI 정온 모드\n'
                'AI 정온 모드는 사용 패턴에 따른 맞춤운전으로 온도 상승 폭을 최소화합니다.\n'
+               'SmartThings 스캔 기능으로 구입한 김치를 최적의 모드에 보관하는 스캔킵 바코드 스캔만으로 김치 종류에 알맞은 온도를 설정해 줍니다.\n'
                '* AI 정온 기능을 사용하려면 앱 연동과 무선 네트워크 연결이 필요합니다.\n'
                '상칸 김치보관 모드 냉장 모드 OFF 모드\n* 각 칸별 모드는 on/off 가능합니다.')
         capture = {'coverage': {}, 'sections': [{'section_id': 0, 'feature_scope': '',
@@ -46,6 +48,15 @@ class LgHelloTests(unittest.TestCase):
             self.assertFalse(any('김치통' in q and 'AI 정온' in q for q in doc['chunks']))
         for claim in card['claims']:
             self.assertFalse(any('밀폐 챔버' in e['quote'] for e in claim['evidence']))
+            if 'AI 정온' in claim['text']:
+                self.assertFalse(any('김치통' in e['quote'] or '스캔킵' in e['quote']
+                                     for e in claim['evidence']))
+
+    def test_named_shared_feature_condition_is_retained(self):
+        from app.pipeline.run import _other_quick_feature
+        self.assertFalse(_other_quick_feature('AI 정온 / 스캔킵', '* 스캔킵 사용 시 앱 연결이 필요합니다.'))
+        self.assertFalse(_other_quick_feature('AI 정온', '* AI 정온 모드는 앱 연결이 필요합니다.'))
+        self.assertTrue(_other_quick_feature('AI 정온', '- 시험 모델: 냄새케어김치통 DA97-25085A'))
 
     def test_escaped_detail_inside_review_wrapper_preserves_only_product(self):
         body = product_body(HTML, PAGE)

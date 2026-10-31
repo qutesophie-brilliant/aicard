@@ -121,6 +121,8 @@ def quick_check(name: str, url: str, sales_text: str, fine_text: str = "", use_l
             phrase = re.sub(r"\s+", "", claim["text"])
             original = claim.get("evidence", [])
             def distinct(e):
+                if _other_quick_feature(claim['text'], e['quote']):
+                    return False
                 q = re.sub(r"\s+", "", e["quote"])
                 if phrase not in q or "문구 자체" in e.get("kind", ""):
                     return True
@@ -128,6 +130,9 @@ def quick_check(name: str, url: str, sales_text: str, fine_text: str = "", use_l
                 return bool(link.self_describes(remainder) or link._is_cond(remainder))
             related = [e for e in original if distinct(e)]
             claim["evidence"] = _dedupe_quick_evidence(related, docs)
+            if not use_llm and _other_quick_feature(claim['text'], claim.get('conditions', '')):
+                claim.update(conditions_noted=False, conditions='')
+                claim['condition_evidence'] = []
             if original and not claim["evidence"]:
                 claim.update(status="자료 부족", basis_state="없음", conditions_noted=False, conditions="")
         if uploaded:
@@ -146,6 +151,21 @@ def quick_check(name: str, url: str, sales_text: str, fine_text: str = "", use_l
         card['image_sources'] = source_capture.get('images', [])
     card["quick_llm"] = bool(use_llm)
     return card, {d["id"]: d for d in docs}
+
+
+def _other_quick_feature(claim_text, quote):
+    """Keep named container/scan features out of a temperature-mode preview.
+
+    Long retailer images put container tests, AI temperature control and barcode
+    storage next to one another. Shared words such as '김치' and '온도' are not
+    enough to connect their evidence. Formal cards are not processed here.
+    """
+    if not re.search(r'AI\s*정온', claim_text, re.I):
+        return False
+    for feature in (r'김치\s*통', r'스캔\s*킵'):
+        if re.search(feature, quote) and not re.search(feature, claim_text):
+            return True
+    return False
 
 
 def _dedupe_quick_evidence(evidence, docs):
