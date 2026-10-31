@@ -17,7 +17,7 @@ def split_image(data):
         image = Image.open(io.BytesIO(data))
     except (OSError, ValueError):
         return [data]
-    with image:
+    try:
         width, height = image.size
         if width * height > MAX_PIXELS:
             raise ValueError('이미지 해상도가 너무 큽니다. 제품 설명을 나누어 올려 주세요.')
@@ -31,25 +31,34 @@ def split_image(data):
         count = 1 + math.ceil(max(0, length - TILE_SIDE) / (TILE_SIDE - OVERLAP))
         if count > MAX_TILES:
             raise ValueError('상세 이미지가 너무 깁니다. 제품 설명을 나누어 올려 주세요.')
-        pixels = image.convert('RGB')
-        if pixels.size != size:
-            resized = pixels.resize(size, Image.Resampling.LANCZOS)
-            pixels.close()
-            pixels = resized
+        # Keep the decoded RGB source itself rather than copying a whole long
+        # image. Non-RGB input still uses the same RGB conversion as before.
+        pixels = image if image.mode == 'RGB' else image.convert('RGB')
+        if pixels is not image:
+            image.close()
         tiles = []
         try:
+            if pixels.size != size:
+                resized = pixels.resize(size, Image.Resampling.LANCZOS)
+                pixels.close()
+                pixels = resized
             for start in range(0, length, TILE_SIDE - OVERLAP):
                 end = min(length, start + TILE_SIDE)
                 box = (0, start, size[0], end) if size[1] >= size[0] else (start, 0, end, size[1])
-                with pixels.crop(box) as tile:
-                    out = io.BytesIO()
-                    tile.save(out, format='PNG')
-                    tiles.append(out.getvalue())
+                tile = pixels.crop(box)
+                try:
+                    with io.BytesIO() as out:
+                        tile.save(out, format='PNG')
+                        tiles.append(out.getvalue())
+                finally:
+                    tile.close()
                 if end == length:
                     break
         finally:
             pixels.close()
         return tiles
+    finally:
+        image.close()
 
 
 def join_texts(texts):

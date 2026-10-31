@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import io
 import re
+from contextlib import ExitStack
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -123,27 +124,44 @@ def _check_pdf(data: bytes) -> CheckedUpload:
 def _check_image(data: bytes, expected_format: str) -> CheckedUpload:
     try:
         with Image.open(io.BytesIO(data)) as probe:
-            if probe.format != expected_format:
-                raise UploadSafetyError('파일 확장자와 실제 이미지 형식이 다릅니다. JPG·PNG로 다시 저장한 뒤 올려 주세요.')
-            if probe.width * probe.height > MAX_PIXELS:
-                raise UploadSafetyError('이미지 해상도가 너무 큽니다. 필요한 제품 설명 부분을 나누어 캡처한 뒤 올려 주세요.')
-            probe.verify()
-        with Image.open(io.BytesIO(data)) as source:
+            try:
+                if probe.format != expected_format:
+                    raise UploadSafetyError('파일 확장자와 실제 이미지 형식이 다릅니다. JPG·PNG로 다시 저장한 뒤 올려 주세요.')
+                if probe.width * probe.height > MAX_PIXELS:
+                    raise UploadSafetyError('이미지 해상도가 너무 큽니다. 필요한 제품 설명 부분을 나누어 캡처한 뒤 올려 주세요.')
+                probe.verify()
+            finally:
+                probe.close()
+        with Image.open(io.BytesIO(data)) as source, ExitStack() as images:
+            # Image's context manager closes its file, but not its decoded pixels.
+            images.callback(source.close)
             # Keep long screenshots legible: OCR splits them into bounded tiles.
             # Ordinary photographs still use the existing size limit.
             if max(source.size) / min(source.size) < 2:
                 source.thumbnail((MAX_IMAGE_SIDE, MAX_IMAGE_SIDE))
-            oriented = ImageOps.exif_transpose(source)
+            oriented = source
+            if source.getexif().get(274, 1) in (2, 3, 4, 5, 6, 7, 8):
+                oriented = ImageOps.exif_transpose(source)
+                images.callback(oriented.close)
             if 'A' in oriented.getbands() or 'transparency' in oriented.info:
-                rgba = oriented.convert('RGBA')
+                rgba = oriented
+                if oriented.mode != 'RGBA':
+                    rgba = oriented.convert('RGBA')
+                    images.callback(rgba.close)
                 pixels = Image.new('RGB', rgba.size, 'white')
-                pixels.paste(rgba, mask=rgba.getchannel('A'))
+                images.callback(pixels.close)
+                alpha = rgba.getchannel('A')
+                images.callback(alpha.close)
+                pixels.paste(rgba, mask=alpha)
             else:
-                pixels = oriented.convert('RGB')
+                pixels = oriented
+                if oriented.mode != 'RGB':
+                    pixels = oriented.convert('RGB')
+                    images.callback(pixels.close)
             pixels.info.clear()
-            stream = io.BytesIO()
-            pixels.save(stream, format='PNG')
-            return CheckedUpload(stream.getvalue(), 'image/png')
+            with io.BytesIO() as stream:
+                pixels.save(stream, format='PNG')
+                return CheckedUpload(stream.getvalue(), 'image/png')
     except UploadSafetyError:
         raise
     except (UnidentifiedImageError, OSError, ValueError, Image.DecompressionBombError) as exc:

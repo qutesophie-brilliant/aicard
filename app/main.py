@@ -19,6 +19,7 @@ from starlette.concurrency import run_in_threadpool
 
 from . import config, db
 from .upload_safety import check_upload
+from .ocr_memory import release_ocr_heap
 from .network_safety import PublicURLRejected
 from .display_mask import PUBLIC_TEMPLATES, mask_public_html, catalog_display_label
 from .pipeline import ingest, llm, ocr
@@ -676,7 +677,12 @@ def _read_check_uploads(payloads: list[tuple[str, str, bytes]]) -> tuple[list[st
             keep(_read_upload_images(imgs, allow_llm=config.CHECK_OCR_LLM))
         return texts, list(dict.fromkeys(notes))
     finally:
-        _check_ocr_gate.release()
+        try:
+            release_ocr_heap()
+        except Exception:
+            pass
+        finally:
+            _check_ocr_gate.release()
 
 
 def _read_check_url(url: str):
@@ -686,7 +692,12 @@ def _read_check_url(url: str):
     try:
         return ingest.from_url(url, ocr_images=True, product_only=True)
     finally:
-        _check_ocr_gate.release()
+        try:
+            release_ocr_heap()
+        except Exception:
+            pass
+        finally:
+            _check_ocr_gate.release()
 
 
 @app.post("/check", response_class=HTMLResponse)

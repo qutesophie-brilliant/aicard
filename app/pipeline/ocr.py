@@ -40,21 +40,29 @@ class OcrResult:
 
 
 def _shrink(data: bytes) -> bytes:
+    im = None
     try:
         from PIL import Image
         im = Image.open(io.BytesIO(data))
         im.load()
         if im.mode not in ("RGB", "L"):
-            im = im.convert("RGB")
+            previous = im
+            im = previous.convert("RGB")
+            previous.close()
         w, h = im.size
         if max(w, h) > MAX_SIDE:
             r = MAX_SIDE / max(w, h)
-            im = im.resize((int(w * r), int(h * r)))
-        out = io.BytesIO()
-        im.save(out, format="PNG", optimize=True)
-        return out.getvalue()
+            previous = im
+            im = previous.resize((int(w * r), int(h * r)))
+            previous.close()
+        with io.BytesIO() as out:
+            im.save(out, format="PNG", optimize=True)
+            return out.getvalue()
     except Exception:
         return data
+    finally:
+        if im is not None:
+            im.close()
 
 
 def tesseract_available() -> bool:
@@ -87,13 +95,25 @@ def _tess_opts() -> list[str]:
 def _tesseract(data: bytes, timeout_seconds: float = 120) -> str:
     """로컬 OCR. 글자가 작은 캡처가 많아 2배로 키우고 회색조로 바꾼 뒤 읽는다."""
     from PIL import Image
-    im = Image.open(io.BytesIO(data)).convert("L")
-    w, h = im.size
-    if max(w, h) < 2400:
-        im = im.resize((w * 2, h * 2), Image.LANCZOS)
     with tempfile.TemporaryDirectory() as d:
         src = os.path.join(d, "in.png")
-        im.save(src)
+        im = None
+        try:
+            im = Image.open(io.BytesIO(data))
+            previous = im
+            im = previous.convert("L")
+            previous.close()
+            w, h = im.size
+            if max(w, h) < 2400:
+                previous = im
+                im = previous.resize((w * 2, h * 2), Image.LANCZOS)
+                previous.close()
+            im.save(src)
+        finally:
+            # Tesseract reads the saved file. Release all Pillow pixel buffers
+            # before waiting on its separate process, including timeout paths.
+            if im is not None:
+                im.close()
         r = subprocess.run(["tesseract", src, "-", *_tess_opts(), "--psm", "6"],
                            capture_output=True, text=True, timeout=timeout_seconds)
         text = r.stdout
