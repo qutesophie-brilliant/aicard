@@ -14,7 +14,7 @@
     <input aria-describedby="check-scope" type="url" name="url" value="{{ url }}" placeholder="https://">
   </label>
 
-  <div class="check-url-action"><button class="btn primary" type="submit" id="go" data-check-submit>바로 확인</button><p class="meta">예상 분석 시간은 약 1분입니다. 페이지 구성과 접속 상태에 따라 더 오래 걸릴 수 있습니다.</p></div>
+  <p class="upload-or"><span>또는 캡처·PDF로 확인</span></p>
   {% include "_check_upload.html" %}
 
   <details {% if error %}open{% endif %}>
@@ -23,7 +23,7 @@
       <textarea name="text" placeholder="제품 이름&#10;설명 글…"></textarea>
     </label>
   </details>
-  <div><button class="btn primary" type="submit" data-check-submit>올린 자료 확인</button></div>
+  <div class="check-submit-action"><button class="btn primary" type="submit" id="go" data-check-submit>분석 시작</button><p class="meta">예상 분석 시간은 약 1분입니다. 페이지 구성과 접속 상태에 따라 더 오래 걸릴 수 있습니다.</p></div>
 </form>
 {% include "_check_wait.html" %}
 

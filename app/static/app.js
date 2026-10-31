@@ -117,7 +117,16 @@
     const form = document.getElementById('checkform');
     const maxFiles = Number(form.dataset.maxFiles), maxMB = Number(form.dataset.maxMb);
     const fileError = document.getElementById('fileerror');
+    const fileStatus = document.getElementById('file-status');
+    const go = document.getElementById('go');
+    const urlField = form.querySelector('[name="url"]'), textField = form.querySelector('[name="text"]');
     const okType = (f) => /^image\//.test(f.type) || f.type === 'application/pdf' || /\.(png|jpe?g|webp|gif|bmp|pdf)$/i.test(f.name);
+    function syncSubmit() {
+      if (form.getAttribute('aria-busy') === 'true') return;
+      go.textContent = dt.files.length ? '파일 ' + dt.files.length + '개 분석 시작'
+        : textField && textField.value.trim() ? '설명 글 분석 시작'
+        : urlField && urlField.value.trim() ? '주소 분석 시작' : '분석 시작';
+    }
     function render() {
       fin.files = dt.files;
       dl.innerHTML = '';
@@ -125,11 +134,14 @@
         const li = document.createElement('li');
         li.innerHTML = '<span></span><button type="button" aria-label="빼기">빼기</button>';
         li.querySelector('span').textContent = f.name + ' · ' + Math.max(1, Math.round(f.size / 1024)) + 'KB';
+        li.querySelector('span').title = f.name;
+        li.querySelector('button').setAttribute('aria-label', f.name + ' 선택 취소');
         li.querySelector('button').addEventListener('click', () => { const n = new DataTransfer(); Array.from(dt.files).forEach((g, j) => { if (j !== i) n.items.add(g); }); dt.items.clear(); Array.from(n.files).forEach(g => dt.items.add(g)); render(); });
         dl.appendChild(li);
       });
-      const fileAction = form.querySelector('[data-files-action]');
-      if (fileAction) fileAction.hidden = dt.files.length === 0;
+      fileStatus.textContent = dt.files.length ? '파일 ' + dt.files.length + '개 선택됨 · 아래 버튼을 누르면 분석을 시작합니다.' : '선택한 파일이 없습니다.';
+      drop.classList.toggle('has-files', dt.files.length > 0);
+      syncSubmit();
     }
     function add(list) {
       const incoming = Array.from(list), errors = [];
@@ -147,6 +159,7 @@
       render(); return incoming.length;
     }
     document.getElementById('pick').addEventListener('click', () => fin.click());
+    [urlField, textField].filter(Boolean).forEach(field => field.addEventListener('input', syncSubmit));
     fin.addEventListener('change', () => {
       const selected = Array.from(fin.files);
       render(); // Restore accepted files before validating the new selection.
@@ -177,14 +190,14 @@
       }
       const busy = document.getElementById('busy');
       document.getElementById('wait-message').textContent = dt.files.length
-        ? '올린 파일에서 글자를 읽고, AI 문구와 관련 설명을 찾고 있습니다.'
+        ? '파일 ' + dt.files.length + '개에서 글자를 읽고, AI 문구와 관련 설명을 찾고 있습니다. 긴 이미지는 자동으로 나누어 읽습니다.'
         : '입력한 자료에서 AI 문구와 관련 설명을 찾고 있습니다. 이미지가 많으면 시간이 더 걸릴 수 있습니다.';
       const started = Date.now();
       document.getElementById('wait-elapsed').textContent = '0초';
       document.getElementById('wait-slow').hidden = true;
       busy.hidden = false;
       form.querySelectorAll('[data-check-submit]').forEach(b => b.disabled = true);
-      document.getElementById('go').textContent = '확인 중…';
+      go.textContent = '분석 중…';
       form.setAttribute('aria-busy', 'true');
       busy.focus({preventScroll: true});
       busy.scrollIntoView({block: 'center', behavior: 'auto'});
@@ -199,9 +212,10 @@
       clearInterval(waitTimer);
       document.getElementById('busy').hidden = true;
       form.querySelectorAll('[data-check-submit]').forEach(b => b.disabled = false);
-      document.getElementById('go').textContent = '바로 확인';
       form.removeAttribute('aria-busy');
+      render();
     });
+    render();
     const checkError = document.getElementById('checkerror'); if (checkError) checkError.focus();
   }
 

@@ -502,6 +502,17 @@ textarea { min-height: 150px; line-height: 1.6; }
 .drop-list li span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .drop-list button { border: 0; background: none; color: var(--ink-3); cursor: pointer; font-size: .86rem; padding: 4px 6px; }
 .drop-list button:hover { color: var(--amber-ink); }
+.drop .btn, .drop-list button { min-height: 44px; }
+.drop-list button { flex: none; min-width: 44px; }
+.drop.has-files { border-color: var(--navy); }
+.file-status { margin: 16px 0 0; font-size: .88rem; line-height: 1.65; color: var(--ink-3); word-break: keep-all; overflow-wrap: anywhere; }
+.drop.has-files .file-status { color: var(--navy); font-weight: 600; }
+.drop-list:empty { display: none; }
+.upload-auto { margin: 12px 0 0; color: var(--ink-2); font-size: .86rem; line-height: 1.7; word-break: keep-all; }
+.check-submit-action { margin-top: 16px; }
+.check-submit-action .btn { width: 100%; min-height: 48px; justify-content: center; }
+.check-submit-action .meta { margin: 10px 0 0; line-height: 1.7; }
+@media (hover: none) and (pointer: coarse) { .paste-hint { display: none; } }
 .lb-note { margin: 16px 26px -8px; padding: 10px 14px; background: var(--navy-tint); border-radius: 8px; font-size: .9rem; color: var(--ink-2); }
 .check-form { margin-top: 20px; max-width: var(--label-w); display: grid; gap: 14px; }
 .check-form label { display: grid; gap: 6px; font-weight: 600; font-size: .95rem; }

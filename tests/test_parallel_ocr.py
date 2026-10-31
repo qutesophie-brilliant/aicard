@@ -12,7 +12,7 @@ from app.pipeline import image_tiles, llm, ocr, product_ocr
 
 class ParallelOcrTests(unittest.TestCase):
     def test_later_batches_start_before_first_finishes_and_order_is_preserved(self):
-        barrier = threading.Barrier(3)
+        barrier = threading.Barrier(4)
         deadlines = []
         images = [str(i).encode() for i in range(13)]
         def read(batch, *args, **kwargs):

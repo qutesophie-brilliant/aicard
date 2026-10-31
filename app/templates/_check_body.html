@@ -23,14 +23,14 @@
     <ul>{% for image in card.image_sources %}<li>
       <a href="{{ image.url }}" target="_blank" rel="noopener">원문 이미지 {{ image.image_number }}</a>:
       {% if image.status == 'read' %}글자 읽음{% if image.ocr_attempts > 1 %} · 재시도 후 확인{% endif %}
-      {% elif image.status == 'partial' %}일부 구간 글자 읽음 · 미확인 구간은 나누어 다시 올려 주세요
+      {% elif image.status == 'partial' %}일부 구간 글자 읽음 · 읽지 못한 구간이 있습니다
       {% elif image.status == 'skipped_limit' %}이번 분석에서 미시도 · 처리량 제한
       {% elif image.status in ('download_failed','download_timeout') %}이미지 수집 실패{% if image.status == 'download_timeout' %} · 응답 시간 초과{% endif %}
       {% elif image.status == 'timeout' %}글자 읽기 응답 시간 초과
       {% elif image.status == 'provider_error' %}문자 인식 서비스 연결 실패
       {% else %}글자 읽기 결과 미확인{% endif %}
     </li>{% endfor %}</ul>
-    {% if card.source_coverage.image_ocr_unconfirmed or card.source_coverage.image_download_failed %}<p>확인하지 못한 설명은 해당 원문 이미지를 열어 살펴보거나, 필요한 부분을 캡처하여 다시 올릴 수 있습니다.</p>{% endif %}
+    {% if card.source_coverage.image_ocr_unconfirmed or card.source_coverage.image_download_failed %}<p>확인하지 못한 설명은 원문 이미지에서 확인해 주세요. 원본 파일을 다시 올려 분석할 수도 있으며, 긴 이미지는 자동으로 나누어 읽습니다.</p>{% endif %}
   </details>
   {% endif %}
   <div class="lb-verdict">

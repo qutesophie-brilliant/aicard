@@ -8,6 +8,7 @@ from . import llm, ocr
 
 MAX_RECOVERIES = 1
 TOTAL_OCR_SECONDS = 42
+BATCH_IMAGES = 4
 _LOCAL_OCR_SLOT = threading.BoundedSemaphore(1)
 _LOG = logging.getLogger('uvicorn.error')
 
@@ -15,14 +16,14 @@ _LOG = logging.getLogger('uvicorn.error')
 def read_images(images, allow_llm=True, local_timeout_seconds=None, recover_unconfirmed=False):
     from .image_tiles import split_image, join_texts, MAX_TILES
     groups = [split_image(data) for data in images]
-    if len(groups) <= ocr.LLM_BATCH and all(len(group) == 1 for group in groups):
+    if len(groups) <= BATCH_IMAGES and all(len(group) == 1 for group in groups):
         return _read_images(images, allow_llm, local_timeout_seconds, recover_unconfirmed)
     payloads = [tile for group in groups for tile in group]
     if len(payloads) > MAX_TILES:
         raise ValueError('한 번에 읽을 상세 이미지가 너무 많습니다. 파일을 나누어 올려 주세요.')
     deadline = time.monotonic() + TOTAL_OCR_SECONDS
-    batches = [payloads[start:start + ocr.LLM_BATCH]
-               for start in range(0, len(payloads), ocr.LLM_BATCH)]
+    batches = [payloads[start:start + BATCH_IMAGES]
+               for start in range(0, len(payloads), BATCH_IMAGES)]
     def read_batch(batch):
         started = time.monotonic()
         if deadline - time.monotonic() < 1:
@@ -37,7 +38,7 @@ def read_images(images, allow_llm=True, local_timeout_seconds=None, recover_unco
         # Network waits overlap so the last part of a long product page gets
         # the same time budget as the first. Results stay in source order.
         # CPU-heavy local fallback is separately limited to one worker.
-        with ThreadPoolExecutor(max_workers=4) as pool:
+        with ThreadPoolExecutor(max_workers=6) as pool:
             futures = [pool.submit(contextvars.copy_context().run, read_batch, batch)
                        for batch in batches]
             readings = [row for future in futures for row in future.result()]

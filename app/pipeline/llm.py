@@ -143,7 +143,9 @@ def _gemini_call(prompt: str, images: list[bytes] | None, max_tokens: int) -> st
     import httpx
     global _gemini_ok
     parts: list[dict[str, Any]] = []
-    for img in images or []:
+    for number, img in enumerate(images or [], start=1):
+        if _ocr_budget.get() is not None:
+            parts.append({"text": f"[입력 이미지 {number}]"})
         parts.append({"inline_data": {"mime_type": _mime(img), "data": base64.b64encode(img).decode()}})
     parts.append({"text": prompt})
     body = {
@@ -152,6 +154,25 @@ def _gemini_call(prompt: str, images: list[bytes] | None, max_tokens: int) -> st
         "generationConfig": {"maxOutputTokens": min(max(max_tokens * 2, 8192), 32768), "temperature": 0.0,  # 생각 토큰도 이 한도에 포함되므로 넉넉히
                              "responseMimeType": "application/json"},
     }
+    if _ocr_budget.get() is not None and images:
+        # The visual label and constrained structure work together: do not let
+        # an omitted page silently move the following text to another image.
+        # Source identity is still validated after generation below.
+        count = len(images)
+        body['generationConfig']['responseSchema'] = {
+            'type': 'OBJECT', 'required': ['pages'],
+            'properties': {'pages': {
+                'type': 'ARRAY', 'minItems': str(count), 'maxItems': str(count),
+                'items': {
+                    'type': 'OBJECT', 'required': ['image', 'text'],
+                    'propertyOrdering': ['image', 'text'],
+                    'properties': {
+                        'image': {'type': 'INTEGER', 'minimum': 1, 'maximum': count},
+                        'text': {'type': 'STRING'},
+                    },
+                },
+            }},
+        }
     combos = [(ep, m) for ep in config.GEMINI_ENDPOINTS for m in config.GEMINI_MODELS
               if (ep, m) not in _gemini_dead]
     if _gemini_ok:
@@ -273,9 +294,10 @@ def ocr_images_indexed(imgs: list[bytes], timeout_seconds: float = 20) -> list[s
         data = ask_json(
             f'이미지 {len(imgs)}장이 순서대로 주어집니다. 각 이미지의 글자를 그대로 옮기세요. '
             '해석하거나 요약하지 마세요. 각주와 작은 글씨도 포함하세요. '
-            'image는 입력 순서의 1부터 시작하는 번호입니다. 모든 번호를 한 번씩 반환하세요. '
+            f'image는 입력 이미지 번호입니다. 1부터 {len(imgs)}까지 각 번호를 한 번씩, '
+            f'입력 순서대로 정확히 {len(imgs)}개 반환하세요. '
             '글자를 확인하지 못한 이미지도 생략하지 말고 text를 빈 문자열로 반환하세요. '
-            '형식: {"pages":[{"image":1,"text":"첫 이미지 글자"},{"image":2,"text":""}]}',
+            '응답은 pages 배열이며 각 항목은 image(번호), text(해당 이미지의 글자)입니다.',
             images=imgs, max_tokens=8000)
     finally:
         _ocr_budget.reset(token)

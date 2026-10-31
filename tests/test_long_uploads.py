@@ -101,7 +101,7 @@ class LongImageTests(unittest.TestCase):
             return [reading(f'source {start + i}') for i in range(len(images))]
         with patch.object(product_ocr, '_read_images', side_effect=reader):
             rows = product_ocr.read_images(inputs, allow_llm=False)
-        self.assertEqual([6, 1], [size for size, _ in calls])
+        self.assertEqual([4, 3], [size for size, _ in calls])
         self.assertEqual(calls[0][1], calls[1][1])
         self.assertEqual([f'source {i}' for i in range(7)], [row['text'] for row in rows])
         self.assertTrue(all(row['tile_count'] == 1 for row in rows))

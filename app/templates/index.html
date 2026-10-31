@@ -89,12 +89,11 @@
           <label class="input-label" for="hero-url">판매페이지 주소</label>
           <div class="urlform">
             <input id="hero-url" aria-describedby="hero-scope" type="url" name="url" placeholder="판매페이지 주소를 붙여 넣으세요">
-            <button class="btn primary" type="submit" id="go" data-check-submit>바로 확인</button>
           </div>
           <p class="alt" id="hero-scope">약 1분 정도 걸릴 수 있습니다. 자동 접속을 차단하는 사이트는 캡처·PDF로 확인해 주세요.</p>
           <p class="upload-or"><span>또는 캡처·PDF로 확인</span></p>
           {% set home_upload = true %}{% include "_check_upload.html" %}
-          <div class="hero-file-action" data-files-action hidden><button class="btn primary" type="submit" data-check-submit>올린 자료 확인</button></div>
+          <div class="check-submit-action"><button class="btn primary" type="submit" id="go" data-check-submit>분석 시작</button></div>
           <p class="upload-privacy">문자 인식 과정에서 파일을 외부 AI 서비스로 전송할 수 있습니다. 파일과 분석 결과는 저장하지 않습니다.</p>
         </form>
         {% include "_check_wait.html" %}
