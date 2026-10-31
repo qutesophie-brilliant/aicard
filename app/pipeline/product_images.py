@@ -82,7 +82,7 @@ def capture_images(html, url, capture, fetch_bytes=None, reader=None, limit=6):
                 if key in result: row[key]=result[key]
             if text.strip():
                 capture['sections'].append({'section_id':len(capture['sections']),'feature_scope':'',
-                    'text':text,'chunks':chunk_text(text,ocr=True),'source_url':row['url'],
+                    'text':text,'diagram_text':result['text'],'chunks':chunk_text(text,ocr=True),'source_url':row['url'],
                     'snapshot_sha256':row['image_sha256'],'source_type':'image_ocr','ocr_engine':row['engine']})
     capture['images']=audit
     capture['coverage'].update(image_candidates=len(candidates),image_attempted=min(len(candidates),limit),

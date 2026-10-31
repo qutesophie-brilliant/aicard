@@ -124,10 +124,13 @@ def quick_check(name: str, url: str, sales_text: str, fine_text: str = "", use_l
                 claim.update(status="자료 부족", basis_state="없음", conditions_noted=False, conditions="")
         if uploaded:
             claims = quick_diagrams.connect(claims, docs)
+        from . import quick_temperature
+        claims = quick_temperature.connect(claims, docs)
         card["claims"] = claims
         with llm.rules_only():
             from . import quick_coverage
             card["items"] = quick_coverage.fill(index)
+            quick_temperature.include_conditions(card)
             card["easy"] = easy.make_easy(card)
         card["checked_at"] = date.today().isoformat()
     if source_capture:

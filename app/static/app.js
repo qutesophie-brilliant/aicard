@@ -120,6 +120,9 @@
     const fileStatus = document.getElementById('file-status');
     const go = document.getElementById('go');
     const urlField = form.querySelector('[name="url"]'), textField = form.querySelector('[name="text"]');
+    // Validate at submit time so an unused, incomplete URL cannot block files/text.
+    form.noValidate = true;
+    let omittedInvalidUrl = false;
     const okType = (f) => /^image\//.test(f.type) || f.type === 'application/pdf' || /\.(png|jpe?g|webp|gif|bmp|pdf)$/i.test(f.name);
     function syncSubmit() {
       if (form.getAttribute('aria-busy') === 'true') return;
@@ -180,6 +183,16 @@
     form.addEventListener('submit', e => {
       if (form.getAttribute('aria-busy') === 'true') { e.preventDefault(); return; }
       const urlInput = form.querySelector('[name="url"]'), textInput = form.querySelector('[name="text"]');
+      const hasAlternativeInput = dt.files.length || (textInput && textInput.value.trim());
+      if (urlInput && hasAlternativeInput && !urlInput.validity.valid && !urlInput.disabled) {
+        urlInput.disabled = true; // Omit only this invalid source URL from FormData.
+        omittedInvalidUrl = true;
+      }
+      if (!form.reportValidity()) {
+        e.preventDefault();
+        if (omittedInvalidUrl) { urlInput.disabled = false; omittedInvalidUrl = false; }
+        return;
+      }
       if (!dt.files.length && !(urlInput && urlInput.value.trim()) && !(textInput && textInput.value.trim())) {
         e.preventDefault();
         fileError.textContent = '판매페이지 주소를 입력하거나, 캡처 이미지·PDF를 골라 주세요.';
@@ -213,6 +226,7 @@
       document.getElementById('busy').hidden = true;
       form.querySelectorAll('[data-check-submit]').forEach(b => b.disabled = false);
       form.removeAttribute('aria-busy');
+      if (omittedInvalidUrl) { urlField.disabled = false; omittedInvalidUrl = false; }
       render();
     });
     render();

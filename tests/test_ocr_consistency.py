@@ -92,6 +92,17 @@ class OcrConsistencyTests(unittest.TestCase):
         self.assertEqual(0,capture['coverage']['image_duplicate_variants'])
         self.assertEqual(1,len(capture['images']))
 
+    def test_image_source_preserves_ocr_line_boundaries_for_linking(self):
+        original = '외부온도에 반응하는 스마트 항온센서\n12도에 도달하면 중지, 17도가 되면\n냉각시스템 재가동으로 전력을 스스로 아껴줌'
+        html = '<div class="product-description"><img src="/detail.jpg"></div>'
+        capture = source_capture.capture_product_html(html, URL)
+        product_images.capture_images(html, URL, capture, fetch_bytes=lambda _: png(),
+            reader=lambda _: ocr.OcrResult(texts=[original], engine='test'))
+        document = next(d for d in source_capture.section_documents(capture, 100)
+                        if d['source_type'] == 'image_ocr')
+        self.assertEqual(original, document['diagram_text'])
+        self.assertEqual('https://example.com/detail.jpg', document['url'])
+
     def test_download_failure_unread_and_limit_are_separate(self):
         html='<div class="product-description"><p>제품 설명</p>'+''.join(f'<img src="/{i}.jpg">' for i in range(4))+'</div>'
         capture=source_capture.capture_product_html(html,URL)
@@ -144,7 +155,7 @@ class OcrStatusIntegrationTests(unittest.TestCase):
             with patch.object(main,'_read_check_url',return_value=result),patch.object(main,'_rate_ok',return_value=True):
                 page=TestClient(main.app).post('/check',data={'url':URL})
         self.assertEqual(200,page.status_code)
-        for label in ('이미지별 확인 상태','이번 분석에서 미시도','이미지 수집 실패','글자 읽기 결과 미확인','이미지에 글자가 없다는 뜻은 아닙니다'):
+        for label in ('이미지별 확인 상태','이번 분석에서 미시도','이미지 수집 실패','글자 읽기 결과 미확인','미확인 구간에 글자가 없다는 뜻은 아닙니다'):
             self.assertIn(label,page.text)
         self.assertNotIn('확인 대상 이미지 3장 중 0장의 글자를 AI',page.text)
 
