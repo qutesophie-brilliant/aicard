@@ -297,6 +297,13 @@ def product_body(html: str, url: str) -> BeautifulSoup:
     structured = structured_description(soup) or embedded_description(soup)
     faq = '' if structured else product_faq(soup)
     host = (urlsplit(url).hostname or "").lower()
+    roborock_page = host in ('global.roborock.com', 'us.roborock.com', 'kr.roborock.com') and urlsplit(url).path.startswith('/pages/')
+    if roborock_page:
+        # The animated feature wrapper contains the product sections as well as
+        # navigation. Its CSS name is not itself evidence of a menu. Actual nav,
+        # recommendation and review descendants are still removed below.
+        for node in soup.select('[class*="sections-container"] [class*="ae-nav-container"]:has(#ae-design)'):
+            node['class'] = [c for c in node.get('class', []) if not c.endswith('ae-nav-container')]
     if host in ('hp.com', 'www.hp.com') and '/laptops/home-laptops/omnibook/' in urlsplit(url).path:
         # This HP animation class is also attached to benefit carousels and
         # accordion answers. It is not a navigation menu in those components.
@@ -339,8 +346,8 @@ def product_body(html: str, url: str) -> BeautifulSoup:
 
     if soup.select_one('[data-aicard-ai-selected="true"]'):
         selector = '[data-aicard-ai-selected="true"]'
-    elif host in ('global.roborock.com', 'us.roborock.com') and urlsplit(url).path.startswith('/pages/'):
-        selector = '[class$="_product-container"]'
+    elif roborock_page:
+        selector = '[class$="_product-container"], [class*="sections-container"]'
     elif host in ('soundcore.com', 'www.soundcore.com'):
         # The feature modules are siblings of purchase controls, FAQs and reviews.
         # Select the modules themselves, never their shared page wrapper.
