@@ -187,6 +187,14 @@ def _from_consumer_file(url: str, data: bytes, *, pdf: bool, read_ocr: bool) -> 
 
 def from_url(url: str, ocr_images: bool = True, product_only: bool = False) -> Ingested:
     from .page_recovery import fetch_retry
+    if product_only:
+        from . import lotteon
+        from ..network_safety import PublicURLRejected
+        if lotteon.detail_url(url):
+            try:
+                return lotteon.read_product(url, ocr_images=ocr_images)
+            except (product_page.ProductBodyUnavailable, PublicURLRejected, httpx.HTTPError):
+                pass  # A public description is a fast path, never a false success.
     r = fetch_retry(url, _fetch) if product_only else _fetch(url)
     ctype = r.headers.get("content-type", "")
     direct_pdf = 'pdf' in ctype or urlsplit(str(r.url)).path.lower().endswith('.pdf')

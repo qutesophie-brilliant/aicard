@@ -55,7 +55,7 @@ DETAIL_SELECTOR = (
     '#goodsDescription, #goods_contents, #goodsContents, .goods_description, '
     '#sit_inf_explan, .prod_view_detail, '
     '.xans-product-additional #prdDetail .cont, #detailIfrm, #ifrmDesc, '
-    '#productDescriptionArea'
+    '#productDescriptionArea, #llis-root, #llis-goodsdetail-frame'
 )
 
 
@@ -133,7 +133,9 @@ def product_body(html: str, url: str) -> BeautifulSoup:
         if _NOISE.search(identity) and 'usp-banner-wrap' not in node.get('class', []):
             node.decompose()
 
-    if host in ("navimro.com", "www.navimro.com"):
+    if host == 'llis-goodsdetail.lotteon.com':
+        selector = '#llis-root'
+    elif host in ("navimro.com", "www.navimro.com"):
         selector = ".spec-sum > .spec .desc_info"
     elif host == "prod.danawa.com":
         selector = ".spec_list, #productDescriptionArea"
