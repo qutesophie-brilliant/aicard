@@ -187,13 +187,14 @@ def _from_consumer_file(url: str, data: bytes, *, pdf: bool, read_ocr: bool) -> 
 def from_url(url: str, ocr_images: bool = True, product_only: bool = False) -> Ingested:
     from .page_recovery import fetch_initial
     if product_only:
-        from . import lotteon
+        from . import lotteon, public_description
         from ..network_safety import PublicURLRejected
-        if lotteon.detail_url(url):
-            try:
-                return lotteon.read_product(url, ocr_images=ocr_images)
-            except (product_page.ProductBodyUnavailable, PublicURLRejected, httpx.HTTPError):
-                pass  # A public description is a fast path, never a false success.
+        for adapter in (lotteon, public_description):
+            if adapter.detail_url(url):
+                try:
+                    return adapter.read_product(url, ocr_images=ocr_images)
+                except (product_page.ProductBodyUnavailable, PublicURLRejected, httpx.HTTPError):
+                    pass  # A public description is a fast path, never a false success.
     r, initial_render = fetch_initial(url, _fetch) if product_only else (_fetch(url), None)
     ctype = r.headers.get("content-type", "")
     direct_pdf = 'pdf' in ctype or urlsplit(str(r.url)).path.lower().endswith('.pdf')
