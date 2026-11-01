@@ -9,6 +9,7 @@ import re
 from urllib.parse import urljoin, urlsplit, parse_qs
 from bs4 import BeautifulSoup
 from . import product_page
+from . import marketplace_documents
 
 
 def canonical_detail_link(html, url):
@@ -121,12 +122,41 @@ def published_seller_frame(soup, url):
                {'method':['getSellerProductDetail'], 'prdNo':['']}
             or not prefix.endswith('prdNo=')):
         return None
+    # Current 11st product pages load this public HTML iframe on the product
+    # information tab. Their old global URL still exists but redirects to the
+    # parent page, so it cannot supply the seller's images. Require the current
+    # product loader as well as the existing identity/frame checks above.
+    for script in soup.select('script[data-main]'):
+        loader = urlsplit(urljoin(url, script['data-main']))
+        if (loader.hostname == parsed.hostname and not loader.username
+                and not loader.password and loader.port is None
+                and re.fullmatch(r'/js/ver/[A-Za-z0-9_-]+/product\.common\.js', loader.path)):
+            return 'https://www.11st.co.kr/products/' + product.group(1) + '/view-desc'
     return prefix + product.group(1)
 
 
 def matching_description_frame(src, url):
     """Gmarket frames must describe this item, not another group item's detail."""
     parent, child = urlsplit(url), urlsplit(src)
+    gs_id = marketplace_documents.gs_product_id(url)
+    if gs_id:
+        return (child.netloc == parent.netloc and not child.fragment
+                and marketplace_documents.gs_product_id(src, detail=True) == gs_id
+                and parse_qs(child.query, keep_blank_values=True) == {'prdid': [gs_id]})
+    eleven = re.fullmatch(r'/products/(\d+)/?', parent.path)
+    if parent.hostname == 'www.11st.co.kr' and eleven:
+        # Explicit seller-hosted description frames remain supported. Apply
+        # product-ID rules to 11st routes, including lookalike cross-host routes.
+        if child.hostname != parent.hostname:
+            return not (re.fullmatch(r'/products/\d+/view-desc', child.path)
+                        or child.path == '/product/SellerProductDetail.tmall')
+        if (child.hostname != parent.hostname or child.username or child.password
+                or child.port is not None or child.fragment or child.scheme not in ('http', 'https')):
+            return False
+        return ((child.path == '/products/' + eleven[1] + '/view-desc' and not child.query)
+                or (child.path == '/product/SellerProductDetail.tmall'
+                    and parse_qs(child.query, keep_blank_values=True) ==
+                    {'method': ['getSellerProductDetail'], 'prdNo': [eleven[1]]}))
     if parent.hostname == 'item.gmarket.co.kr':
         product = parse_qs(parent.query).get('goodsCode')
         return bool(product and len(product) == 1
@@ -138,6 +168,7 @@ def matching_description_frame(src, url):
 
 def prepare(html, url, fetch):
     soup = BeautifulSoup(html, 'html.parser')
+    marketplace_documents.expand_gs_description(soup, url)
     title = soup.title.get_text(' ', strip=True) if soup.title else ''
     host = (urlsplit(url).hostname or '').lower()
     if host == 'nid.naver.com' or ('로그인' in title and not soup.select(product_page.DETAIL_SELECTOR)):
@@ -167,10 +198,18 @@ def prepare(html, url, fetch):
     seller_frame = published_seller_frame(soup, url)
     if seller_frame and seller_frame not in frames:
         frames.append(seller_frame)
+    gs_frame = marketplace_documents.gs_description_link(soup, url)
+    if gs_frame and gs_frame not in frames:
+        frames.append(gs_frame)
     records = []
     for src in frames[:3]:
         try:
             response = fetch(src)
+            requested = urlsplit(src)
+            if (requested.hostname == 'www.11st.co.kr'
+                    and re.fullmatch(r'/products/\d+/view-desc', requested.path)
+                    and str(response.url) != src):
+                raise ValueError('description_redirected_to_other_document')
             if not matching_description_frame(str(response.url), url):
                 raise ValueError('description_redirected_to_other_product')
             # Legacy detail URLs can redirect back to the complete product page.
@@ -183,6 +222,19 @@ def prepare(html, url, fetch):
             child_title = child.title.get_text(' ', strip=True) if child.title else ''
             if any(word in child_title.lower() for word in ('로그인', 'login', 'access denied', 'captcha')):
                 raise ValueError('access_required')
+            marketplace_documents.expand_gs_description(child, str(response.url))
+            if marketplace_documents.gs_product_id(str(response.url), detail=True):
+                root = child.select_one('#productDescription')
+                if root is None or not root.find(True):
+                    raise ValueError('description_not_loaded')
+                child = BeautifulSoup(str(root), 'html.parser')
+            elif urlsplit(str(response.url)).hostname == 'www.11st.co.kr' and urlsplit(str(response.url)).path.endswith('/view-desc'):
+                root = child.select_one('.ifrm_prdc_detail')
+                if root is None:
+                    raise ValueError('description_not_loaded')
+                # Seller editor HTML can close this DIV too early. This is the
+                # validated description-only document, not the storefront: keep
+                # its body siblings too, then strip navigation/scripts below.
             # Explicit description frame permits its body, with navigation,
             # scripts and nested frames removed; never the parent site's body.
             for noise in list(child.select('script,style,noscript,nav,header,footer,iframe,button,object,embed')):
@@ -194,7 +246,7 @@ def prepare(html, url, fetch):
             base = str(response.url)
             for im in child.select('img'):
                 im['src'] = urljoin(base, product_page.image_source(im))
-                for key in ('ec-data-src','data-src','data-original','data-lazy-src','data-echo','srcset','data-srcset'):
+                for key in ('ec-data-src','data-src','data-original','data-lazy-src','data-echo','data-goods-lazy','srcset','data-srcset'):
                     im.attrs.pop(key, None)
             for a in child.select('a[href]'): a['href'] = urljoin(base, a['href'])
             fragment = child.body.decode_contents() if child.body else str(child)
