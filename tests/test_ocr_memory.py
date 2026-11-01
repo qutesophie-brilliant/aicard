@@ -1,11 +1,45 @@
 import ctypes
+import threading
+from concurrent.futures import ThreadPoolExecutor
 import unittest
 from unittest.mock import Mock, patch
 
-from app import main, ocr_memory
+from app import main, ocr_memory, check_budget
 
 
 class OcrHeapCleanupTests(unittest.TestCase):
+    def test_overlapping_request_waits_then_reads_without_overlap(self):
+        gate = threading.BoundedSemaphore(1)
+        waiting, fetched = threading.Event(), threading.Event()
+        real_acquire = gate.acquire
+        def acquire(**kwargs):
+            waiting.set()
+            return real_acquire(**kwargs)
+        real_acquire()
+        with patch.object(main, '_check_ocr_gate', gate), \
+             patch.object(gate, 'acquire', side_effect=acquire), \
+             patch.object(main, 'release_ocr_heap'), \
+             patch.object(main.ingest, 'from_url', side_effect=lambda *a, **kw: fetched.set() or 'read'):
+            with ThreadPoolExecutor(max_workers=1) as pool:
+                future = pool.submit(main._read_check_url, 'https://example.com/product')
+                self.assertTrue(waiting.wait(2))
+                self.assertFalse(fetched.is_set())
+                gate.release()
+                self.assertEqual('read', future.result(timeout=2))
+        self.assertTrue(gate.acquire(blocking=False))
+        gate.release()
+
+    def test_expired_waiter_releases_slot_without_reading(self):
+        gate = Mock()
+        gate.acquire.return_value = True
+        with patch.object(main, '_check_ocr_gate', gate), \
+             patch.object(check_budget, 'checkpoint', side_effect=[None, TimeoutError('expired')]), \
+             patch.object(main.ingest, 'from_url') as fetch:
+            with self.assertRaises(TimeoutError):
+                main._read_check_url('https://example.com/product')
+        fetch.assert_not_called()
+        gate.release.assert_called_once_with()
+
     def tearDown(self):
         ocr_memory._get_malloc_trim.cache_clear()
 

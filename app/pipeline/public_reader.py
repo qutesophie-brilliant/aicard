@@ -27,11 +27,12 @@ def read(url):
         raise ProductBodyUnavailable('공개 상품 주소만 보조 수집할 수 있습니다.')
     if check_budget.remaining(30) < 5:
         raise ProductBodyUnavailable('원문을 추가로 가져올 시간이 부족합니다.')
-    response = fetch_public('https://r.jina.ai/' + clean, timeout=30,
+    timeout = check_budget.remaining(30)
+    response = fetch_public('https://r.jina.ai/' + clean, timeout=timeout,
                             max_bytes=3 * 1024 * 1024, max_redirects=0,
                             allowed_hosts={'r.jina.ai'}, https_only=True,
                             headers={'Accept': 'application/json', 'X-Return-Format': 'html',
-                                     'X-Timeout': '25', 'DNT': '1'})
+                                     'X-Timeout': str(max(1, min(25, int(timeout) - 1))), 'DNT': '1'})
     payload = response.json()
     data = payload.get('data') if isinstance(payload, dict) else None
     if not isinstance(data, dict) or payload.get('code') != 200 or data.get('httpStatus') != 200:

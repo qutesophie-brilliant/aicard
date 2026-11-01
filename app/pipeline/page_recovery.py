@@ -19,6 +19,10 @@ def fetch_retry(url, fetch):
             time.sleep(0.25)
 
 
+class InitialFetchUnavailable(product_page.ProductBodyUnavailable):
+    """Both direct connection and rendered acquisition failed transiently."""
+
+
 def fetch_initial(url, fetch, renderer=None):
     """Recover a transient initial connection failure, not an access denial."""
     try:
@@ -30,7 +34,11 @@ def fetch_initial(url, fetch, renderer=None):
         if renderer is None:
             from .rendered_page import render
             renderer = render
-        rendered = renderer(url)
+        try:
+            rendered = renderer(url)
+        except (product_page.ProductBodyUnavailable, httpx.TimeoutException,
+                httpx.ConnectError, httpx.RemoteProtocolError) as render_error:
+            raise InitialFetchUnavailable('직접 연결과 자동 열기로 상품 원문을 받지 못했습니다.') from render_error
         if access_problem(rendered['html'], rendered['url']):
             raise product_page.ProductBodyUnavailable('판매사이트가 로그인 또는 접근 확인을 요구했습니다.')
         return httpx.Response(200, text=rendered['html'], headers={'content-type': 'text/html'},

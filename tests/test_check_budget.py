@@ -76,6 +76,15 @@ class BudgetTests(unittest.IsolatedAsyncioTestCase):
 
 
 class ResultCardTests(unittest.TestCase):
+    def test_local_capacity_error_does_not_search_other_sellers(self):
+        with patch.object(main, '_read_check_url', side_effect=main.CheckCapacityBusy('분석 대기 중')), \
+             patch('app.alternative_sources.search') as search:
+            response = TestClient(main.app).post('/check', data={'url': 'https://example.com/item', 'fresh': 'true'})
+        self.assertEqual(200, response.status_code)
+        self.assertIn('분석 대기 중', response.text)
+        self.assertNotIn('판매사이트가 자동 접속을 거부', response.text)
+        search.assert_not_called()
+
     def setUp(self):
         self.saved = main._check_hits.copy()
         main._check_hits.clear()

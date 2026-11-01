@@ -185,7 +185,7 @@ def _from_consumer_file(url: str, data: bytes, *, pdf: bool, read_ocr: bool) -> 
 
 
 def from_url(url: str, ocr_images: bool = True, product_only: bool = False) -> Ingested:
-    from .page_recovery import fetch_initial
+    from .page_recovery import fetch_initial, InitialFetchUnavailable
     if product_only:
         from . import lotteon, public_description
         from ..network_safety import PublicURLRejected
@@ -198,11 +198,12 @@ def from_url(url: str, ocr_images: bool = True, product_only: bool = False) -> I
     reader_used = False
     try:
         r, initial_render = fetch_initial(url, _fetch) if product_only else (_fetch(url), None)
-    except httpx.HTTPStatusError as original:
+    except (httpx.HTTPStatusError, InitialFetchUnavailable) as original:
         # A separate public HTML reader can serve a public page refused to our
         # server. It supplies HTML, not a model-written answer or a cached card.
         # Never retry authentication failures or rate limits via this route.
-        if not product_only or original.response.status_code != 403:
+        if not product_only or (isinstance(original, httpx.HTTPStatusError)
+                                and original.response.status_code != 403):
             raise
         try:
             from .public_reader import read
@@ -248,7 +249,7 @@ def from_url(url: str, ocr_images: bool = True, product_only: bool = False) -> I
         if reader_used:
             stages.insert(0, {'stage': 'public_html_reader', 'provider': 'Jina Reader',
                               'status': 'read', 'url': str(r.url)})
-            result.notes.insert(0, '직접 접속이 제한되어 공개 페이지 읽기 서비스(Jina Reader)로 가져온 원문을 분석했습니다. 현재 판매페이지와 차이가 있을 수 있습니다.')
+            result.notes.insert(0, '직접 접속으로 원문을 받지 못해 공개 페이지 읽기 서비스(Jina Reader)로 가져온 원문을 분석했습니다. 현재 판매페이지와 차이가 있을 수 있습니다.')
         if any(s['stage'] == 'browser_render' and s['status'] == 'read' for s in stages):
             result.notes.insert(0, '페이지가 불러오는 상품 설명을 자동으로 연 뒤 확인했습니다.')
         if documents:

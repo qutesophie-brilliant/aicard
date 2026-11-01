@@ -2,7 +2,7 @@ import unittest
 from unittest.mock import Mock, patch
 import httpx
 from app.network_safety import PublicURLRejected
-from app.pipeline import public_reader, ingest, product_page
+from app.pipeline import public_reader, ingest, product_page, page_recovery
 
 URL = 'https://seller.example/product/model-42?itemId=42'
 HTML = '<title>제품 42</title><div class="product-description"><h1>제품 42</h1><p>AI가 세탁물의 무게와 옷감을 감지하여 세탁합니다. 세탁물 6kg 이하에서 작동합니다.</p></div>'
@@ -84,6 +84,38 @@ class PublicReaderTests(unittest.TestCase):
             with patch.object(ingest,'_fetch',side_effect=error),patch.object(public_reader,'read') as read:
                 with self.assertRaises(httpx.HTTPStatusError): ingest.from_url(URL,product_only=True)
                 read.assert_not_called()
+
+    def test_failed_connection_and_renderer_continue_to_actual_html_reader(self):
+        recovered = httpx.Response(200, text=HTML, request=httpx.Request('GET', URL))
+        with patch.object(ingest, '_fetch', side_effect=httpx.ConnectError('offline')), \
+             patch('app.pipeline.rendered_page.render', side_effect=product_page.ProductBodyUnavailable('render timeout')), \
+             patch.object(public_reader, 'read', return_value=recovered) as read:
+            result = ingest.from_url(URL, ocr_images=False, product_only=True)
+        read.assert_called_once_with(URL)
+        self.assertIn('6kg', result.text)
+        self.assertEqual('public_html_reader', result.source_capture['acquisition'][0]['stage'])
+
+    def test_rendered_login_challenge_does_not_trigger_reader(self):
+        with patch.object(ingest, '_fetch', side_effect=httpx.ConnectError('offline')), \
+             patch('app.pipeline.rendered_page.render', return_value={'html': '<title>로그인</title>', 'url': URL}), \
+             patch.object(public_reader, 'read') as read:
+            with self.assertRaises(product_page.ProductBodyUnavailable):
+                ingest.from_url(URL, product_only=True)
+        read.assert_not_called()
+
+    def test_transient_recovery_failure_preserves_original_error(self):
+        error = page_recovery.InitialFetchUnavailable('original connection failure')
+        with patch.object(page_recovery, 'fetch_initial', side_effect=error), \
+             patch.object(public_reader, 'read', side_effect=ValueError('invalid')):
+            with self.assertRaises(page_recovery.InitialFetchUnavailable) as found:
+                ingest.from_url(URL, product_only=True)
+        self.assertIs(error, found.exception)
+
+    def test_reader_timeout_respects_remaining_request_budget(self):
+        with patch.object(public_reader.check_budget, 'remaining', return_value=9):
+            _, fetch = self.read(self.payload())
+        self.assertEqual(9, fetch.call_args.kwargs['timeout'])
+        self.assertEqual('8', fetch.call_args.kwargs['headers']['X-Timeout'])
 
     def test_reader_failure_preserves_original_error(self):
         response=httpx.Response(403,request=httpx.Request('GET',URL))

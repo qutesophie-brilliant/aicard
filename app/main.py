@@ -643,6 +643,25 @@ def check_page(request: Request, q: str = "", url: str = ""):
 _check_ocr_gate = threading.BoundedSemaphore(1)
 
 
+class CheckCapacityBusy(ValueError):
+    """Local capacity exhaustion is not a seller's access refusal."""
+
+
+def _acquire_check_slot():
+    from . import check_budget
+    # Serialize memory-heavy work, but let a short overlapping request finish
+    # instead of immediately rejecting the next visitor. Waiting is included
+    # in the existing request deadline; expired workers must not start OCR.
+    check_budget.checkpoint()
+    if not _check_ocr_gate.acquire(timeout=check_budget.remaining(30)):
+        raise CheckCapacityBusy('분석 요청이 몰려 대기 시간 안에 시작하지 못했습니다. 같은 주소나 파일로 다시 분석해 주세요.')
+    try:
+        check_budget.checkpoint()
+    except BaseException:
+        _check_ocr_gate.release()
+        raise
+
+
 def _read_upload_images(images, allow_llm=True):
     """Consumer uploads use indexed OCR and bounded recovery, never formal-card edits."""
     from .pipeline import product_ocr
@@ -674,8 +693,7 @@ def _read_check_uploads(payloads: list[tuple[str, str, bytes]]) -> tuple[list[st
     from contextlib import ExitStack
     from tempfile import TemporaryFile
     from PIL import Image
-    if not _check_ocr_gate.acquire(blocking=False):
-        raise ValueError("다른 파일의 글자를 읽고 있습니다. 잠시 뒤 다시 시도해 주세요.")
+    _acquire_check_slot()
     try:
         from .upload_safety import check_image_batch
         check_image_batch(payloads)
@@ -751,8 +769,7 @@ def _read_check_uploads(payloads: list[tuple[str, str, bytes]]) -> tuple[list[st
 
 def _read_check_url(url: str):
     # URL image OCR shares the upload gate to bound server memory.
-    if not _check_ocr_gate.acquire(blocking=False):
-        raise ingest.product_page.ProductBodyUnavailable("다른 자료의 글자를 읽고 있습니다. 잠시 뒤 다시 시도해 주세요.")
+    _acquire_check_slot()
     try:
         return ingest.from_url(url, ocr_images=True, product_only=True)
     finally:
@@ -866,6 +883,9 @@ async def check_url(request: Request, url: str = Form(""), text: str = Form(""),
     elif url.startswith("http"):
         try:
             ing = await check_budget.call(budget, _read_check_url, url, fallback='url')
+        except CheckCapacityBusy as e:
+            return render(request, "check.html", base=base, bookmarklet=bm, url=url, q="",
+                          error=str(e))
         except ingest.product_page.ProductBodyUnavailable as e:
             return await recover_existing(str(e))
         except PublicURLRejected as e:
@@ -963,8 +983,7 @@ async def api_check(request: Request):
     if data.get('product_html'):
         def read_capture():
             from .pipeline.browser_capture import read
-            if not _check_ocr_gate.acquire(blocking=False):
-                raise ValueError('다른 자료를 분석하고 있습니다. 잠시 뒤 다시 시도해 주세요.')
+            _acquire_check_slot()
             try:
                 return read(data['product_html'], url)
             finally:
