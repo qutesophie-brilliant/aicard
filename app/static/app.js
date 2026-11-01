@@ -216,6 +216,7 @@
       busy.scrollIntoView({block: 'center', behavior: 'auto'});
       clearInterval(waitTimer);
       waitTimer = setInterval(() => {
+        if (form.isConnected === false) { clearInterval(waitTimer); return; }
         const seconds = Math.floor((Date.now() - started) / 1000);
         document.getElementById('wait-elapsed').textContent = seconds < 60 ? seconds + '초' : Math.floor(seconds / 60) + '분 ' + seconds % 60 + '초';
         document.getElementById('wait-slow').hidden = seconds < 45;
@@ -229,7 +230,7 @@
         render();
         fileError.textContent = message;
         fileError.hidden = false; fileError.tabIndex = -1; fileError.focus();
-      });
+      }, () => clearInterval(waitTimer));
     });
     window.addEventListener('pageshow', () => {
       if (form.dataset.asyncPending) return;
@@ -246,7 +247,7 @@
 
   // Keep this document active while the server works. A native POST navigation
   // can suspend mobile timers before the response arrives.
-  function submitCheckInPlace(event, form, onFailure) {
+  function submitCheckInPlace(event, form, onFailure, onComplete = () => {}) {
     if (typeof window.fetch !== 'function') return;
     event.preventDefault();
     form.dataset.asyncPending = 'true';
@@ -268,6 +269,7 @@
       const target = new URL(response.url || form.action || '/check', location.href);
       if (target.origin !== new URL(location.href).origin) throw new Error('분석 결과 주소를 확인하지 못했습니다.');
       clearTimeout(timeout);
+      onComplete(); // document.open replaces the DOM but does not cancel timers.
       window.history.pushState(null, '', target.href);
       document.open(); document.write(html); document.close();
     }).catch(error => {
@@ -299,6 +301,7 @@
       box.querySelector('[data-slow]').hidden = true;
       const start = Date.now();
       timer = setInterval(() => {
+        if (form.isConnected === false) { clearInterval(timer); return; }
         const sec = Math.floor((Date.now()-start)/1000);
         box.querySelector('[data-elapsed]').textContent = sec < 60 ? sec+'초' : Math.floor(sec/60)+'분 '+sec%60+'초';
         box.querySelector('[data-slow]').hidden = sec < 45;
@@ -309,7 +312,7 @@
         box.querySelector('[role="status"]').textContent = message;
         box.querySelector('[data-slow]').hidden = true;
         box.focus();
-      });
+      }, () => clearInterval(timer));
     });
     window.addEventListener('pageshow', () => { if (form.dataset.asyncPending) return; clearInterval(timer); box.hidden = true; form.removeAttribute('aria-busy'); buttons.forEach(b => b.disabled = false); });
   });

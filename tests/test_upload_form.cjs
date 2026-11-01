@@ -179,6 +179,10 @@ test('async POST keeps mobile elapsed clock active and prevents duplicate reques
   await f.settle();
   assert.equal(f.written[0], '<html>result</html>');
   assert.equal(f.navigated[0], 'https://example.test/check');
+  // The result document has no upload timer elements. A stale callback used
+  // to throw each second after a successful analysis / stored-card redirect.
+  delete f.ids['wait-elapsed']; delete f.ids['wait-slow'];
+  assert.doesNotThrow(() => f.tick(5000));
 });
 
 test('network failure preserves files and restores the action instead of leaving a spinner', async () => {
