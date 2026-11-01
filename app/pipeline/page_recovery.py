@@ -34,17 +34,32 @@ def acquire(html, url, fetch, renderer=None):
     """Return an identified product body, with the actual strategies recorded."""
     if access_problem(html, url):
         raise product_page.ProductBodyUnavailable('판매사이트가 로그인·접근 제한 또는 상품 없음 화면을 보내 왔습니다. 공개된 상품 상세주소인지 확인해 주세요.')
+    overview = product_documents.overview_link(html, url)
+    overview_stages = []
+    if overview:
+        try:
+            response = fetch_retry(overview, fetch)
+            if 'html' not in response.headers.get('content-type', '').lower():
+                raise ValueError('not_html')
+            final = str(response.url)
+            if access_problem(response.text, final):
+                raise ValueError('access_required')
+            product_page.product_body(response.text, final)
+            html, url = response.text, final
+            overview_stages.append({'stage': 'product_overview', 'status': 'read', 'url': final})
+        except (ValueError, httpx.HTTPError):
+            overview_stages.append({'stage': 'product_overview', 'status': 'unavailable'})
     prepared, documents = product_documents.prepare(html, url, lambda u: fetch_retry(u, fetch))
-    stages = [{'stage': 'html_and_linked_description', 'status': 'read'}]
+    stages = overview_stages + [{'stage': 'html_and_linked_description', 'status': 'read'}]
     have_body = False
     try:
         product_page.product_body(prepared, url)
         have_body = True
         if not any(d['status'] == 'unavailable' for d in documents):
             return prepared, url, documents, stages
-        stages[0]['status'] = 'partial'
+        stages[-1]['status'] = 'partial'
     except product_page.ProductBodyUnavailable:
-        stages[0]['status'] = 'insufficient'
+        stages[-1]['status'] = 'insufficient'
     if renderer is None:
         from .rendered_page import render
         renderer = render

@@ -4,9 +4,36 @@ Does not execute scripts, guess private endpoints, scrape reviews or circumvent
 login/challenge pages. Every remote fetch uses the existing pinned public-IP guard.
 """
 from html import escape
+import json
+import re
 from urllib.parse import urljoin, urlsplit
 from bs4 import BeautifulSoup
 from . import product_page
+
+
+def overview_link(html, url):
+    """Use the product's published overview link; never guess another product URL."""
+    parsed = urlsplit(url)
+    if parsed.hostname not in ('mi.com', 'www.mi.com') or not re.fullmatch(r'/[a-z]{2}/product/[^/]+/buy/?', parsed.path):
+        return None
+    soup = BeautifulSoup(html, 'html.parser')
+    for script in soup.select('script:not([src])'):
+        match = re.match(r'\s*window\.__PRELOADED_STATE__\s*=\s*', script.get_text())
+        if not match: continue
+        try:
+            data, _ = json.JSONDecoder().raw_decode(script.get_text()[match.end():])
+        except (ValueError, TypeError): continue
+        buttons = data.get('pageButton', []) if isinstance(data, dict) else []
+        for button in buttons if isinstance(buttons, list) else []:
+            href = button.get('link') if isinstance(button, dict) else None
+            if not isinstance(href, str): continue
+            target = urljoin(url, href)
+            dest = urlsplit(target)
+            if (dest.scheme == 'https' and dest.hostname == parsed.hostname
+                    and dest.path.rstrip('/') == parsed.path.rstrip('/').removesuffix('/buy')
+                    and not dest.query and not dest.fragment):
+                return target
+    return None
 
 
 def prepare(html, url, fetch):

@@ -160,7 +160,23 @@ def _other_quick_feature(claim_text, quote):
     storage next to one another. Shared words such as '김치' and '온도' are not
     enough to connect their evidence. Formal cards are not processed here.
     """
-    if not re.search(r'AI\s*정온', claim_text, re.I):
+    # Explicitly different mechanisms must not borrow one another's tests or
+    # conditions simply because they occur on the same long product page.
+    families = (
+        r'내비게이션|네비게이션|장애물|매핑|카메라|비전|위치\s*(?:추적|파악)',
+        r'흡입력|싸이클론|사이클론|원심력',
+        r'정온|온도|냉각|냉장',
+        r'냄새\s*케어|냄새저감|메틸메르캅탄|탈취',
+        r'터보\s*샷|터보\s*워시',
+        r'스팀|살균',
+    )
+    claimed = {i for i, pattern in enumerate(families) if re.search(pattern, claim_text, re.I)}
+    quoted = {i for i, pattern in enumerate(families) if re.search(pattern, quote, re.I)}
+    if claimed and quoted and claimed.isdisjoint(quoted):
+        return True
+    if re.search(r'평생\s*보증|제품\s*교환|구입가\s*환급', quote) and not re.search(r'보증|교환|환급', claim_text):
+        return True
+    if not re.search(r'정온|온도.{0,16}(?:유지|조절)|사용\s*패턴', claim_text, re.I):
         return False
     for feature in (r'김치\s*통', r'스캔\s*킵'):
         if re.search(feature, quote) and not re.search(feature, claim_text):

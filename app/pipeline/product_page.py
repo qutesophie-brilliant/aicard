@@ -152,6 +152,8 @@ def product_body(html: str, url: str) -> BeautifulSoup:
         selector = ('.dyson_cms_row_config:has(.rich-content-component), '
                     '.dyson_cms_row_config:has(.promos), '
                     '.dyson_cms_row_config[id*="caveat"]')
+    elif host in ('mi.com', 'www.mi.com') and re.match(r'^/[a-z]{2}/product/[^/]+/?$', urlsplit(url).path):
+        selector = '.product_v4 main[class*="fly-birds-page"]'
     elif host == 'llis-goodsdetail.lotteon.com':
         selector = '#llis-root'
     elif host in ("navimro.com", "www.navimro.com"):

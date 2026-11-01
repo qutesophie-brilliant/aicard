@@ -1,0 +1,58 @@
+import json
+import unittest
+from types import SimpleNamespace
+from app.pipeline import page_recovery, product_documents, product_page
+from app.pipeline.run import _other_quick_feature, quick_check
+
+
+class OverviewRecoveryTests(unittest.TestCase):
+    url = 'https://www.mi.com/kr/product/example-robot/buy/'
+    overview = 'https://www.mi.com/kr/product/example-robot/'
+
+    def shell(self, target):
+        return '<script>window.__PRELOADED_STATE__ = ' + json.dumps({'pageButton': [{'link': target}]}) + ';</script>'
+
+    def test_buy_shell_recovers_published_same_product_overview(self):
+        body = '<div class="product_v4"><main class="fly-birds-page_123"><p>AI 카메라가 물체를 인식하여 장애물을 피해 이동합니다.</p><img data-src="/detail.jpg"></main></div>'
+        called = []
+        def fetch(url):
+            called.append(url)
+            return SimpleNamespace(text=body, url=url, headers={'content-type': 'text/html'})
+        html, url, _, stages = page_recovery.acquire(self.shell(self.overview), self.url, fetch,
+            renderer=lambda _: self.fail('Valid overview must not need rendering'))
+        self.assertEqual(called, [self.overview])
+        self.assertEqual(url, self.overview)
+        self.assertEqual(stages[0]['stage'], 'product_overview')
+        self.assertEqual(len(product_page.product_body(html, url).select('img')), 1)
+
+    def test_other_product_or_host_or_review_is_not_followed(self):
+        for url in ('https://evil.example/kr/product/example-robot/',
+                    'https://www.mi.com/kr/product/other/', self.overview + 'review'):
+            self.assertIsNone(product_documents.overview_link(self.shell(url), self.url))
+
+    def test_invalid_script_and_category_are_not_executed_or_accepted(self):
+        self.assertIsNone(product_documents.overview_link('<script>window.__PRELOADED_STATE__ = alert(1)</script>', self.url))
+        with self.assertRaises(product_page.ProductBodyUnavailable):
+            product_page.product_body('<div class="product_v4"><main class="fly-birds-page_1">AI 카메라를 포함한 여러 제품을 소개하고 추천합니다.</main></div>', 'https://www.mi.com/kr/product-list/')
+
+
+class FeatureSeparationTests(unittest.TestCase):
+    def test_navigation_does_not_borrow_suction_trial(self):
+        source = 'AI 카메라가 장애물을 인식하고 위치를 파악합니다.\n시험 조건: 싸이클론 흡입력은 독립시험기관에서 측정했습니다.'
+        card, _ = quick_check('로봇청소기', '', source)
+        self.assertTrue(card['claims'])
+        for claim in card['claims']:
+            if '카메라' in claim['text']:
+                self.assertFalse(any('흡입력' in e['quote'] for e in claim['evidence']))
+                self.assertNotIn('흡입력', claim.get('conditions', ''))
+
+    def test_paraphrased_temperature_does_not_borrow_container_or_warranty(self):
+        claim = '사용 패턴을 학습하여 냉장고의 내부 온도를 일정하게 유지합니다.'
+        for quote in ('냄새케어 김치통의 메틸메르캅탄 농도를 측정합니다.',
+                      '평생보증은 컴프레서 한정이며 제품 교환에는 적용되지 않습니다.'):
+            self.assertTrue(_other_quick_feature(claim, quote))
+
+    def test_matching_and_shared_prerequisites_remain(self):
+        self.assertFalse(_other_quick_feature('AI 카메라가 장애물을 인식합니다.', '어두운 곳에서는 카메라의 장애물 인식이 제한됩니다.'))
+        self.assertFalse(_other_quick_feature('AI 정온 모드', 'SmartThings 앱 설치 및 무선 네트워크 연결이 필요합니다.'))
+        self.assertFalse(_other_quick_feature('AI 세탁', 'AI 세탁 기능은 6kg 이하에서 작동합니다.'))
