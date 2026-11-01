@@ -8,6 +8,39 @@ from app.pipeline.product_page import product_body, ProductBodyUnavailable
 
 
 class ProductPageTests(unittest.TestCase):
+    def test_costco_detail_image_excludes_gallery_and_recommendations(self):
+        from app.pipeline.product_page import product_text, detail_selector
+        from app.pipeline.product_images import capture_images
+        from app.pipeline.ocr import OcrResult
+        html = '''<div class="gallery"><img src="/gallery.jpg"></div>
+        <div class="product-details-content-wrapper"><div class="txt_itemDes">
+        <img src="/mediapermalink/693448-desc_1"></div></div>
+        <section id="product_specs"><div class="product-classification-wrapper">
+        <table><tr><td>품질보증기준</td><td>관련 소비자분쟁해결 기준에 따릅니다.</td></tr></table>
+        </div></section><div class="recommended-products">
+        <div class="product-details-content-wrapper">다른 상품 AI 설명<img src="/other.jpg"></div></div>'''
+        url = 'https://www.costco.co.kr/ElectronicsComputers/Cameras/Model/p/693448'
+        body = product_body(html, url)
+        self.assertEqual(['/mediapermalink/693448-desc_1'], [i['src'] for i in body.select('img')])
+        self.assertIn('소비자분쟁해결', product_text(body))
+        self.assertNotIn('다른 상품', product_text(body))
+        self.assertEqual('explicit_product_container', body.section['data-aicard-selection'])
+        import io
+        from PIL import Image
+        image = io.BytesIO()
+        Image.new('RGB', (900, 2200)).save(image, format='PNG')
+        seen = []
+        def download(src):
+            seen.append(src)
+            return image.getvalue()
+        capture = {'sections': [], 'coverage': {}}
+        capture_images(html, url, capture, fetch_bytes=download,
+                       reader=lambda _: OcrResult(texts=['스마트 AI 감지가 사람과 반려동물을 감지합니다.'], engine='test'))
+        self.assertEqual(['https://www.costco.co.kr/mediapermalink/693448-desc_1'], seen)
+        self.assertIn('스마트 AI 감지', capture['sections'][0]['text'])
+        for other in ('https://example.com/Model/p/693448', 'https://www.costco.co.kr/'):
+            self.assertNotIn('.product-details-content-wrapper', detail_selector(other))
+
     def test_sony_feature_description_retains_ai_explanation_without_navigation(self):
         html = '''<div class="LargeStaticImageHotSpot__DescriptionContainer">
           <div class="LargeStaticImageHotSpot__ContentHeader"><h2>새로 개발된 AI 프로세싱 유닛</h2></div>

@@ -102,6 +102,8 @@ _ACER_FEATURES = ('main#main .level-page-content, main#main section.section, '
 
 def detail_selector(url):
     """Use the same scoped description roots during fetch and rendering."""
+    if _costco_product(url):
+        return _COSTCO_FEATURES
     if _acer_product(url):
         return DETAIL_SELECTOR + ', ' + _ACER_FEATURES
     if _tapo_product(url):
@@ -119,6 +121,16 @@ def _tapo_product(url):
 _TAPO_FEATURES = ('#tapo-product-overview .product-highlights, '
                   '#tapo-product-overview .product-overview-blocks, '
                   '#tapo-product-overview .hightlight-note')
+
+
+def _costco_product(url):
+    parsed = urlsplit(url)
+    return (parsed.hostname in ('costco.co.kr', 'www.costco.co.kr')
+            and bool(re.fullmatch(r'/.+/p/\d+/?', parsed.path)))
+
+
+_COSTCO_FEATURES = ('.product-details-content-wrapper, '
+                    '#product_specs .product-classification-wrapper')
 
 
 def _detail_media(node):
@@ -406,6 +418,11 @@ def product_body(html: str, url: str) -> BeautifulSoup:
     elif is_naver_product(url):
         selector = NAVER_DETAIL_SELECTOR
     elif _tapo_product(url):
+        selector = detail_selector(url)
+    elif _costco_product(url):
+        # The seller's long description is separate from the product gallery.
+        # Prioritize that actual description and its specification table rather
+        # than spending OCR on gallery photographs selected by region recovery.
         selector = detail_selector(url)
     elif host in ('acer.com', 'www.acer.com'):
         # The manufacturer's Korean product landing pages put the real feature
