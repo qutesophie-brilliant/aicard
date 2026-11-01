@@ -6,6 +6,44 @@ from . import product_page, ocr
 from .. import config
 
 
+class _PrefetchImages:
+    """At most three in-flight downloads, retaining the request's deadline."""
+    def __init__(self, sources, download, deadline):
+        from concurrent.futures import ThreadPoolExecutor
+        self.pool = ThreadPoolExecutor(max_workers=3, thread_name_prefix='detail-image')
+        self.sources = iter(sources)
+        self.download = download
+        self.deadline = deadline
+        self.pending = {}
+        self.fill()
+
+    def fill(self):
+        import time
+        import contextvars
+        from .. import check_budget
+        while len(self.pending) < 3 and time.monotonic() < self.deadline and check_budget.remaining(15) >= 15:
+            src = next(self.sources, None)
+            if src is None:
+                break
+            self.pending[src] = self.pool.submit(contextvars.copy_context().run, self.download, src)
+
+    def read(self, src):
+        import contextvars
+        future = self.pending.pop(src, None)
+        if future is None:
+            future = self.pool.submit(contextvars.copy_context().run, self.download, src)
+        try:
+            return future.result()
+        finally:
+            self.fill()
+
+    def close(self):
+        for future in self.pending.values():
+            future.cancel()
+        self.pool.shutdown(wait=False, cancel_futures=True)
+        self.pending.clear()
+
+
 def spread_candidates(candidates, limit):
     """Cover long descriptions before spending the budget on adjacent slices.
 
@@ -65,6 +103,7 @@ def capture_images(html, url, capture, fetch_bytes=None, reader=None, limit=24):
         # still validates/pins a public IP and checks image type and byte size.
         return fetch_public(src, timeout=10, max_bytes=8*1024*1024,
                             max_redirects=2, image_only=True).content
+    use_prefetch = fetch_bytes is None
     fetch_bytes=fetch_bytes or download
     import math
     import time
@@ -72,6 +111,9 @@ def capture_images(html, url, capture, fetch_bytes=None, reader=None, limit=24):
     from .image_tiles import MAX_PIXELS, MAX_TILES, TILE_SIDE, OVERLAP, MAX_SHORT_SIDE
     audit=[]; payloads=[]; loaded=[]; total_bytes=0; total_tiles=0
     download_deadline = time.monotonic() + 35
+    prefetch = _PrefetchImages([src for _,src in candidates[:limit]], download, download_deadline) if use_prefetch else None
+    if prefetch:
+        fetch_bytes = prefetch.read
     for index,(_,src) in enumerate(candidates):
         row={'url':src,'text':'','engine':'none','status':'pending','image_number':index+1,
              'download_attempts':0,'ocr_attempts':0}
@@ -109,6 +151,8 @@ def capture_images(html, url, capture, fetch_bytes=None, reader=None, limit=24):
         except Exception as e:
             row['error']=type(e).__name__+': '+str(e)[:160]
             row['status']='download_timeout' if isinstance(e,httpx.TimeoutException) else 'download_failed'
+    if prefetch:
+        prefetch.close()
     if payloads:
         if reader is not None:
             results=[reader(data) for data in payloads]
