@@ -93,4 +93,18 @@ def product_heading(soup, url):
         names = [n.get_text(' ', strip=True) for n in soup.select('h1.title')]
         if len(names) == 1 and names[0] == og.removeprefix('[11번가]').strip():
             return names[0]
+    elif p.netloc == 'www.29cm.co.kr' and re.fullmatch(r'/products/\d+/?', p.path):
+        names = soup.select('h2#pdp_product_name')
+        canonical = soup.select('link[rel="canonical"][href]')
+        if len(names) != 1 or len(canonical) != 1:
+            return ''
+        target = urlsplit(urljoin(url, canonical[0]['href']))
+        name = names[0].get_text(' ', strip=True)
+        # The DOM product name, social title, and canonical product ID must
+        # agree. A title alone or another product's recommendation is not copy.
+        if (name and target.scheme == p.scheme and target.netloc == p.netloc
+                and target.path.rstrip('/') == p.path.rstrip('/')
+                and not target.query and not target.fragment
+                and og in (name, name + ' - 모든 취향 곁에, 29CM')):
+            return name
     return ''

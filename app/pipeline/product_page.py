@@ -358,6 +358,8 @@ def product_body(html: str, url: str) -> BeautifulSoup:
     Unknown layouts need a product description node, rather than a body/main fallback.
     """
     soup = BeautifulSoup(html, "html.parser")
+    from .marketplace_documents import product_heading
+    verified_heading = product_heading(soup, url)
     structured = structured_description(soup) or embedded_description(soup)
     faq = '' if structured else product_faq(soup)
     host = (urlsplit(url).hostname or "").lower()
@@ -598,6 +600,17 @@ def product_body(html: str, url: str) -> BeautifulSoup:
             selected.section['data-aicard-selection'] = 'structured_product_faq'
             return selected
         raise ProductBodyUnavailable(_UNAVAILABLE)
+    # Preserve an independently verified visible product name only after a
+    # real description has passed selection. A title-only shell stays unavailable.
+    if verified_heading and re.sub(r'\s+', '', verified_heading) not in re.sub(r'\s+', '', selected.get_text()):
+        section = selected.new_tag('section')
+        section['data-source-url'] = url
+        heading = selected.new_tag('h2')
+        heading.string = '상품명'
+        paragraph = selected.new_tag('p')
+        paragraph.string = verified_heading
+        section.extend([heading, paragraph])
+        selected.section.insert(0, section)
     return selected
 
 
