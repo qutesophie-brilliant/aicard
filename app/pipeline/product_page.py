@@ -214,6 +214,7 @@ def product_faq(soup):
 DETAIL_LABELS = {
     '상품상세', '상품상세정보', '상품상세설명', '상품설명', '제품상세',
     '제품상세정보', '제품설명', '제품특징', '상세설명', '주요기능', '주요특징',
+    '지능형기능', '원격관리',
     'productdetails', 'productdescription', 'productfeatures', 'technicaldetails', 'keyfeatures',
     'featurehighlights',
 }
@@ -375,6 +376,10 @@ def product_body(html: str, url: str) -> BeautifulSoup:
                     '.dyson_cms_row_config[id*="caveat"]')
     elif host in ('mi.com', 'www.mi.com') and re.match(r'^/[a-z]{2}/product/[^/]+/?$', urlsplit(url).path):
         selector = '.product_v4 main[class*="fly-birds-page"]'
+    elif host in ('ecovacs.com', 'www.ecovacs.com') and re.fullmatch(r'/kr/campaign/deebot-[\w-]+/?', urlsplit(url).path):
+        # The campaign's numbered product sections contain the actual feature
+        # copy and caveats. Do not select its surrounding shop/footer/navigation.
+        selector = '#allcontent > div[id^="section"]'
     elif host in ('hp.com', 'www.hp.com') and '/laptops/home-laptops/omnibook/' in urlsplit(url).path:
         # HP's product copy lives in custom elements. Keep product benefits and
         # product FAQ; exclude generic AI-PC education, support and model-comparison

@@ -73,7 +73,7 @@ def extract_claims(source_chunks: list[dict[str, Any]], max_claims: int = 14) ->
         return []
     if llm.available():
         # 후보를 먼저 규칙으로 좁혀 토큰을 아낀다(AI 표현이 전혀 없는 문장은 뺌)
-        cand = [c for c in source_chunks if AI_PATTERN.search(c["quote"])] or source_chunks
+        cand = [c for c in source_chunks if AI_PATTERN.search(c["quote"]) or CORE_AI.search(c["quote"])] or source_chunks
         cand = cand[:160]
         # 3차 개선: 같은 프롬프트를 EXTRACT_PASSES번 불러 합친다(되풀이는 _postfilter가 거른다). 한 번이라도 성공하면 그 결과를 쓴다.
         data: list[Any] = []
@@ -300,7 +300,8 @@ def _rules_extract(source_chunks: list[dict[str, Any]], max_claims: int, *, comp
         explicit_ai_basis = complete_quotes and bool(re.search(
             r'인공\s*지능.{0,12}기반|(?<![A-Za-z])AI(?:로|를\s*통해)\s*작동', q, re.I))
         image_enhancement = complete_quotes and bool(re.search(r'(?<![A-Za-z])AI.{0,20}(?:이미지|영상|사진).{0,12}(?:강화|개선|향상)', q, re.I))
-        if _NOISE_LINE.search(q) or not (_FUNC_CUE.search(q) or english_function or explicit_ai_basis or image_enhancement) or len(q) > (500 if complete_quotes else 200):
+        assistant_function = complete_quotes and '어시스턴트' in q
+        if _NOISE_LINE.search(q) or not (_FUNC_CUE.search(q) or english_function or explicit_ai_basis or image_enhancement or assistant_function) or len(q) > (500 if complete_quotes else 200):
             continue
         if english_function and re.search(r'^\s*(?:[*†※]|note\s*:|test\s+conditions\s*:)|\b(?:customer review|add to cart|shipping|discount|coupon)\b', q, re.I):
             continue
