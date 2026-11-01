@@ -39,7 +39,7 @@ def acquire(html, url, fetch, renderer=None):
     if not overview:
         try:
             body = product_page.product_body(html, url)
-            needs_detail = body.section.get('data-aicard-selection') == 'structured_product_description'
+            needs_detail = body.section.get('data-aicard-selection', '').startswith('structured_product_')
         except product_page.ProductBodyUnavailable:
             needs_detail = True
         if needs_detail:
@@ -66,7 +66,7 @@ def acquire(html, url, fetch, renderer=None):
     try:
         body = product_page.product_body(prepared, url)
         have_body = True
-        summary_only = body.section.get('data-aicard-selection') == 'structured_product_description'
+        summary_only = body.section.get('data-aicard-selection', '').startswith('structured_product_')
         if not summary_only and not any(d['status'] == 'unavailable' for d in documents):
             return prepared, url, documents, stages
         stages[-1]['status'] = 'partial'
@@ -83,7 +83,7 @@ def acquire(html, url, fetch, renderer=None):
         recovered, extra = product_documents.prepare(rendered['html'], final_url, lambda u: fetch_retry(u, fetch))
         # A blank browser shell is NOT a successful negative AI finding.
         recovered_body = product_page.product_body(recovered, final_url)
-        if have_body and recovered_body.section.get('data-aicard-selection') == 'structured_product_description':
+        if have_body and recovered_body.section.get('data-aicard-selection', '').startswith('structured_product_'):
             stages.append({'stage': 'browser_render', 'status': 'no_additional_detail'})
             return prepared, url, documents, stages
     except product_page.ProductBodyUnavailable:

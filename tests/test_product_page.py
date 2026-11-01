@@ -1,5 +1,5 @@
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import httpx
 
@@ -8,6 +8,39 @@ from app.pipeline.product_page import product_body, ProductBodyUnavailable
 
 
 class ProductPageTests(unittest.TestCase):
+    def _faq_html(self, *, title='Example X5 노트북', visible=True, other=False):
+        import json
+        name = 'Other Z9 노트북' if other else title
+        questions = [name + '에서는 어떤 화면을 지원하나요?', name + '으로 어떤 작업을 할 수 있나요?']
+        answers = ['이 제품은 선명한 화면과 풍부한 색상을 표현하는 고해상도 디스플레이를 제공합니다.',
+                   '이 제품은 사무 작업과 가벼운 게임, 동영상 시청을 위한 다양한 기능을 제공합니다.']
+        rows = [{'@type':'Question','name':q,'acceptedAnswer':{'@type':'Answer','text':a}}
+                for q,a in zip(questions, answers)]
+        rows.append({'@type':'Question','name':'AI PC란 무엇인가요?', 'acceptedAnswer':{'@type':'Answer','text':'AI PC는 인공지능 기능을 활용하는 다양한 종류의 컴퓨터를 일반적으로 말합니다.'}})
+        html = '<h1>' + title + '</h1><script type="application/ld+json">' + json.dumps({'@type':'FAQPage','mainEntity':rows}) + '</script>'
+        if visible:
+            html += ''.join('<h3>' + row['name'] + '</h3><p>' + row['acceptedAnswer']['text'] + '</p>' for row in rows)
+        return html
+
+    def test_visible_model_specific_faq_is_partial_source_not_generic_ai(self):
+        from app.pipeline import page_recovery
+        html = self._faq_html()
+        ing = ingest.from_product_html(html, 'https://example.com/laptops/x5')
+        self.assertEqual(ing.source_capture['coverage']['product_selection'], 'structured_product_faq')
+        self.assertIn('부분 결과', ing.notes[0])
+        self.assertIn('디스플레이', ing.text)
+        self.assertNotIn('AI PC는', ing.text)
+        renderer = Mock(side_effect=ProductBodyUnavailable('timeout'))
+        _, _, _, stages = page_recovery.acquire(html, 'https://example.com/laptops/x5', None, renderer)
+        self.assertEqual(stages[0]['status'], 'partial')
+        renderer.assert_called_once()
+
+    def test_faq_does_not_use_metadata_only_other_models_or_generic_titles(self):
+        for html in (self._faq_html(visible=False), self._faq_html(other=True), self._faq_html(title='고객 지원'),
+                     self._faq_html() + '<h1>Other Z9 노트북</h1>'):
+            with self.assertRaises(ProductBodyUnavailable):
+                product_body(html, 'https://example.com/item')
+
     def test_product_intro_is_retained_alongside_details_without_reviews(self):
         import json
         from app.pipeline.source_capture import capture_product_html

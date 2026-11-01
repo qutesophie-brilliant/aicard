@@ -116,6 +116,60 @@ def embedded_description(soup):
     return descriptions[0] if len(descriptions) == 1 else ''
 
 
+def product_faq(soup):
+    """Last-resort partial source: visible FAQs explicitly naming this model.
+
+    Require two questions beginning with the sole model-bearing H1, and answers
+    present in page text. Generic AI primers, shopping FAQs and other models do
+    not qualify. No JavaScript is executed and no metadata-only answer is added.
+    """
+    norm = lambda text: re.sub(r'\s+', '', text).casefold()
+    titles = soup.select('h1')
+    if len(titles) != 1:
+        return ''
+    name = norm(titles[0].get_text(' ', strip=True))
+    if len(name) < 8 or not re.search(r'\d', name):
+        return ''
+    visible = BeautifulSoup(str(soup), 'html.parser')
+    for node in list(visible.select('script,style,nav,header,footer')):
+        node.decompose()
+    visible_text = norm(visible.get_text(' ', strip=True))
+    matches = []
+    for script in soup.select('script[type="application/ld+json"]'):
+        try:
+            value = json.loads(script.string or script.get_text())
+        except (ValueError, TypeError):
+            continue
+        entries = value if isinstance(value, list) else [value]
+        for entry in entries[:20]:
+            if not isinstance(entry, dict) or entry.get('@type') != 'FAQPage':
+                continue
+            questions = entry.get('mainEntity', [])
+            if not isinstance(questions, list):
+                continue
+            for item in questions[:50]:
+                if not isinstance(item, dict) or item.get('@type') != 'Question':
+                    continue
+                question = item.get('name', '')
+                answer = item.get('acceptedAnswer', {})
+                answer = answer.get('text', '') if isinstance(answer, dict) else ''
+                if not isinstance(question, str) or not isinstance(answer, str):
+                    continue
+                answer = BeautifulSoup(answer, 'html.parser').get_text(' ', strip=True)
+                if (norm(question).startswith(name) and 30 <= len(answer) <= 5000
+                        and norm(question) in visible_text and norm(answer) in visible_text):
+                    matches.append((question, answer))
+    matches = list(dict.fromkeys(matches))
+    if len(matches) < 2:
+        return ''
+    fragment = BeautifulSoup('<section></section>', 'html.parser')
+    for question, answer in matches[:10]:
+        heading, paragraph = fragment.new_tag('h2'), fragment.new_tag('p')
+        heading.string, paragraph.string = question, answer
+        fragment.section.extend([heading, paragraph])
+    return str(fragment.section)
+
+
 DETAIL_LABELS = {
     '상품상세', '상품상세정보', '상품상세설명', '상품설명', '제품상세',
     '제품상세정보', '제품설명', '제품특징', '상세설명', '주요기능', '주요특징',
@@ -205,6 +259,7 @@ def product_body(html: str, url: str) -> BeautifulSoup:
     """
     soup = BeautifulSoup(html, "html.parser")
     structured = structured_description(soup) or embedded_description(soup)
+    faq = '' if structured else product_faq(soup)
     host = (urlsplit(url).hostname or "").lower()
     if host == "rental.lghellovision.net":
         # The seller embeds escaped editor HTML inside a detail/review wrapper.
@@ -325,6 +380,11 @@ def product_body(html: str, url: str) -> BeautifulSoup:
     text = selected.get_text(" ", strip=True)
     # Empty/short shells and title-only pages are inconclusive, not negative AI findings.
     if len(re.sub(r"\s+", "", text)) < 30 and not any(image_source(im) for im in selected.select('img')):
+        if faq:
+            selected.section.clear()
+            selected.section.append(BeautifulSoup(faq, 'html.parser'))
+            selected.section['data-aicard-selection'] = 'structured_product_faq'
+            return selected
         raise ProductBodyUnavailable(_UNAVAILABLE)
     return selected
 
