@@ -591,13 +591,6 @@ def _rate_ok(ip: str, limit: int = 30, window: int = 3600) -> bool:
     return True
 
 
-def _refund_check_ocr(key: str, ticket):
-    """A failed page fetch must not consume the expensive OCR allowance."""
-    hits = _check_hits.get(key, [])
-    if ticket is not None and ticket in hits:
-        hits.remove(ticket)
-
-
 def _check_summary(card: dict[str, Any]) -> dict[str, Any]:
     claims = card["claims"]
     with_ev = [c for c in claims if c.get("evidence")]
@@ -791,9 +784,6 @@ async def check_url(request: Request, url: str = Form(""), text: str = Form(""),
                     files: list[UploadFile] = File(default=[]), fresh: bool = Form(False)):
     from . import check_budget
     budget = check_budget.Budget()
-    ip = request.client.host if request.client else "?"
-    if not _rate_ok(ip):
-        raise HTTPException(429, "잠시 뒤 다시 시도해 주세요.")
     base = _public_base(request)
     bm = _bookmarklet(base, "/check/receive")
     url = url.strip()
@@ -824,9 +814,6 @@ async def check_url(request: Request, url: str = Form(""), text: str = Form(""),
     # 1) 캡처 이미지·PDF 업로드 → 글자 읽기 (소비자용: 건수·크기 제한, 비전 모델은 설정으로 켜고 끔)
     uploads = [f for f in (files or []) if f and f.filename]
     if uploads:
-        if not _rate_ok(ip + ":ocr", limit=config.CHECK_OCR_PER_HOUR):
-            return render(request, "check.html", base=base, bookmarklet=bm, url=url, q="",
-                          error="이미지 확인은 한 시간에 몇 번만 할 수 있습니다. 잠시 뒤 다시 시도해 주세요.")
         if len(uploads) > config.CHECK_MAX_FILES:
             return render(request, "check.html", base=base, bookmarklet=bm, url=url, q="",
                           error=f"파일은 한 번에 {config.CHECK_MAX_FILES}개까지 올릴 수 있습니다.")
@@ -868,30 +855,19 @@ async def check_url(request: Request, url: str = Form(""), text: str = Form(""),
         if not name:
             name = (text.splitlines()[0] if text.splitlines() else "붙여 넣은 설명")[:60]
     elif url.startswith("http"):
-        if not _rate_ok(ip + ":ocr", limit=config.CHECK_OCR_PER_HOUR):
-            return render(request, "check.html", base=base, bookmarklet=bm, url=url, q="",
-                          error=f"시간당 분석 한도({config.CHECK_OCR_PER_HOUR}회)에 도달했습니다. 한도가 회복된 뒤 다시 시도해 주세요.")
-        # Capture this request's reservation before awaiting; another request
-        # may arrive while the retailer is responding.
-        ocr_hits = _check_hits.get(ip + ':ocr', [])
-        ocr_ticket = ocr_hits[-1] if ocr_hits else None
         try:
             ing = await check_budget.call(budget, _read_check_url, url, fallback='url')
         except ingest.product_page.ProductBodyUnavailable as e:
-            _refund_check_ocr(ip + ':ocr', ocr_ticket)
             return recover_existing(str(e))
         except PublicURLRejected as e:
-            _refund_check_ocr(ip + ':ocr', ocr_ticket)
             return render(request, "check.html", base=base, bookmarklet=bm, url=url, q="",
                           error=str(e), upload_fallback=True)
         except httpx.HTTPStatusError as e:
-            _refund_check_ocr(ip + ':ocr', ocr_ticket)
             blocked = e.response.status_code in (401, 403, 429)
             message = ("판매사이트가 자동 접속을 거부해 이 링크로는 검색할 수 없습니다. 상세페이지 캡처 이미지나 PDF를 올려 주세요."
                        if blocked else "판매사이트에서 페이지를 보내 주지 않아 이 링크로 확인하지 못했습니다. 잠시 뒤 다시 시도하거나 상세페이지 캡처를 올려 주세요.")
             return recover_existing(message)
         except Exception:
-            _refund_check_ocr(ip + ':ocr', ocr_ticket)
             return recover_existing("페이지를 가져오지 못했습니다. 쇼핑몰의 접근 제한이나 일시적인 연결 문제일 수 있습니다.")
         source_capture = ing.source_capture
         sales, fine = split_fine_print(ing.text)
@@ -910,7 +886,7 @@ async def check_url(request: Request, url: str = Form(""), text: str = Form(""),
     else:
         return render(request, "check.html", base=base, bookmarklet=bm, url=url, q="",
                       error="판매페이지 주소를 넣거나, 캡처 이미지·PDF를 올리거나, 설명 글을 붙여 넣어 주세요.")
-    use_llm = config.CHECK_LLM and _rate_ok(ip + ":llm", limit=config.CHECK_LLM_PER_HOUR)
+    use_llm = config.CHECK_LLM
     try:
         card, docs = await _quick_result(name, url, sales, fine, use_llm=use_llm, source_capture=source_capture)
     except ValueError as e:
@@ -933,9 +909,6 @@ async def api_check(request: Request):
     """북마클릿 수신 창이 보내는 본문으로 즉석 확인 결과를 HTML 조각으로 돌려준다."""
     from . import check_budget
     budget = check_budget.Budget()
-    ip = request.client.host if request.client else "?"
-    if not _rate_ok(ip):
-        raise HTTPException(429)
     payload = bytearray()
     async for chunk in request.stream():
         if len(payload) + len(chunk) > 1600000:
@@ -960,9 +933,6 @@ async def api_check(request: Request):
     notes = []
     source_capture = None
     if data.get('product_html'):
-        if not _rate_ok(ip + ':ocr', limit=config.CHECK_OCR_PER_HOUR):
-            raise HTTPException(429, '시간당 분석 한도에 도달했습니다. 잠시 뒤 다시 시도해 주세요.')
-        ticket = _check_hits[ip + ':ocr'][-1]
         def read_capture():
             from .pipeline.browser_capture import read
             if not _check_ocr_gate.acquire(blocking=False):
@@ -975,15 +945,13 @@ async def api_check(request: Request):
         try:
             ing = await check_budget.call(budget, read_capture, fallback='url')
         except ValueError as e:
-            _refund_check_ocr(ip + ':ocr', ticket)
             return render(request, '_check_pending.html', pname=name, url=url, error=str(e))
         except Exception:
-            _refund_check_ocr(ip + ':ocr', ticket)
             return render(request, '_check_pending.html', pname=name, url=url, error='받은 상품 설명을 읽지 못했습니다. 다른 자료로 확인을 이어갈 수 있습니다.')
         data['sales_text'], data['fine_text'] = split_fine_print(ing.text)
         notes = ing.notes
         source_capture = ing.source_capture
-    use_llm = config.CHECK_LLM and _rate_ok(ip + ":llm", limit=config.CHECK_LLM_PER_HOUR)
+    use_llm = config.CHECK_LLM
     try:
         card, docs = await _quick_result(name, url, data.get("sales_text", ""), data.get("fine_text", ""), use_llm=use_llm, source_capture=source_capture)
     except Exception:

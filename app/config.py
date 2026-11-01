@@ -44,12 +44,10 @@ OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
 # 이미지(상세페이지) OCR을 비전 LLM으로 수행할 최대 이미지 수
 MAX_OCR_IMAGES = int(os.getenv("MAX_OCR_IMAGES", "12"))
 
-# 소비자 '바로 확인'의 캡처 업로드. 비전 모델 OCR은 크레딧을 쓰므로 기본은 켬(키가 있을 때)·시간당 횟수 제한.
+# 소비자 '바로 확인'의 캡처 업로드. 비전 모델 OCR은 키가 있을 때 기본으로 사용한다.
 CHECK_OCR_LLM = os.getenv("CHECK_OCR_LLM", "1") == "1"
-# 즉석 확인에서 문구 추출·근거 연결에 LLM을 쓸지(끄면 규칙만, 크레딧 0). 시간당 IP별 횟수를 넘으면 규칙으로 떨어진다.
+# 즉석 확인에서 문구 추출·근거 연결에 LLM을 쓸지(끄면 규칙만 사용).
 CHECK_LLM = os.getenv("CHECK_LLM", "0") == "1"
-CHECK_LLM_PER_HOUR = int(os.getenv("CHECK_LLM_PER_HOUR", "6"))
-CHECK_OCR_PER_HOUR = int(os.getenv("CHECK_OCR_PER_HOUR", "8"))
 CHECK_MAX_FILES = int(os.getenv("CHECK_MAX_FILES", "8"))
 CHECK_MAX_FILE_MB = int(os.getenv("CHECK_MAX_FILE_MB", "24"))
 CHECK_MAX_TOTAL_MB = 64

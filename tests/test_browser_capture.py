@@ -38,13 +38,13 @@ class BrowserCaptureTests(unittest.TestCase):
         for payload in ([], {'product_html':{}}, {'url':1}):
             self.assertEqual(400,client.post('/api/check',json=payload).status_code)
         self.assertEqual(413,client.post('/api/check',content=b'x'*1600001).status_code)
-    def test_api_failed_capture_refunds_ocr_and_does_not_create_card(self):
+    def test_api_failed_capture_does_not_create_quota_or_card(self):
         with patch.object(main,'_match_published',return_value=None), patch.object(browser_capture,'read',side_effect=ValueError('no product')), patch.object(main.db,'create_product') as add:
             r=TestClient(main.app).post('/api/check',json={'url':URL,'product_html':HTML})
         self.assertEqual(200,r.status_code); add.assert_not_called()
         self.assertIn('recovery-card',r.text)
         self.assertIn('분석을 완료한 카드가 아닙니다',r.text)
-        self.assertEqual([],main._check_hits['testclient:ocr'])
+        self.assertNotIn('testclient:ocr',main._check_hits)
     def test_api_carries_evidence_and_capture_provenance(self):
         result=ingest.from_product_html(HTML,URL,ocr_images=False)
         result.notes=['사용자 브라우저에서 보낸 자료']
