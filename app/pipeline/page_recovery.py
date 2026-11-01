@@ -37,12 +37,14 @@ def _remember_body(html, url):
         return
     from bs4 import BeautifulSoup
     from .source_capture import capture_product_html
+    soup = BeautifulSoup(html, 'html.parser')
+    title = soup.title.get_text(' ', strip=True) if soup.title else ''
+    check_budget.remember_title(title)
     try:
         capture = capture_product_html(html, url)
     except product_page.ProductBodyUnavailable:
         return
-    soup = BeautifulSoup(html, 'html.parser')
-    check_budget.remember_capture(capture, soup.title.get_text(' ', strip=True) if soup.title else url)
+    check_budget.remember_capture(capture, title or url)
 
 
 def acquire(html, url, fetch, renderer=None):

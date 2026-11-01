@@ -1,0 +1,6 @@
+<form class="existing-search" action="/check/find" method="get" role="search" id="existing-search">
+  <label for="existing-query">제품명·모델명으로 기존 카드 찾기</label>
+  <div class="existing-search-row"><input id="existing-query" type="search" name="q" value="{{ query|default(q|default('')) }}" maxlength="120" placeholder="제품 이름 또는 정확한 모델명" required><button class="btn primary" type="submit">기존 카드 찾기</button></div>
+  <input type="hidden" name="url" value="{{ url|default('') }}">
+  <p class="help">판매처가 달라도 검색할 수 있습니다. 모델명이 정확히 일치하면 기존 검토 카드로 바로 연결합니다.</p>
+</form>

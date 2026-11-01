@@ -1165,6 +1165,14 @@ body.menu-open .topbar{z-index:60;background:var(--paper)}
 .traffic-totals>div{display:flex;flex-direction:column;gap:8px;padding:22px;border:1px solid var(--line);border-radius:12px;background:var(--paper)}
 .traffic-totals strong{font-size:2.4rem;line-height:1.15;font-variant-numeric:tabular-nums}
 .traffic-columns{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:32px;margin:34px 0}
+.existing-search{padding:20px;border:1px solid var(--line);border-radius:12px;margin:20px 0 28px;scroll-margin-top:100px}
+.existing-search label{display:block;font-weight:700;margin-bottom:10px}
+.existing-search-row{display:flex;gap:10px;align-items:stretch}.existing-search-row input{flex:1;min-width:0;width:auto}
+.existing-search-row .btn{min-height:44px;flex-shrink:0}.existing-search .help{margin-bottom:0}
+.existing-results{padding:28px 0;word-break:keep-all;overflow-wrap:anywhere}.existing-results h1{font-size:clamp(1.5rem,4vw,2rem)}
+.existing-card-list{list-style:none;padding:0;display:grid;gap:16px}.existing-card-list li{border:1px solid var(--line);padding:20px;border-radius:12px}
+.existing-card-list h2{font-size:1.25rem;margin:8px 0}.existing-card-list .meta{margin:0}.existing-fresh{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+@media(max-width:480px){.existing-search-row{flex-direction:column}.existing-search{padding:16px}.existing-search-row input{width:100%}.existing-card-list li{padding:16px}}
 .traffic-columns>section{min-width:0}.traffic-columns h2{font-size:1.3rem}
 .traffic-table{width:100%;table-layout:fixed}.traffic-table th{text-align:left;font-weight:500}
 .traffic-table th:last-child,.traffic-table td:last-child{width:80px;text-align:right;font-variant-numeric:tabular-nums}

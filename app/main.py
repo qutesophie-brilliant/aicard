@@ -618,6 +618,28 @@ def _match_published(url: str) -> dict[str, Any] | None:
             matches[p['id']] = p
     return next(iter(matches.values())) if len(matches) == 1 else None
 
+def _product_candidates(query: str, *, partial: bool = False):
+    from .product_lookup import candidates
+    return candidates(query, db.list_products('approved'), partial=partial)
+
+
+def _existing_result(request, matches, *, query='', url='', error='', fragment=False):
+    return render(request, '_existing_cards.html' if fragment else 'existing_cards.html',
+                  matches=matches[:12], match_count=len(matches), query=query[:500],
+                  url=url, error=error)
+
+
+@app.get('/check/find', response_class=HTMLResponse)
+def check_find(request: Request, q: str = '', url: str = ''):
+    from .product_lookup import exact_product
+    q, url = q.strip()[:120], url.strip()[:2000]
+    matches = _product_candidates(q, partial=True)
+    exact = exact_product(matches)
+    if exact:
+        return RedirectResponse(f"/card/{exact['id']}?from=check", status_code=303)
+    return _existing_result(request, matches, query=q, url=url)
+
+
 @app.get("/check", response_class=HTMLResponse)
 def check_page(request: Request, q: str = "", url: str = ""):
     base = _public_base(request)
@@ -766,7 +788,7 @@ async def _quick_result(name, url, sales, fine, use_llm=False, source_capture=No
 
 @app.post("/check", response_class=HTMLResponse)
 async def check_url(request: Request, url: str = Form(""), text: str = Form(""),
-                    files: list[UploadFile] = File(default=[])):
+                    files: list[UploadFile] = File(default=[]), fresh: bool = Form(False)):
     from . import check_budget
     budget = check_budget.Budget()
     ip = request.client.host if request.client else "?"
@@ -781,10 +803,23 @@ async def check_url(request: Request, url: str = Form(""), text: str = Form(""),
     source_capture = None
 
     # 0) 이미 검토·공개된 제품이면 즉석 분석 대신 그 카드로 보낸다(사람이 확인한 카드가 더 정확하다)
-    if url.startswith("http") and not text and not [f for f in (files or []) if f and f.filename]:
+    if not fresh and url.startswith("http") and not text and not [f for f in (files or []) if f and f.filename]:
         hit = _match_published(url)
         if hit:
             return RedirectResponse(f"/card/{hit['id']}?from=check", status_code=303)
+
+    def recover_existing(message):
+        # A failed body/OCR read can still leave a real fetched title. URL text
+        # is only a candidate hint, never an automatic identity.
+        from urllib.parse import unquote, urlsplit
+        with budget.lock:
+            title = budget.snapshot.get('title', '')
+        hint = title or unquote(urlsplit(url).path).replace('/', ' ')
+        matches = _product_candidates(hint) if not fresh else []
+        if matches:
+            return _existing_result(request, matches, query=title, url=url, error=message)
+        return render(request, 'check.html', base=base, bookmarklet=bm, url=url, q='',
+                      error=message, upload_fallback=True)
 
     # 1) 캡처 이미지·PDF 업로드 → 글자 읽기 (소비자용: 건수·크기 제한, 비전 모델은 설정으로 켜고 끔)
     uploads = [f for f in (files or []) if f and f.filename]
@@ -844,7 +879,7 @@ async def check_url(request: Request, url: str = Form(""), text: str = Form(""),
             ing = await check_budget.call(budget, _read_check_url, url, fallback='url')
         except ingest.product_page.ProductBodyUnavailable as e:
             _refund_check_ocr(ip + ':ocr', ocr_ticket)
-            return render(request, "check.html", base=base, bookmarklet=bm, url=url, q="", error=str(e), upload_fallback=True)
+            return recover_existing(str(e))
         except PublicURLRejected as e:
             _refund_check_ocr(ip + ':ocr', ocr_ticket)
             return render(request, "check.html", base=base, bookmarklet=bm, url=url, q="",
@@ -854,15 +889,18 @@ async def check_url(request: Request, url: str = Form(""), text: str = Form(""),
             blocked = e.response.status_code in (401, 403, 429)
             message = ("판매사이트가 자동 접속을 거부해 이 링크로는 검색할 수 없습니다. 상세페이지 캡처 이미지나 PDF를 올려 주세요."
                        if blocked else "판매사이트에서 페이지를 보내 주지 않아 이 링크로 확인하지 못했습니다. 잠시 뒤 다시 시도하거나 상세페이지 캡처를 올려 주세요.")
-            return render(request, "check.html", base=base, bookmarklet=bm, url=url, q="", error=message, upload_fallback=True)
+            return recover_existing(message)
         except Exception:
             _refund_check_ocr(ip + ':ocr', ocr_ticket)
-            return render(request, "check.html", base=base, bookmarklet=bm, url=url, q="",
-                          error="페이지를 가져오지 못했습니다. 쇼핑몰의 접근 제한이나 일시적인 연결 문제일 수 있습니다. 상세페이지를 캡처한 이미지나 PDF로 계속 확인할 수 있습니다.", upload_fallback=True)
+            return recover_existing("페이지를 가져오지 못했습니다. 쇼핑몰의 접근 제한이나 일시적인 연결 문제일 수 있습니다.")
         source_capture = ing.source_capture
         sales, fine = split_fine_print(ing.text)
         notes.extend(ing.notes)
         name = (ing.title or url).split("|")[0].strip()[:60]
+        if not fresh:
+            matches = _product_candidates(ing.title or '')
+            if matches:
+                return _existing_result(request, matches, query=ing.title or '', url=url)
     else:
         return render(request, "check.html", base=base, bookmarklet=bm, url=url, q="",
                       error="판매페이지 주소를 넣거나, 캡처 이미지·PDF를 올리거나, 설명 글을 붙여 넣어 주세요.")
@@ -910,6 +948,9 @@ async def api_check(request: Request):
         # 검토자가 확인한 카드가 있으면 즉석 분석 대신 그 카드로 보낸다
         return HTMLResponse(f'<script>location.replace("/card/{hit["id"]}?from=check")</script>'
                             f'<p class="lede">이 제품은 이미 검토자가 확인한 카드가 있습니다. <a href="/card/{hit["id"]}?from=check">카드 보기</a></p>')
+    matches = _product_candidates(data.get('title', ''))
+    if matches:
+        return _existing_result(request, matches, query=data.get('title', ''), url=url, fragment=True)
     notes = []
     source_capture = None
     if data.get('product_html'):

@@ -52,6 +52,15 @@ def remember_capture(capture, title=None):
             state.snapshot['title'] = title
 
 
+def remember_title(title):
+    """Retain a fetched page title even if its detail body cannot be read."""
+    state = _current.get()
+    if state is not None and title and not state.stopped:
+        with state.lock:
+            if not state.stopped:
+                state.snapshot['title'] = str(title)[:500]
+
+
 def remember_uploads(texts, notes):
     state = _current.get()
     if state is not None and not state.stopped:

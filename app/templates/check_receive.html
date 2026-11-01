@@ -31,6 +31,7 @@
       const card = document.createElement('article'); card.className = 'label quick recovery-card'; card.setAttribute('role','status');
       const title = document.createElement('h2'); title.textContent = '자료 확인 필요'; card.appendChild(title);
       const text = document.createElement('p'); text.textContent = (error.name === 'AbortError' ? '제한 시간 안에 서버 응답을 받지 못했습니다.' : '상품 설명 확인을 완료하지 못했습니다.') + ' 분석을 완료한 카드가 아닙니다. 사진·PDF를 올리거나 관리자에게 링크 확인을 요청할 수 있습니다.'; card.appendChild(text);
+      const search = document.createElement('a'); search.className = 'btn primary'; search.textContent = '제품명으로 기존 카드 찾기'; search.href = '/check/find?q=' + encodeURIComponent(e.data.title || '') + '&url=' + encodeURIComponent(e.data.url); card.appendChild(search);
       for (const [label, hash] of [['사진·PDF로 확인','#drop'],['관리자에게 링크 확인 요청','#link-review-request']]) {
         const link = document.createElement('a'); link.className = 'btn'; link.textContent = label; link.href = '/check?url=' + encodeURIComponent(e.data.url) + hash; card.appendChild(link);
       }

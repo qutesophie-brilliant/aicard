@@ -1,0 +1,17 @@
+<section class="existing-results" aria-labelledby="existing-title">
+  <h1 id="existing-title" tabindex="-1">{% if matches %}기존 검토 카드를 찾았습니다{% else %}제품명·모델명으로 카드 찾기{% endif %}</h1>
+  {% if matches %}
+  <p>아래 제품이 찾으시는 제품인지 모델명까지 확인한 뒤 카드를 열어 주세요.</p>
+  {% if error %}<p class="help">입력한 판매페이지는 읽지 못했지만, 제품 정보가 겹치는 기존 카드를 찾았습니다.</p>{% endif %}
+  <ul class="existing-card-list">
+    {% for match in matches %}{% set p = match.product %}
+    <li><p class="meta">{{ p.maker }} · {{ p.category }}</p><h2>{{ p.name }}</h2><p>모델명: <strong>{{ p.model or '카드에서 확인' }}</strong></p><a class="btn primary" href="/card/{{ p.id }}?from=check">기존 검토 카드 보기</a></li>
+    {% endfor %}
+  </ul>
+  {% if match_count > 12 %}<p>검색된 {{ match_count }}개 중 12개를 표시했습니다. 모델명을 더 입력하면 범위를 좁힐 수 있습니다.</p>{% endif %}
+  <p class="help">기존 카드는 카드에 표시된 원문과 확인일 기준입니다. 새 판매처의 가격·구성·보증 조건은 해당 판매페이지에서 확인해 주세요.</p>
+  {% elif query %}<p>‘{{ query }}’와 일치하는 공개 카드를 찾지 못했습니다. 제품명 일부나 모델명으로 다시 찾아보세요.</p>{% endif %}
+  {% include '_product_search.html' %}
+  {% if url %}<form action="/check" method="post" class="existing-fresh urlform"><input type="hidden" name="url" value="{{ url }}"><input type="hidden" name="fresh" value="true"><button class="btn" type="submit">이 판매페이지를 새로 분석하기</button><span class="help">약 1~2분</span></form>{% endif %}
+  <p><a class="btn" href="/check?url={{ url|urlencode }}#drop">사진·PDF로 분석하기</a><a class="btn quiet" href="/check?url={{ url|urlencode }}#link-review-request">관리자에게 링크 확인 요청</a></p>
+</section>

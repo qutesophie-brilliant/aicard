@@ -300,6 +300,9 @@
       description.textContent = message + ' 분석을 완료한 카드가 아닙니다. 선택한 파일과 입력한 주소는 이 화면에 남아 있습니다.';
       recovery.appendChild(description);
       const source = form.querySelector('[name="url"]');
+      const search = document.createElement('a'); search.className = 'btn';
+      search.href = '/check?url=' + encodeURIComponent(source ? source.value : '') + '#existing-search';
+      search.textContent = '제품명으로 기존 카드 찾기'; recovery.appendChild(search);
       const link = document.createElement('a'); link.className = 'btn primary';
       link.href = '/check?url=' + encodeURIComponent(source ? source.value : '') + '#link-review-request';
       link.textContent = '관리자에게 링크 확인 요청'; recovery.appendChild(link);
@@ -389,7 +392,7 @@
 
   // Replacing an upload document can retain its old scroll position. Start a
   // newly received result at its heading, not at the request form below it.
-  const previewCard = document.querySelector('article.quick:not(.recovery-card)');
+  const previewCard = document.querySelector('article.quick:not(.recovery-card), #existing-title');
   if (previewCard && !location.hash) {
     requestAnimationFrame(() => {
       previewCard.tabIndex = -1;
