@@ -8,6 +8,27 @@ from app.pipeline.product_page import product_body, ProductBodyUnavailable
 
 
 class ProductPageTests(unittest.TestCase):
+    def test_single_product_group_uses_only_its_shared_description(self):
+        import json
+        text = 'AI-powered notifications identify people and pets in this indoor camera.'
+        group = {'@type':'ProductGroup', 'name':'Indoor Camera', 'description':text,
+                 'hasVariant':[{'@type':'Product', 'description':'Variant-only AI feature must not be merged.'}]}
+        html = '<script type="application/ld+json">' + json.dumps(group) + '</script>'
+        body = product_body(html, 'https://new-seller.example/products/camera')
+        self.assertEqual('structured_product_description', body.section['data-aicard-selection'])
+        self.assertEqual(text, body.get_text(' ', strip=True))
+        self.assertNotIn('Variant-only', body.get_text())
+
+    def test_product_group_without_shared_copy_or_multiple_groups_is_inconclusive(self):
+        import json
+        group = {'@type':'ProductGroup', 'hasVariant':[{'@type':'Product', 'description':
+                 'AI-powered notifications identify people and pets in this indoor camera.'}]}
+        other = {'@type':'ProductGroup', 'description':'Another camera has AI noise cancellation and automatic tracking.'}
+        for value in (group, [group, other]):
+            html = '<script type="application/ld+json">' + json.dumps(value) + '</script>'
+            with self.assertRaises(ProductBodyUnavailable):
+                product_body(html, 'https://new-seller.example/products/camera')
+
     def test_visible_single_product_copy_preserves_list_boundaries_without_render(self):
         import json
         from app.pipeline import page_recovery

@@ -84,7 +84,7 @@ def _detail_heading(node):
 
 
 def structured_description(soup):
-    """Only a single Product's description, never reviews, offers or a product list."""
+    """One Product or ProductGroup's shared description, never variant/list copy."""
     products = []
     def visit(value, depth=0):
         if depth > 8: return
@@ -93,7 +93,7 @@ def structured_description(soup):
         elif isinstance(value, dict):
             types = value.get('@type', [])
             types = [types] if isinstance(types, str) else types
-            if isinstance(types, list) and 'Product' in types:
+            if isinstance(types, list) and any(t in types for t in ('Product', 'ProductGroup')):
                 products.append(value)
             for key in ('@graph', 'mainEntity'):
                 if key in value: visit(value[key], depth + 1)
