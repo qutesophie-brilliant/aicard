@@ -31,12 +31,16 @@ def image_source(image):
         return lazy
     srcset = image.get('data-srcset') or image.get('srcset')
     if not srcset and image.find_parent('picture'):
-        source = image.find_parent('picture').find('source', srcset=True)
-        srcset = source.get('srcset') if source else ''
+        sources = image.find_parent('picture').select('source[data-srcset], source[srcset]')
+        # Prefer the unqualified/desktop source, not a small mobile thumbnail.
+        sources.sort(key=lambda n: bool(n.get('media') and 'max-width' in n['media']))
+        srcset = next((n.get('data-srcset') or n.get('srcset') for n in sources), '')
     if srcset:
         # Largest explicitly supplied variant; no URL construction or alt-text OCR.
         choices = []
-        for entry in srcset.split(','):
+        # CDN transformation queries can contain commas (e.g. fit=stretch,1).
+        # Only split candidate separators, not characters inside the URL.
+        for entry in re.split(r',\s+|(?<=[wx]),\s*', srcset.strip()):
             parts = entry.strip().split()
             if parts and not parts[0].startswith('data:'):
                 try: size = float(parts[1].rstrip('wx')) if len(parts) > 1 else 1
@@ -55,8 +59,16 @@ DETAIL_SELECTOR = (
     '#goodsDescription, #goods_contents, #goodsContents, .goods_description, '
     '#sit_inf_explan, .prod_view_detail, '
     '.xans-product-additional #prdDetail .cont, #detailIfrm, #ifrmDesc, '
-    '#productDescriptionArea, #llis-root, #llis-goodsdetail-frame'
+    '#productDescriptionArea, #llis-root, #llis-goodsdetail-frame, '
+    'body.template-product .product-media-and-text, '
+    'body.template-product .shopify-section[id*="__product_specifications_"]'
 )
+
+
+def _detail_media(node):
+    return ('usp-banner-wrap' in node.get('class', []) or
+            ('list-item-banner' in node.get('class', []) and
+             node.find_parent(class_='product-media-and-text') is not None))
 
 
 def structured_description(soup):
@@ -126,14 +138,21 @@ def product_body(html: str, url: str) -> BeautifulSoup:
         if node.parent is not None:
             node.decompose()
     for node in list(soup.find_all(True)):
-        if node.parent is None:
+        if node.parent is None or node.name in ('html', 'body'):
             continue
         identity = " ".join([node.get("id", ""), *node.get("class", [])])
         identity = re.sub(r"([a-z])([A-Z])", r"\1 \2", identity)
-        if _NOISE.search(identity) and 'usp-banner-wrap' not in node.get('class', []):
+        if _NOISE.search(identity) and not _detail_media(node):
             node.decompose()
 
-    if host == 'llis-goodsdetail.lotteon.com':
+    if host in ('dyson.co.kr', 'www.dyson.co.kr') and soup.select_one('body.catalog-product-view'):
+        # Dyson's product CMS uses feature modules rather than a description
+        # container. Keep feature copy/images and caveats, never its shop-wide
+        # purchase benefits, product finder, customer reviews or promotions.
+        selector = ('.dyson_cms_row_config:has(.rich-content-component), '
+                    '.dyson_cms_row_config:has(.promos), '
+                    '.dyson_cms_row_config[id*="caveat"]')
+    elif host == 'llis-goodsdetail.lotteon.com':
         selector = '#llis-root'
     elif host in ("navimro.com", "www.navimro.com"):
         selector = ".spec-sum > .spec .desc_info"
@@ -186,7 +205,7 @@ def product_body(html: str, url: str) -> BeautifulSoup:
         if node.parent is None: continue
         identity = ' '.join([node.get('id', ''), *node.get('class', [])])
         identity = re.sub(r'([a-z])([A-Z])', r'\1 \2', identity)
-        if _NOISE.search(identity) and 'usp-banner-wrap' not in node.get('class', []):
+        if _NOISE.search(identity) and not _detail_media(node):
             node.decompose()
     text = selected.get_text(" ", strip=True)
     # Empty/short shells and title-only pages are inconclusive, not negative AI findings.
