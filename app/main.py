@@ -798,7 +798,7 @@ async def check_url(request: Request, url: str = Form(""), text: str = Form(""),
         if hit:
             return RedirectResponse(f"/card/{hit['id']}?from=check", status_code=303)
 
-    def recover_existing(message):
+    async def recover_existing(message):
         # A failed body/OCR read can still leave a real fetched title. URL text
         # is only a candidate hint, never an automatic identity.
         from urllib.parse import unquote, urlsplit
@@ -808,8 +808,15 @@ async def check_url(request: Request, url: str = Form(""), text: str = Form(""),
         matches = _product_candidates(hint) if not fresh else []
         if matches:
             return _existing_result(request, matches, query=title, url=url, error=message)
+        from . import alternative_sources
+        alternatives = {'status': 'unavailable', 'sources': [], 'suggestions': ''}
+        if budget.remaining() > 4:
+            try:
+                alternatives = await check_budget.call(budget, alternative_sources.search, url, title)
+            except Exception:
+                pass
         return render(request, 'check.html', base=base, bookmarklet=bm, url=url, q='',
-                      pname=title[:120], error=message, upload_fallback=True)
+                      pname=title[:120], error=message, upload_fallback=True, alternatives=alternatives)
 
     # 1) 캡처 이미지·PDF 업로드 → 글자 읽기 (소비자용: 건수·크기 제한, 비전 모델은 설정으로 켜고 끔)
     uploads = [f for f in (files or []) if f and f.filename]
@@ -858,7 +865,7 @@ async def check_url(request: Request, url: str = Form(""), text: str = Form(""),
         try:
             ing = await check_budget.call(budget, _read_check_url, url, fallback='url')
         except ingest.product_page.ProductBodyUnavailable as e:
-            return recover_existing(str(e))
+            return await recover_existing(str(e))
         except PublicURLRejected as e:
             return render(request, "check.html", base=base, bookmarklet=bm, url=url, q="",
                           error=str(e), upload_fallback=True)
@@ -866,9 +873,9 @@ async def check_url(request: Request, url: str = Form(""), text: str = Form(""),
             blocked = e.response.status_code in (401, 403, 429)
             message = ("판매사이트가 자동 접속을 거부해 이 링크로는 검색할 수 없습니다. 상세페이지 캡처 이미지나 PDF를 올려 주세요."
                        if blocked else "판매사이트에서 페이지를 보내 주지 않아 이 링크로 확인하지 못했습니다. 잠시 뒤 다시 시도하거나 상세페이지 캡처를 올려 주세요.")
-            return recover_existing(message)
+            return await recover_existing(message)
         except Exception:
-            return recover_existing("페이지를 가져오지 못했습니다. 쇼핑몰의 접근 제한이나 일시적인 연결 문제일 수 있습니다.")
+            return await recover_existing("페이지를 가져오지 못했습니다. 쇼핑몰의 접근 제한이나 일시적인 연결 문제일 수 있습니다.")
         source_capture = ing.source_capture
         sales, fine = split_fine_print(ing.text)
         notes.extend(ing.notes)
@@ -897,6 +904,25 @@ async def check_url(request: Request, url: str = Form(""), text: str = Form(""),
                       recovered_text=(sales + '\n' + fine)[:6000])
     card['quick_partial'] = check_budget.PARTIAL_NOTE in notes
     return render(request, "check_result.html", card=card, docs=docs, pname=name, url=url, s=_check_summary(card), notes=notes)
+
+
+@app.post('/check/alternatives', response_class=HTMLResponse)
+async def check_alternatives(request: Request, url: str = Form(''), product_title: str = Form('')):
+    from . import alternative_sources, check_budget
+    url, product_title = url.strip()[:2000], product_title.strip()[:120]
+    matches = _product_candidates(product_title) if product_title else []
+    if matches:
+        return _existing_result(request, matches, query=product_title, url=url)
+    alternatives = {'status': 'unavailable', 'sources': [], 'suggestions': ''}
+    try:
+        alternatives = await check_budget.call(check_budget.Budget(seconds=40), alternative_sources.search, url, product_title)
+    except Exception:
+        pass
+    base = _public_base(request)
+    return render(request, 'check.html', base=base, bookmarklet=_bookmarklet(base, '/check/receive'),
+                  url=url, q='', pname=product_title, upload_fallback=True, alternatives=alternatives,
+                  error='다른 공개 출처를 검색했습니다. 같은 제품인지 모델명까지 확인한 뒤 분석할 페이지를 선택해 주세요.'
+                  if alternatives['sources'] else '다른 출처의 상품 설명을 아직 확보하지 못했습니다.')
 
 
 @app.get("/check/receive", response_class=HTMLResponse)

@@ -1,0 +1,89 @@
+import unittest
+from unittest.mock import patch
+import httpx
+from fastapi.testclient import TestClient
+from app import alternative_sources as alt, main
+
+ORIGINAL = 'https://smartstore.naver.com/store/products/1234'
+SOURCE = 'https://maker.example/products/FX24GNGRX'
+
+
+def payload(url=SOURCE):
+    return {'candidates': [{'groundingMetadata': {
+        'groundingChunks': [{'web': {'uri': url, 'title': '제조사 FX24GNGRX'}}],
+        'searchEntryPoint': {'renderedContent': '<div>Google Search</div>'}}}]}
+
+
+class AlternativeTests(unittest.TestCase):
+    def test_metadata_only_not_generated_urls(self):
+        p = {'candidates': [{'content': {'parts': [{'text': 'https://invented.example/item'}]}}]}
+        self.assertEqual([], alt.parse_sources(p, ORIGINAL)['sources'])
+
+    def test_excludes_original_duplicate_and_unsafe_urls(self):
+        p = payload()
+        chunks = p['candidates'][0]['groundingMetadata']['groundingChunks']
+        for url in [SOURCE, ORIGINAL, 'javascript:alert(1)', 'https://127.0.0.1/admin', 'https://x.example/?token=secret']:
+            chunks.append({'web': {'uri': url, 'title': 'test'}})
+        self.assertEqual([SOURCE], [s['url'] for s in alt.parse_sources(p, ORIGINAL)['sources']])
+
+    def test_sensitive_query_is_not_sent(self):
+        for url in ['https://shop.example/item?api_key=private', 'https://user:pass@shop.example/item', 'https://localhost/item']:
+            with patch.object(alt.config, 'GEMINI_API_KEY', 'test'), patch.object(alt.httpx, 'post') as post:
+                self.assertEqual('unavailable', alt.search(url)['status'])
+                post.assert_not_called()
+
+    def test_tracking_removed_model_retained(self):
+        self.assertEqual('https://shop.example/item?model=ABC123', alt.public_hint('https://shop.example/item?model=ABC123&utm_source=foo#tracking'))
+
+    def test_single_grounded_call_and_no_retry(self):
+        with patch.object(alt.config, 'GEMINI_API_KEY', 'test'), patch.object(alt, 'public_addresses'), patch.object(alt.httpx, 'post', side_effect=httpx.ConnectError('offline')) as post:
+            self.assertEqual('unavailable', alt.search(ORIGINAL, '세탁기 ABC123')['status'])
+            self.assertEqual(1, post.call_count)
+            self.assertEqual([{'google_search': {}}], post.call_args.kwargs['json']['tools'])
+
+    def test_provider_result_preserves_source(self):
+        response = httpx.Response(200, json=payload(), request=httpx.Request('POST', 'https://api.example'))
+        with patch.object(alt.config, 'GEMINI_API_KEY', 'test'), patch.object(alt, 'public_addresses'), patch.object(alt.httpx, 'post', return_value=response):
+            self.assertEqual(SOURCE, alt.search(ORIGINAL, 'FX24GNGRX')['sources'][0]['url'])
+
+
+class AlternativeRoutesTests(unittest.TestCase):
+    def setUp(self):
+        self.client = TestClient(main.app)
+
+    def test_blocked_url_automatically_searches_and_never_analyzes_search_text(self):
+        with patch.object(main, '_match_published', return_value=None), patch.object(main, '_product_candidates', return_value=[]), patch.object(main, '_read_check_url', side_effect=ValueError('blocked')), patch.object(alt, 'search', return_value=alt.parse_sources(payload(), ORIGINAL)) as search, patch.object(main, '_quick_result') as quick:
+            response = self.client.post('/check', data={'url': ORIGINAL})
+        search.assert_called_once_with(ORIGINAL, '')
+        quick.assert_not_called()
+        self.assertIn('이 페이지 분석하기', response.text)
+        self.assertIn(SOURCE, response.text)
+        self.assertIn('동일 제품으로 확정된 자료가 아닙니다', response.text)
+
+    def test_supplement_title_search_without_retrying_blocked_page(self):
+        with patch.object(main, '_product_candidates', return_value=[]), patch.object(alt, 'search', return_value=alt.parse_sources(payload(), ORIGINAL)) as search, patch.object(main, '_read_check_url') as read:
+            response = self.client.post('/check/alternatives', data={'url': ORIGINAL, 'product_title': 'FX24GNGRX'})
+        read.assert_not_called()
+        search.assert_called_once_with(ORIGINAL, 'FX24GNGRX')
+        self.assertEqual(200, response.status_code)
+
+    def test_markup_is_escaped_in_sandbox(self):
+        result = alt.parse_sources(payload(), ORIGINAL)
+        result['suggestions'] = '<script>alert(1)</script>'
+        result['sources'][0]['title'] = '<img src=x onerror=alert(1)>'
+        with patch.object(main, '_product_candidates', return_value=[]), patch.object(alt, 'search', return_value=result):
+            response = self.client.post('/check/alternatives', data={'url': ORIGINAL, 'product_title': 'FX24GNGRX'})
+        self.assertNotIn('<script>alert(1)</script>', response.text)
+        self.assertNotIn('<img src=x onerror=alert(1)>', response.text)
+        self.assertIn('sandbox="allow-popups allow-popups-to-escape-sandbox"', response.text)
+
+    def test_search_error_keeps_upload_and_review_routes(self):
+        with patch.object(main, '_product_candidates', return_value=[]), patch.object(alt, 'search', side_effect=RuntimeError('secret')):
+            response = self.client.post('/check/alternatives', data={'url': ORIGINAL, 'product_title': 'FX24GNGRX'})
+        self.assertNotIn('secret', response.text)
+        self.assertIn('사진·PDF로 계속하기', response.text)
+        self.assertIn('관리자에게 링크 확인 요청', response.text)
+
+
+if __name__ == '__main__':
+    unittest.main()

@@ -1,0 +1,26 @@
+<section class="alternative-sources" aria-labelledby="alternative-title">
+  <h3 id="alternative-title">다른 판매처·제조사 자료로 확인하기</h3>
+  {% if alternatives and alternatives.sources %}
+  <p>검색에서 찾은 출처 후보입니다. 제품명·모델명을 확인한 뒤 같은 제품의 페이지를 선택해 주세요. 분석 결과에는 선택한 페이지가 원문으로 표시됩니다.</p>
+  <ul class="existing-card-list">
+    {% for source in alternatives.sources %}
+    <li><p><a href="{{ source.url }}" target="_blank" rel="noopener noreferrer">{{ source.title }} · 원문 열기</a></p>
+      <form method="post" action="/check"><input type="hidden" name="url" value="{{ source.url }}"><button class="btn" type="submit">이 페이지 분석하기</button></form>
+    </li>
+    {% endfor %}
+  </ul>
+  <p class="help">검색 후보는 동일 제품으로 확정된 자료가 아닙니다. 다른 판매처의 가격·구성·보증 조건은 처음 입력한 판매처와 다를 수 있습니다.</p>
+  {% elif alternatives and alternatives.status == 'empty' %}
+  <p>검색에서 다른 출처 후보를 찾지 못했습니다. 제품명과 정확한 모델명을 입력하면 범위를 좁혀 다시 찾을 수 있습니다.</p>
+  {% else %}
+  <p>다른 출처 검색을 완료하지 못했습니다. 제품명·모델명으로 다시 찾거나 사진·PDF로 계속할 수 있습니다.</p>
+  {% endif %}
+  {% if alternatives and alternatives.suggestions %}
+  <iframe title="Google 검색 제안" sandbox="allow-popups allow-popups-to-escape-sandbox" referrerpolicy="no-referrer" srcdoc="{{ alternatives.suggestions }}" style="width:100%;height:160px;border:0"></iframe>
+  {% endif %}
+  <form method="post" action="/check/alternatives" class="form" onsubmit="this.querySelector('button').disabled=true;this.querySelector('button').textContent='다른 출처를 찾고 있습니다…';this.setAttribute('aria-busy','true')">
+    <input type="hidden" name="url" value="{{ url }}">
+    <label>제품명·모델명 <input type="text" name="product_title" value="{{ pname|default('') }}" maxlength="120" placeholder="예: 제조사와 정확한 모델명" required></label>
+    <button class="btn" type="submit">다른 출처 찾기</button>
+  </form>
+</section>
