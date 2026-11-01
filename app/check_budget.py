@@ -88,8 +88,11 @@ async def call(state, function, *args, fallback=None, **kwargs):
             _current.reset(token)
     try:
         return await asyncio.wait_for(asyncio.to_thread(work), timeout=max(.001, state.remaining()))
-    except Exception:
-        if state.remaining() <= 0:
+    except Exception as error:
+        # asyncio's timer can fire just before the monotonic deadline rounds
+        # to zero. Explicitly stop the worker on timeout as well, so no further
+        # network/OCR work starts after a partial response has been returned.
+        if isinstance(error, TimeoutError) or state.remaining() <= 0:
             state.stopped = True
         result = partial(state, fallback) if fallback else None
         if result is not None:

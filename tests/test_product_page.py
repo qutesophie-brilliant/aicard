@@ -8,6 +8,56 @@ from app.pipeline.product_page import product_body, ProductBodyUnavailable
 
 
 class ProductPageTests(unittest.TestCase):
+    def test_visible_single_product_copy_preserves_list_boundaries_without_render(self):
+        import json
+        from app.pipeline import page_recovery
+        from app.pipeline.product_page import product_text
+        lines = ['AI identifies people and pets and tracks their movement.',
+                 'HomeKit supports up to 1080P resolution.',
+                 'An SD card is sold separately.']
+        html = '<script type="application/ld+json">' + json.dumps({
+            '@type':'Product', 'description':' '.join(lines)}) + '</script>'
+        html += '<div class="Layout_root__abc Layout_NavEmpty__abc"><main><div class="unknown-copy"><ul>' + ''.join('<li>'+v+'</li>' for v in lines) + '</ul></div>'
+        html += '<div class="recommendations"><p>Another AI product is waterproof.</p></div><div class="navigation">AI menu</div></main></div>'
+        body = product_body(html, 'https://new-seller.example/products/camera')
+        self.assertEqual('visible_product_description', body.section['data-aicard-selection'])
+        self.assertEqual(lines, product_text(body).splitlines())
+        renderer = Mock()
+        page_recovery.acquire(html, 'https://new-seller.example/products/camera', Mock(), renderer)
+        renderer.assert_not_called()
+
+    def test_metadata_copy_in_review_or_navigation_stays_summary_only(self):
+        import json
+        text = 'AI identifies people and pets and tracks their movement.'
+        metadata = '<script type="application/ld+json">' + json.dumps({
+            '@type':'Product', 'description':text}) + '</script>'
+        for wrapper in ('<nav>{}</nav>', '<div class="reviews">{}</div>', '<div class="recommendations">{}</div>'):
+            body = product_body(metadata + wrapper.format('<p>'+text+'</p>'), 'https://new-seller.example/p/1')
+            self.assertEqual('structured_product_description', body.section['data-aicard-selection'])
+
+    def test_visible_copy_does_not_select_multiple_products_or_neighbouring_text(self):
+        import json
+        text = 'AI identifies people and pets and tracks their movement.'
+        for product in ([{'@type':'Product', 'description':text}, {'@type':'Product','description':text}],
+                        {'@type':'Product', 'description':text}):
+            html = '<script type="application/ld+json">' + json.dumps(product) + '</script>'
+            html += '<div>' + text + ' Another product detects water leaks.</div>'
+            if isinstance(product, list):
+                with self.assertRaises(ProductBodyUnavailable):
+                    product_body(html, 'https://new-seller.example/p/1')
+            else:
+                body = product_body(html, 'https://new-seller.example/p/1')
+                self.assertEqual('structured_product_description', body.section['data-aicard-selection'])
+                self.assertNotIn('water leaks', body.get_text())
+
+    def test_feature_highlights_stops_before_comparison_and_reviews(self):
+        html = '<section><h1>Feature Highlights</h1><div><h3>Smart Detection</h3><p>Detects a person or pet and follows movement within the camera view.</p></div></section>'
+        html += '<section><h2>Comparison</h2><p>Another model has AI night vision.</p></section><div class="reviews">AI is perfect.</div>'
+        body = product_body(html, 'https://new-seller.example/product/camera')
+        self.assertIn('Detects a person', body.get_text())
+        self.assertNotIn('Another model', body.get_text())
+        self.assertNotIn('perfect', body.get_text())
+
     def _faq_html(self, *, title='Example X5 노트북', visible=True, other=False):
         import json
         name = 'Other Z9 노트북' if other else title

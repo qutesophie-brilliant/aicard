@@ -184,6 +184,7 @@ DETAIL_LABELS = {
     '상품상세', '상품상세정보', '상품상세설명', '상품설명', '제품상세',
     '제품상세정보', '제품설명', '제품특징', '상세설명', '주요기능', '주요특징',
     'productdetails', 'productdescription', 'productfeatures', 'technicaldetails', 'keyfeatures',
+    'featurehighlights',
 }
 
 
@@ -287,7 +288,12 @@ def product_body(html: str, url: str) -> BeautifulSoup:
         if node.parent is not None:
             node.decompose()
     for node in list(soup.find_all(True)):
-        if node.parent is None or node.name in ('html', 'body'):
+        if node.parent is None or node.name in ('html', 'body', 'main'):
+            continue
+        # CSS-module layout names such as Layout_NavEmpty can contain "nav"
+        # while wrapping the entire main content. Remove actual navigation
+        # descendants, not the document's main-content ancestor.
+        if node.find('main') is not None:
             continue
         identity = " ".join([node.get("id", ""), *node.get("class", [])])
         identity = re.sub(r"([a-z])([A-Z])", r"\1 \2", identity)
@@ -333,6 +339,19 @@ def product_body(html: str, url: str) -> BeautifulSoup:
         if discovered:
             nodes = discovered
             selection_method = 'labelled_product_section'
+        elif structured:
+            # The single Product's description can identify an otherwise unnamed
+            # visible block. Keep its real paragraph/list boundaries instead of
+            # replacing it with flattened metadata or launching a browser again.
+            # Search only the cleaned DOM: menus, reviews and recommendations
+            # cannot qualify. An exact full-text match excludes neighbouring copy.
+            norm = lambda value: re.sub(r'\s+', '', value)
+            key = norm(BeautifulSoup(structured, 'html.parser').get_text(' ', strip=True))
+            matches = [node for node in soup.select('p,div,section,article,ul,ol')
+                       if len(key) >= 30 and norm(node.get_text(' ', strip=True)) == key]
+            if matches:
+                nodes = [min(matches, key=lambda node: len(str(node)))]
+                selection_method = 'visible_product_description'
     if host in ("lge.co.kr", "www.lge.co.kr") and nodes:
         for root in nodes:
             for common in list(root.select('.KRP0021')):

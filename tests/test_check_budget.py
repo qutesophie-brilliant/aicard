@@ -11,6 +11,16 @@ HTML = '<div class="productOverview"><div class="overContent"><p>AI 카메라는
 
 
 class BudgetTests(unittest.IsolatedAsyncioTestCase):
+    async def test_timeout_freezes_checkpoint_even_before_clock_deadline(self):
+        state = check_budget.Budget(seconds=10)
+        def read():
+            check_budget.remember_uploads(['AI 센서가 사람을 감지합니다.'], [])
+            raise TimeoutError('upstream timeout')
+        texts, _ = await check_budget.call(state, read, fallback='uploads')
+        self.assertTrue(state.stopped)
+        self.assertEqual(0, state.remaining())
+        self.assertEqual(['AI 센서가 사람을 감지합니다.'], texts)
+
     async def test_timeout_returns_real_partial_text_without_waiting_for_worker(self):
         state = check_budget.Budget(seconds=.04)
         def slow():
