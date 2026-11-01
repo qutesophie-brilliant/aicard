@@ -54,3 +54,19 @@ def source_identity(url):
         return host, path, query
     except (TypeError, ValueError):
         return None
+
+
+def published_product_identity(url):
+    """Product lookup aliases only; evidence documents keep source_identity.
+
+    Xiaomi's published purchase and overview routes share the exact locale and
+    product slug. Keep unknown option parameters, ports and model suffixes.
+    This reuses an approved card; it never labels the purchase page as read.
+    """
+    identity = source_identity(url)
+    if identity is None:
+        return None
+    host, path, query = identity
+    if host == 'mi.com' and re.fullmatch(r'/[a-z]{2}/product/[^/]+/buy', path):
+        path = path.removesuffix('/buy')
+    return host, path, query

@@ -601,13 +601,13 @@ def _check_summary(card: dict[str, Any]) -> dict[str, Any]:
 
 def _match_published(url: str) -> dict[str, Any] | None:
     """저장된 제품 주소와 고유하게 일치할 때만 정식 카드로 연결한다."""
-    from .product_identity import source_identity
-    identity = source_identity(url)
+    from .product_identity import published_product_identity
+    identity = published_product_identity(url)
     if identity is None:
         return None
     matches = {}
     for p in db.list_products("approved"):
-        if any(source_identity(d.get('url')) == identity for d in db.list_documents(p['id'])):
+        if any(published_product_identity(d.get('url')) == identity for d in db.list_documents(p['id'])):
             matches[p['id']] = p
     return next(iter(matches.values())) if len(matches) == 1 else None
 

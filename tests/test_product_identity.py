@@ -5,6 +5,22 @@ from app import db, main
 
 
 class ProductIdentityTests(unittest.TestCase):
+    def test_xiaomi_purchase_route_reuses_exact_approved_product(self):
+        from app.product_identity import source_identity
+        overview = 'https://www.mi.com/kr/product/xiaomi-robot-vacuum-6/'
+        purchase = overview + 'buy/'
+        self.assertEqual(1, self.match(purchase + '?utm_source=test', {1: [overview]})['id'])
+        self.assertNotEqual(source_identity(overview), source_identity(purchase))
+
+    def test_xiaomi_lookup_preserves_options_locale_and_model_suffix(self):
+        base = 'https://www.mi.com/kr/product/xiaomi-robot-vacuum-6/'
+        for url in (base + 'buy/?variant=2', base.replace('-6/', '-6-pro/') + 'buy/',
+                    base.replace('/kr/', '/us/') + 'buy/', base.replace('mi.com', 'mi.com.evil.example') + 'buy/',
+                    base.replace('mi.com', 'mi.com:8443') + 'buy/'):
+            with self.subTest(url=url):
+                self.assertIsNone(self.match(url, {1: [base]}))
+        self.assertIsNone(self.match('https://shop.example/product/robot/buy/', {1: ['https://shop.example/product/robot/']}))
+
     def test_naver_mobile_and_ad_tracking_reuse_same_product(self):
         for host in ('smartstore.naver.com', 'brand.naver.com'):
             sources = {1: [f'https://{host}/example/products/123456']}
