@@ -61,6 +61,39 @@ def overview_link(html, url):
     return None
 
 
+def linked_html_descriptions(soup, url):
+    """Read literal GET/HTML loads into product-detail containers; never run JS.
+
+    Retailers often attach a public HTML description after the page loads. Only
+    the URL actually published in that loader is followed. Variable expressions,
+    POSTs, reviews, and general-purpose page containers are not accepted.
+    """
+    patterns = (
+        re.compile(r'''commonAjax\(\s*['"](?P<url>[^'"\s]+)['"]\s*,\s*['"]['"]\s*,\s*['"]html['"]\s*,\s*['"]GET['"]\s*,\s*(?:true|false)\s*\)\s*\.done\(\s*function\(\s*(?P<arg>\w+)[^)]*\)\s*\{\s*\$\(\s*['"](?P<target>[.#][\w-]+)['"]\s*\)\.append\(\s*(?P=arg)\s*\)'''),
+        re.compile(r'''\$\(\s*['"](?P<target>[.#][\w-]+)['"]\s*\)\.load\(\s*['"](?P<url>[^'"\s]+)['"]\s*\)'''),
+    )
+    links = []
+    for script in soup.select('script:not([src])'):
+        for pattern in patterns:
+            for match in pattern.finditer(script.get_text()):
+                targets = soup.select(match['target'])
+                if len(targets) != 1:
+                    continue
+                target = targets[0]
+                ancestors = [target, *target.parents]
+                identities = [' '.join([n.get('id', ''), *n.get('class', [])])
+                              for n in ancestors if n.name not in ('html', 'body', '[document]')]
+                if any(product_page._NOISE.search(i) for i in identities):
+                    continue
+                if not any(re.search(r'(?:product|goods|prd)[_-]?(?:description|detail|info)|description', i, re.I)
+                           for i in identities):
+                    continue
+                src = urljoin(url, match['url'])
+                if urlsplit(src).scheme in ('http', 'https') and src != url and src not in links:
+                    links.append(src)
+    return links
+
+
 def prepare(html, url, fetch):
     soup = BeautifulSoup(html, 'html.parser')
     title = soup.title.get_text(' ', strip=True) if soup.title else ''
@@ -83,6 +116,9 @@ def prepare(html, url, fetch):
             src = urljoin(url, frame.get('data-src') or frame.get('src') or '')
             if src != url and urlsplit(src).scheme in ('http', 'https') and src not in frames:
                 frames.append(src)
+    for src in linked_html_descriptions(soup, url):
+        if src not in frames:
+            frames.append(src)
     records = []
     for src in frames[:3]:
         try:

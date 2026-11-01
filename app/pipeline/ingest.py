@@ -13,8 +13,7 @@ from bs4 import BeautifulSoup
 from .. import config
 from . import llm, product_page
 
-UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-      "(KHTML, like Gecko) Chrome/124.0 Safari/537.36")
+from ..network_safety import PUBLIC_USER_AGENT as UA
 
 
 @dataclass
@@ -186,7 +185,7 @@ def _from_consumer_file(url: str, data: bytes, *, pdf: bool, read_ocr: bool) -> 
 
 
 def from_url(url: str, ocr_images: bool = True, product_only: bool = False) -> Ingested:
-    from .page_recovery import fetch_retry
+    from .page_recovery import fetch_initial
     if product_only:
         from . import lotteon
         from ..network_safety import PublicURLRejected
@@ -195,7 +194,7 @@ def from_url(url: str, ocr_images: bool = True, product_only: bool = False) -> I
                 return lotteon.read_product(url, ocr_images=ocr_images)
             except (product_page.ProductBodyUnavailable, PublicURLRejected, httpx.HTTPError):
                 pass  # A public description is a fast path, never a false success.
-    r = fetch_retry(url, _fetch) if product_only else _fetch(url)
+    r, initial_render = fetch_initial(url, _fetch) if product_only else (_fetch(url), None)
     ctype = r.headers.get("content-type", "")
     direct_pdf = 'pdf' in ctype or urlsplit(str(r.url)).path.lower().endswith('.pdf')
     if product_only and (direct_pdf or ctype.startswith('image/')):
@@ -216,7 +215,12 @@ def from_url(url: str, ocr_images: bool = True, product_only: bool = False) -> I
                 if exc.response.status_code not in (404, 502, 503, 504):
                     raise
         from .page_recovery import acquire
-        html, source_url, documents, stages = acquire(r.text, str(r.url), _fetch)
+        html, source_url, documents, stages = acquire(
+            r.text, str(r.url), _fetch,
+            renderer=(lambda _: initial_render) if initial_render else None)
+        if initial_render:
+            stages.insert(0, {'stage': 'browser_render', 'status': 'read',
+                              'reason': 'initial_connection_recovery'})
         result = from_product_html(html, source_url, ocr_images=ocr_images)
         result.source_capture['documents'] = documents
         result.source_capture['acquisition'] = stages

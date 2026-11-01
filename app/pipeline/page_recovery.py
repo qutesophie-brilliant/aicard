@@ -19,6 +19,24 @@ def fetch_retry(url, fetch):
             time.sleep(0.25)
 
 
+def fetch_initial(url, fetch, renderer=None):
+    """Recover a transient initial connection failure, not an access denial."""
+    try:
+        return fetch_retry(url, fetch), None
+    except (httpx.TimeoutException, httpx.ConnectError, httpx.RemoteProtocolError,
+            httpx.HTTPStatusError) as exc:
+        if isinstance(exc, httpx.HTTPStatusError) and exc.response.status_code not in (502, 503, 504):
+            raise
+        if renderer is None:
+            from .rendered_page import render
+            renderer = render
+        rendered = renderer(url)
+        if access_problem(rendered['html'], rendered['url']):
+            raise product_page.ProductBodyUnavailable('판매사이트가 로그인 또는 접근 확인을 요구했습니다.')
+        return httpx.Response(200, text=rendered['html'], headers={'content-type': 'text/html'},
+                              request=httpx.Request('GET', rendered['url'])), rendered
+
+
 def access_problem(html, url):
     from bs4 import BeautifulSoup
     from urllib.parse import urlsplit

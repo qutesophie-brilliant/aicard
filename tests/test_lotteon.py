@@ -51,10 +51,11 @@ class LotteDescriptionTests(unittest.TestCase):
         self.assertIn('6kg',result.text)
 
     def test_failed_public_document_returns_to_normal_flow(self):
-        with patch.object(lotteon,'read_product',side_effect=product_page.ProductBodyUnavailable('empty')), patch.object(ingest,'_fetch',side_effect=httpx.ConnectError('unavailable')) as fetch, patch('app.pipeline.page_recovery.time.sleep'):
-            with self.assertRaises(httpx.ConnectError):
-                ingest.from_url(URL,ocr_images=False,product_only=True)
+        with patch.object(lotteon,'read_product',side_effect=product_page.ProductBodyUnavailable('empty')), patch.object(ingest,'_fetch',side_effect=httpx.ConnectError('unavailable')) as fetch, patch('app.pipeline.page_recovery.time.sleep'), patch('app.pipeline.rendered_page.render',return_value={'html':response().text,'url':DETAIL}) as render:
+            result=ingest.from_url(URL,ocr_images=False,product_only=True)
         self.assertEqual(2,fetch.call_count)
+        render.assert_called_once_with(URL)
+        self.assertIn('6kg',result.text)
 
     def test_standalone_detail_url_is_recognized_without_browser(self):
         with patch.object(ingest,'_fetch',return_value=response()), patch('app.pipeline.rendered_page.render') as render:

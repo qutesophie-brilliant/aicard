@@ -5,6 +5,8 @@ import io
 
 import httpx
 
+PUBLIC_USER_AGENT = 'AIInfoCard/1.0 (+https://ai-infocard.co.kr/about)'
+
 
 class PublicURLRejected(ValueError):
     pass
@@ -63,7 +65,8 @@ def fetch_public(url: str, *, timeout: float = 25, max_bytes: int = 16 * 1024 * 
             # and TLS certificate name. The HTTP library cannot resolve the name a
             # second time and accidentally connect to a rebound private address.
             pinned = original.copy_with(host=address)
-            request_headers = {**(headers or {}), 'Host': original.netloc.decode('ascii')}
+            request_headers = {'User-Agent': PUBLIC_USER_AGENT, **(headers or {}),
+                               'Host': original.netloc.decode('ascii')}
             try:
                 check_budget.checkpoint()
                 with httpx.Client(timeout=max(.1, check_budget.remaining(timeout)), follow_redirects=False, trust_env=False) as client:
