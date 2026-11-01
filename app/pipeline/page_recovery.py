@@ -5,7 +5,7 @@ The rendered fallback is isolated and finishes before image decoding begins.
 """
 import time
 import httpx
-from . import product_page, product_documents
+from . import product_page, product_documents, page_selector
 
 
 def fetch_retry(url, fetch):
@@ -110,6 +110,16 @@ def acquire(html, url, fetch, renderer=None):
         stages[-1]['status'] = 'partial'
     except product_page.ProductBodyUnavailable:
         stages[-1]['status'] = 'insufficient'
+    selector_attempted = False
+    if page_selector.llm.available() and len(page_selector.candidates(prepared)[1]) >= 2:
+        selector_attempted = True
+        selected = page_selector.recover(prepared, url)
+        if selected:
+            product_page.product_body(selected, url)
+            _remember_body(selected, url)
+            stages.append({'stage':'source_block_selection', 'status':'read'})
+            return selected, url, documents, stages
+        stages.append({'stage':'source_block_selection', 'status':'unavailable'})
     if renderer is None:
         from .rendered_page import render
         renderer = render
@@ -119,6 +129,17 @@ def acquire(html, url, fetch, renderer=None):
         if access_problem(rendered['html'], final_url):
             raise product_page.ProductBodyUnavailable('판매사이트가 자동 수집에 로그인·접근 확인을 요구해 상품 설명을 받지 못했습니다.')
         recovered, extra = product_documents.prepare(rendered['html'], final_url, lambda u: fetch_retry(u, fetch))
+        if not selector_attempted:
+            try:
+                found = product_page.product_body(recovered, final_url)
+                need_selection = found.section.get('data-aicard-selection','').startswith('structured_product_')
+            except product_page.ProductBodyUnavailable:
+                need_selection = True
+            if need_selection:
+                selected = page_selector.recover(recovered, final_url)
+                if selected:
+                    recovered = selected
+                    stages.append({'stage':'source_block_selection', 'status':'read'})
         # A blank browser shell is NOT a successful negative AI finding.
         recovered_body = product_page.product_body(recovered, final_url)
         if have_body and recovered_body.section.get('data-aicard-selection', '').startswith('structured_product_'):

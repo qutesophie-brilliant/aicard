@@ -328,7 +328,9 @@ def from_product_html(html: str, url: str, ocr_images: bool = False) -> Ingested
         image_notes.append("읽지 못했거나 시도하지 않은 이미지의 내용은 결과에 포함되지 않습니다.")
     # Include actual OCR text in downstream extraction, not only HTML copy.
     capture['text'] = '\n'.join(section['text'] for section in capture['sections'])
-    scope_note = ('전체 상세 설명 대신, 페이지에서 제품명이 일치하는 FAQ를 읽어 부분 결과를 제공합니다.'
+    scope_note = ('AI가 페이지에서 제품 설명 영역을 골라 읽었습니다. 선택된 원문과 이미지에서 확인한 내용으로 만든 부분 결과입니다.'
+                  if coverage.get('product_selection') == 'ai_selected_product_sections'
+                  else '전체 상세 설명 대신, 페이지에서 제품명이 일치하는 FAQ를 읽어 부분 결과를 제공합니다.'
                   if coverage.get('product_selection') == 'structured_product_faq'
                   else '페이지의 제품 소개 요약만 읽어 부분 결과를 제공합니다. 상세 기능·조건은 확인 범위에 포함되지 않을 수 있습니다.'
                   if coverage.get('product_selection', '').startswith('structured_product_')

@@ -81,6 +81,16 @@ def available() -> bool:
     return provider() in ("gemini", "anthropic", "openai")
 
 
+@contextmanager
+def bounded_call(seconds=12):
+    """One source-selection request within the enclosing quick-preview deadline."""
+    token = _ocr_budget.set({'deadline': time.monotonic() + seconds, 'requests': 1})
+    try:
+        yield
+    finally:
+        _ocr_budget.reset(token)
+
+
 def _extract_json(text: str) -> Any:
     text = text.strip()
     m = re.search(r"```(?:json)?\s*(.*?)```", text, re.S)

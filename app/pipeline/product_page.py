@@ -318,7 +318,9 @@ def product_body(html: str, url: str) -> BeautifulSoup:
         if _NOISE.search(identity) and not _detail_media(node) and not _detail_heading(node):
             node.decompose()
 
-    if host in ('global.roborock.com', 'us.roborock.com') and urlsplit(url).path.startswith('/pages/'):
+    if soup.select_one('[data-aicard-ai-selected="true"]'):
+        selector = '[data-aicard-ai-selected="true"]'
+    elif host in ('global.roborock.com', 'us.roborock.com') and urlsplit(url).path.startswith('/pages/'):
         selector = '[class$="_product-container"]'
     elif host in ('soundcore.com', 'www.soundcore.com'):
         # The feature modules are siblings of purchase controls, FAQs and reviews.
@@ -394,6 +396,8 @@ def product_body(html: str, url: str) -> BeautifulSoup:
     selected.section['data-aicard-selection'] = selection_method
     for node in roots:
         selected.section.append(node)
+    if selected.select_one('[data-aicard-ai-selected="true"]'):
+        selected.section['data-aicard-selection'] = 'ai_selected_product_sections'
     # A product's introduction can sit outside its feature/detail container.
     # Add it only when the single-product description is also present verbatim
     # in the cleaned page. Never promote metadata-only copy or review text.
