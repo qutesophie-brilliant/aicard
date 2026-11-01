@@ -387,6 +387,34 @@ class ProductPageTests(unittest.TestCase):
             with self.assertRaises(ProductBodyUnavailable):
                 product_body(html, unrelated)
 
+    def test_logitech_aem_reads_feature_accordion_without_education_banner(self):
+        from app.pipeline.product_page import product_text
+        from app.pipeline.run import quick_check
+        html = '''<body class="productDisplayPage"><main id="maincontent">
+        <section class="banner"><p>하이브리드 학습 솔루션이 학생을 도와줍니다.</p></section>
+        <div class="section-container-wrapper"><div class="cmp-accordion__panel--hidden">
+        <div class="body-copy"><p>Scribe에 내장된 AI는 투명 효과로 가려진 화이트보드를 보여줍니다.</p></div></div></div>
+        <div class="specs-group"><p>USB 연결이 필요합니다.</p></div>
+        <div id="footnote"><p>호환 업데이트를 확인해 주세요.</p></div>
+        <div class="recommended-products"><div class="section-container-wrapper"><div class="body-copy">다른 제품의 AI 추천</div></div></div>
+        </main></body>'''
+        url = 'https://futureisnow.logitech.com/ko-kr/products/video-conferencing/room-solutions/scribe.html'
+        text = product_text(product_body(html, url))
+        self.assertIn('내장된 AI는 투명 효과', text)
+        self.assertIn('USB 연결', text)
+        self.assertIn('호환 업데이트', text)
+        self.assertNotIn('학습 솔루션', text)
+        self.assertNotIn('다른 제품', text)
+        card, _ = quick_check('Scribe', url, text)
+        self.assertTrue(any('투명 효과' in c['text'] for c in card['claims']))
+        from app.pipeline.extract import _rules_extract
+        rows = [{'doc_id': 1, 'chunk': 0, 'quote': 'Scribe에 내장된 AI는 투명 효과로 가려진 화이트보드를 보여줍니다.'}]
+        self.assertEqual([], _rules_extract(rows, 14))
+        for noise in ('AI 영상 공유 카메라 할인 쿠폰', '화이트보드 내용을 보여줍니다.'):
+            self.assertEqual([], _rules_extract([dict(rows[0], quote=noise)], 14, complete_quotes=True))
+        with self.assertRaises(ProductBodyUnavailable):
+            product_body(html, 'https://example.com/ko-kr/products/a')
+
     def test_overview_cms_keeps_feature_sections_instead_of_short_metadata(self):
         from app.pipeline.product_page import product_text
         html = '''<script type="application/ld+json">{"@type":"Product","description":"A lightweight laptop with a high resolution display and processor."}</script>

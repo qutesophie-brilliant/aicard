@@ -300,8 +300,11 @@ def _rules_extract(source_chunks: list[dict[str, Any]], max_claims: int, *, comp
         explicit_ai_basis = complete_quotes and bool(re.search(
             r'인공\s*지능.{0,12}기반|(?<![A-Za-z])AI(?:로|를\s*통해)\s*작동', q, re.I))
         image_enhancement = complete_quotes and bool(re.search(r'(?<![A-Za-z])AI.{0,20}(?:이미지|영상|사진).{0,12}(?:강화|개선|향상)', q, re.I))
+        visual_presentation = complete_quotes and bool(re.search(r'(?<![A-Za-z])AI(?![A-Za-z])', q, re.I)
+            and re.search(r'화이트보드|콘텐츠|이미지|영상', q)
+            and re.search(r'방송|스트리밍|투명\s*효과|공유|보여', q))
         assistant_function = complete_quotes and '어시스턴트' in q
-        if _NOISE_LINE.search(q) or not (_FUNC_CUE.search(q) or english_function or explicit_ai_basis or image_enhancement or assistant_function) or len(q) > (500 if complete_quotes else 200):
+        if _NOISE_LINE.search(q) or not (_FUNC_CUE.search(q) or english_function or explicit_ai_basis or image_enhancement or visual_presentation or assistant_function) or len(q) > (500 if complete_quotes else 200):
             continue
         if english_function and re.search(r'^\s*(?:[*†※]|note\s*:|test\s+conditions\s*:)|\b(?:customer review|add to cart|shipping|discount|coupon)\b', q, re.I):
             continue

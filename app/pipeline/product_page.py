@@ -418,6 +418,14 @@ def product_body(html: str, url: str) -> BeautifulSoup:
         # Product specifications can carry AI detection details absent from the
         # overview. Include that product's table, not global navigation copy.
         selector = DETAIL_SELECTOR + ', .product-info #div_specifications'
+    elif (host in ('logitech.com', 'www.logitech.com', 'futureisnow.logitech.com')
+          and urlsplit(url).path.startswith('/ko-kr/products/')
+          and soup.select_one('body.productDisplayPage')):
+        # AEM product pages put feature copy in accordion panels. Read those
+        # paragraphs directly; image/AI-region recovery can otherwise select a
+        # neighbouring education campaign banner instead of the device features.
+        selector = ('main#maincontent .section-container-wrapper .body-copy, '
+                    'main#maincontent .specs-group, main#maincontent #footnote')
     elif host in ('soundcore.com', 'www.soundcore.com'):
         # The feature modules are siblings of purchase controls, FAQs and reviews.
         # Select the modules themselves, never their shared page wrapper.
