@@ -932,7 +932,9 @@ async def check_url(request: Request, url: str = Form(""), text: str = Form(""),
 async def check_alternatives(request: Request, url: str = Form(''), product_title: str = Form('')):
     from . import alternative_sources, check_budget
     url, product_title = url.strip()[:2000], product_title.strip()[:120]
-    matches = _product_candidates(product_title) if product_title else []
+    # This is an explicit user search, not automatic product identification.
+    # Offer partial-name candidates for the user to confirm by model number.
+    matches = _product_candidates(product_title, partial=True) if product_title else []
     if matches:
         return _existing_result(request, matches, query=product_title, url=url)
     alternatives = {'status': 'unavailable', 'sources': [], 'suggestions': ''}

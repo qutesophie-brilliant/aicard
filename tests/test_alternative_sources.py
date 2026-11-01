@@ -117,6 +117,25 @@ class AlternativeRoutesTests(unittest.TestCase):
         search.assert_called_once_with(ORIGINAL, 'FX24GNGRX')
         self.assertEqual(200, response.status_code)
 
+    def test_explicit_partial_title_offers_reviewed_cards_without_guessing_identity(self):
+        products = [dict(id=901, name='로봇청소기 5 Pro', maker='샤오미',
+                         model='D109GL', category='로봇청소기', status='approved', is_sample=0),
+                    dict(id=902, name='로봇청소기 5 Pro', maker='샤오미',
+                         model='D109CN', category='로봇청소기', status='pending', is_sample=0)]
+        with patch.object(main.db, 'list_products', return_value=products), patch.object(alt, 'search') as search:
+            response = self.client.post('/check/alternatives',
+                data={'url': ORIGINAL, 'product_title': '샤오미 5 Pro'}, follow_redirects=False)
+            # Automatic page-title matching remains strict.
+            self.assertEqual([], main._product_candidates('샤오미 5 Pro'))
+        self.assertEqual(200, response.status_code)
+        self.assertNotIn('location', response.headers)
+        self.assertIn('/card/901?from=check', response.text)
+        self.assertNotIn('/card/902?', response.text)
+        self.assertIn('모델명까지 확인한 뒤', response.text)
+        self.assertIn(ORIGINAL, response.text)
+        self.assertIn('이 판매페이지를 새로 분석하기', response.text)
+        search.assert_not_called()
+
     def test_markup_is_escaped_in_sandbox(self):
         result = alt.parse_sources(payload(), ORIGINAL)
         result['suggestions'] = '<script>alert(1)</script>'
