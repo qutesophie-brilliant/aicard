@@ -104,8 +104,21 @@ def detail_selector(url):
     """Use the same scoped description roots during fetch and rendering."""
     if _acer_product(url):
         return DETAIL_SELECTOR + ', ' + _ACER_FEATURES
+    if _tapo_product(url):
+        return DETAIL_SELECTOR + ', ' + _TAPO_FEATURES
     return (DETAIL_SELECTOR + ', ' + NAVER_DETAIL_SELECTOR
             if is_naver_product(url) else DETAIL_SELECTOR)
+
+
+def _tapo_product(url):
+    parsed = urlsplit(url)
+    return (parsed.hostname in ('tapo.com', 'www.tapo.com')
+            and bool(re.fullmatch(r'/kr/product/[^/]+/?', parsed.path)))
+
+
+_TAPO_FEATURES = ('#tapo-product-overview .product-highlights, '
+                  '#tapo-product-overview .product-overview-blocks, '
+                  '#tapo-product-overview .hightlight-note')
 
 
 def _detail_media(node):
@@ -354,6 +367,13 @@ def product_body(html: str, url: str) -> BeautifulSoup:
         soup = BeautifulSoup('<div class="product-description">' +
                              '\n'.join(fragments) + '</div>', 'html.parser')
     linked_sections = linked_detail_sections(soup)
+    if _tapo_product(url):
+        # This is the current product overview, despite the misleading layout
+        # class. Preserve it, but still remove real recommendations/reviews.
+        for node in soup.select('article.product-info #tapo-product-overview.product-related-container'):
+            node['class'] = [c for c in node.get('class', []) if c != 'product-related-container']
+        for node in soup.select('#tapo-product-overview .buy-now'):
+            node.decompose()
     if _acer_product(url):
         # This wrapper contains both a sticky purchase nav and the full product
         # description. Its name must not cause the entire description to vanish.
@@ -385,6 +405,8 @@ def product_body(html: str, url: str) -> BeautifulSoup:
         selector = '[data-aicard-ai-selected="true"]'
     elif is_naver_product(url):
         selector = NAVER_DETAIL_SELECTOR
+    elif _tapo_product(url):
+        selector = detail_selector(url)
     elif host in ('acer.com', 'www.acer.com'):
         # The manufacturer's Korean product landing pages put the real feature
         # paragraphs and caveats in this wrapper, outside JSON-LD summaries.

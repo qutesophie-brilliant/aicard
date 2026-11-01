@@ -360,6 +360,33 @@ class ProductPageTests(unittest.TestCase):
         self.assertIn('[AI 맞춤출수]',docs[1]['text'])
 
 
+    def test_tapo_overview_is_not_discarded_as_related_products(self):
+        from app.pipeline.product_page import product_text, detail_selector
+        from app.pipeline.run import quick_check
+        html = '''<nav>다른 카메라의 AI 기능</nav><article class="product-info">
+        <div id="tapo-product-overview" class="product-related-container">
+        <div class="product-images"><img src="/gallery.jpg"></div>
+        <div class="product-highlights"><h1>Tapo C113</h1>
+        <ul><li>스마트 AI 기술이 사람과 움직임을 감지하여 알림을 전달합니다.</li></ul>
+        <div class="buy-now">다른 AI 상품 구입</div></div>
+        <div class="product-overview-blocks"><img src="/detail.jpg"><div class="recommendations">AI 추천 상품</div><div class="reviews">AI 후기</div></div>
+        <div class="hightlight-note"><p>클라우드 스토리지를 이용하려면 Tapo Care를 구독해야 합니다.</p></div>
+        </div></article>'''
+        url = 'https://tapo.com/kr/product/tapo-c113-security-camera/'
+        body = product_body(html, url)
+        text = product_text(body)
+        self.assertIn('스마트 AI 기술이 사람과 움직임을 감지', text)
+        self.assertIn('구독해야 합니다', text)
+        self.assertEqual(['/detail.jpg'], [i['src'] for i in body.select('img')])
+        for noise in ('다른 카메라', '다른 AI 상품', 'AI 추천', 'AI 후기'):
+            self.assertNotIn(noise, text)
+        card, _ = quick_check('Tapo C113', url, text)
+        self.assertTrue(card['claims'])
+        for unrelated in ('https://example.com/kr/product/a/', 'https://tapo.com/kr/'):
+            self.assertNotIn('#tapo-product-overview', detail_selector(unrelated))
+            with self.assertRaises(ProductBodyUnavailable):
+                product_body(html, unrelated)
+
     def test_overview_cms_keeps_feature_sections_instead_of_short_metadata(self):
         from app.pipeline.product_page import product_text
         html = '''<script type="application/ld+json">{"@type":"Product","description":"A lightweight laptop with a high resolution display and processor."}</script>
