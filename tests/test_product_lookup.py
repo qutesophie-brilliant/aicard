@@ -100,6 +100,16 @@ class LookupRoutesTests(unittest.TestCase):
         self.assertIn('/card/901?from=check', r.text)
         quick.assert_not_called()
 
+    def test_fetched_redirect_target_matches_recorded_source(self):
+        resolved = 'https://shop.example/product/FX24GNGRX'
+        ing = ingest.Ingested(title='상품 상세', text='AI 세탁기 설명입니다.', chunks=[], source_capture={'source_url':resolved})
+        def match(url):
+            return PRODUCTS[0] if url == resolved else None
+        with patch.object(main, '_match_published', side_effect=match), patch.object(main, '_read_check_url', return_value=ing):
+            r = self.client.post('/check', data={'url':resolved + '/index.html'}, follow_redirects=False)
+        self.assertEqual(303, r.status_code)
+        self.assertEqual('/card/901?from=check', r.headers['location'])
+
     def test_bookmarklet_uses_same_title_lookup(self):
         with patch.object(main, '_match_published', return_value=None):
             r = self.client.post('/api/check', json={'title':'LG FX24GNGRX 판매', 'url':'https://shop.example/item'})

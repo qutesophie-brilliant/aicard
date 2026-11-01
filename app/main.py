@@ -898,6 +898,12 @@ async def check_url(request: Request, url: str = Form(""), text: str = Form(""),
         notes.extend(ing.notes)
         name = (ing.title or url).split("|")[0].strip()[:60]
         if not fresh:
+            # A retailer may redirect an index/old slug to its actual product
+            # address. Reuse that fetched address, never strip arbitrary tails.
+            resolved_url = (source_capture or {}).get('source_url', '')
+            hit = _match_published(resolved_url) if resolved_url else None
+            if hit:
+                return RedirectResponse(f"/card/{hit['id']}?from=check", status_code=303)
             matches = _product_candidates(ing.title or '')
             if matches:
                 return _existing_result(request, matches, query=ing.title or '', url=url)

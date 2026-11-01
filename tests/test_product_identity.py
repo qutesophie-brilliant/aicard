@@ -46,3 +46,20 @@ class ProductIdentityTests(unittest.TestCase):
     def test_generic_homepage_is_not_a_product_match(self):
         self.assertIsNone(self.match('https://maker.example/', {1: ['https://maker.example/']}))
 
+    def test_search_and_ad_tracking_do_not_hide_product(self):
+        sources = {1: ['https://shop.example/product?modelId=MODEL0001']}
+        self.assertEqual(1, self.match('https://shop.example/product?modelId=MODEL0001&srsltid=google123&wbraid=ad&gbraid=ad2', sources)['id'])
+
+    def test_unreserved_path_encoding_is_equivalent(self):
+        sources = {1: ['https://shop.example/item/MODEL-0001']}
+        self.assertEqual(1, self.match('https://shop.example/item/%4dODEL%2d0001/', sources)['id'])
+
+    def test_encoded_separator_remains_distinct(self):
+        sources = {1: ['https://shop.example/item/MODEL/0001']}
+        self.assertIsNone(self.match('https://shop.example/item/MODEL%2F0001', sources))
+
+    def test_index_and_model_suffixes_are_not_blindly_removed(self):
+        sources = {1: ['https://shop.example/item/MODEL0001']}
+        for tail in ('/index.html', '-index', '-PLUS', '?variant=2'):
+            self.assertIsNone(self.match('https://shop.example/item/MODEL0001' + tail, sources))
+
