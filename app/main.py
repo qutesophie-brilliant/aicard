@@ -828,7 +828,7 @@ async def check_url(request: Request, url: str = Form(""), text: str = Form(""),
         except Exception:
             _refund_check_ocr(ip + ':ocr', ocr_ticket)
             return render(request, "check.html", base=base, bookmarklet=bm, url=url, q="",
-                          error="페이지를 가져오지 못했습니다. 쇼핑몰의 접근 제한이나 일시적인 연결 문제일 수 있습니다. 상세페이지를 캡처한 이미지나 PDF를 올리거나, 제품 설명을 복사해 붙여 넣어 주세요. PC라면 ‘주소 입력이 안 될 때’의 버튼으로 보낼 수도 있습니다.")
+                          error="페이지를 가져오지 못했습니다. 쇼핑몰의 접근 제한이나 일시적인 연결 문제일 수 있습니다. 상세페이지를 캡처한 이미지나 PDF로 계속 확인할 수 있습니다.", upload_fallback=True)
         source_capture = ing.source_capture
         sales, fine = split_fine_print(ing.text)
         notes.extend(ing.notes)
