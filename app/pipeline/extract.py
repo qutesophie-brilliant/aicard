@@ -288,7 +288,8 @@ def _rules_extract(source_chunks: list[dict[str, Any]], max_claims: int, *, comp
             r'\b(?:detect\w*|distinguish\w*|classif\w*|recogniz\w*|recognis\w*|recognition|clean\w*|mop\w*|'
             r'navigat\w*|control\w*|track\w*|adjust\w*|learn\w*|optimiz\w*|'
             r'optimis\w*|voice|assistant|image|sound|temperature|noise|microphones?|calls?)\b', q, re.I))
-        explicit_ai_basis = complete_quotes and bool(re.search(r'인공\s*지능.{0,12}기반', q))
+        explicit_ai_basis = complete_quotes and bool(re.search(
+            r'인공\s*지능.{0,12}기반|(?<![A-Za-z])AI(?:로|를\s*통해)\s*작동', q, re.I))
         image_enhancement = complete_quotes and bool(re.search(r'(?<![A-Za-z])AI.{0,20}(?:이미지|영상|사진).{0,12}(?:강화|개선|향상)', q, re.I))
         if _NOISE_LINE.search(q) or not (_FUNC_CUE.search(q) or english_function or explicit_ai_basis or image_enhancement) or len(q) > (500 if complete_quotes else 200):
             continue

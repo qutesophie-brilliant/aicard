@@ -66,6 +66,7 @@ DETAIL_SELECTOR = (
     '#see-all-benefits, #CMD.features, '
     '.template-product .overview-tab, '
     '.productOverview .overContent, .product-info .overview-content, '
+    'main .shopify-section--custom-html .overview-content, '
     '#overviewContentInsertWrapper #CMD:has(section.wd__section)'
 )
 
