@@ -363,6 +363,19 @@ def product_body(html: str, url: str) -> BeautifulSoup:
     structured = structured_description(soup) or embedded_description(soup)
     faq = '' if structured else product_faq(soup)
     host = (urlsplit(url).hostname or "").lower()
+    if host == 'store.ohou.se' and re.fullmatch(r'/goods/\d+/?', urlsplit(url).path):
+        # Ohouse labels the seller's images and specifications inside a header.
+        # Identify its own section before generic header cleanup, never the
+        # surrounding page or sibling reviews/recommendations.
+        sections = []
+        for label in soup.select('section > header h2'):
+            if label.get_text(' ', strip=True) != '상품정보':
+                continue
+            section = label.find_parent('section')
+            if section and not any(section is old for old in sections):
+                sections.append(section)
+        if len(sections) == 1:
+            sections[0]['class'] = [*sections[0].get('class', []), 'product-description']
     roborock_page = host in ('global.roborock.com', 'us.roborock.com', 'kr.roborock.com') and urlsplit(url).path.startswith('/pages/')
     if roborock_page:
         # The animated feature wrapper contains the product sections as well as
