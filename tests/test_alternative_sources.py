@@ -57,6 +57,18 @@ class AlternativeTests(unittest.TestCase):
             result = alt.resolve_sources(alt.parse_sources(payload(citation), ORIGINAL), ORIGINAL)
         self.assertEqual([], result['sources'])
 
+    def test_category_and_explicit_model_suffix_mismatch_are_excluded(self):
+        title = '삼성 AI 냉장고 RM70F90R2DD'
+        for target in ('https://m.ssg.com/sellerhome/104777/category?dispCtgId=6000208876',
+                       'https://www.samsung.com/sec/support/model/RM70F90R2D/'):
+            result = alt.resolve_sources(alt.parse_sources(payload(target), ORIGINAL), ORIGINAL, title)
+            self.assertEqual([], result['sources'])
+        for target in ('https://www.samsung.com/sec/refrigerators/product/RM70F90R2DD/',
+                       'https://shop.example/product/1234567',
+                       'https://shop.example/product/humidifier/80/category/115/display/1/'):
+            result = alt.resolve_sources(alt.parse_sources(payload(target), ORIGINAL), ORIGINAL, title)
+            self.assertEqual(target, result['sources'][0]['analysis_url'])
+
     def test_single_grounded_call_and_no_retry(self):
         with patch.object(alt.config, 'GEMINI_API_KEY', 'test'), patch.object(alt, 'public_addresses'), patch.object(alt.httpx, 'post', side_effect=httpx.ConnectError('offline')) as post:
             self.assertEqual('unavailable', alt.search(ORIGINAL, '세탁기 ABC123')['status'])
@@ -78,6 +90,13 @@ class AlternativeTests(unittest.TestCase):
 class AlternativeRoutesTests(unittest.TestCase):
     def setUp(self):
         self.client = TestClient(main.app)
+
+    def test_no_ai_copy_keeps_analysis_and_offers_other_source_search(self):
+        response = self.client.post('/check', data={'url': SOURCE, 'text': '모델 ABC123 냉장고\n냉장고 용량은 600리터이며 제품의 무상 보증 기간은 1년입니다.'})
+        self.assertEqual(200, response.status_code)
+        self.assertIn('이 제품의 다른 설명 페이지 찾기', response.text)
+        self.assertIn('action="/check/alternatives"', response.text)
+        self.assertIn('소비자 권익 항목별 확인 결과', response.text)
 
     def test_blocked_url_automatically_searches_and_never_analyzes_search_text(self):
         with patch.object(main, '_match_published', return_value=None), patch.object(main, '_product_candidates', return_value=[]), patch.object(main, '_read_check_url', side_effect=ValueError('blocked')), patch.object(alt, 'search', return_value=alt.parse_sources(payload(), ORIGINAL)) as search, patch.object(main, '_quick_result') as quick:

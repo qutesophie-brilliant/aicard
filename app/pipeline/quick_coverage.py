@@ -36,7 +36,7 @@ _SERVICE_BRANDS = (
     r'캐논|\bCanon\b', r'소니|\bSony\b', r'\bDJI\b|디제이아이',
     r'니콘|\bNikon\b', r'삼성|\bSamsung\b', r'LG전자|\bLG\b',
     r'파나소닉|\bPanasonic\b', r'후지필름|\bFujifilm\b',
-    r'올림푸스|\bOlympus\b', r'\bMSI\b',
+    r'올림푸스|\bOlympus\b', r'\bMSI\b', r'애플|\bApple\b', r'캐리어|\bCarrier\b',
 )
 
 
@@ -58,6 +58,14 @@ def _matches_sentence(key: str, text: str) -> bool:
     if SCENE_DESCRIPTION.search(text) or SITE_COMMON.search(text):
         return False
     if key == "data":
+        # Seller checkout consent and generic statutory boilerplate do not
+        # explain how the appliance handles consumer data. Keep a separate,
+        # explicit device/app processing statement even in the same source.
+        compact = re.sub(r'\s+', '', text)
+        store_notice = re.search(r'주문|배송|결제|정보통신망법|정보통신서비스제공자|개인정보의이용제한', compact)
+        product_data = re.search(r'음성|영상|카메라|청소지도|촬영|센서|사용기록|음성기록|기기내|제품내|앱에서|앱은|기기는', compact)
+        if store_notice and not product_data:
+            return False
         # Interface throughput is not a statement about collection or handling
         # of a consumer's data. Preserve explicit personal/cloud-data clauses.
         interface_spec = re.search(r'USB\d*|Type[ -]?C|Thunderbolt|썬더볼트|포트|인터페이스', text, re.I)

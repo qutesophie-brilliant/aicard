@@ -36,6 +36,20 @@ class OverviewRecoveryTests(unittest.TestCase):
                     'https://www.mi.com/kr/product/other/', self.overview + 'review'):
             self.assertIsNone(product_documents.overview_link(self.shell(url), self.url))
 
+    def test_legacy_and_current_overviews_keep_ai_copy_and_exclude_reviews(self):
+        for layout in ('overview_pc', 'overview-con'):
+            html = ('<div class="product_v4"><main class="' + layout + '">'
+                    '<p>AI 카메라는 장애물을 식별하고 회피 경로를 계획합니다.</p>'
+                    '<p>AI 사물 인식 기능은 기본적으로 비활성화되어 있습니다.</p>'
+                    '<div class="reviews">다른 고객의 AI 기능 추천</div>'
+                    '<nav>다른 AI 제품 구매</nav></main></div>')
+            body = product_page.product_body(html, self.overview)
+            self.assertIn('장애물을 식별', body.get_text())
+            self.assertIn('기본적으로 비활성화', body.get_text())
+            self.assertNotIn('다른 고객', body.get_text())
+            self.assertNotIn('다른 AI 제품', body.get_text())
+            self.assertEqual('explicit_product_container', body.section['data-aicard-selection'])
+
     def test_invalid_script_and_category_are_not_executed_or_accepted(self):
         self.assertIsNone(product_documents.overview_link('<script>window.__PRELOADED_STATE__ = alert(1)</script>', self.url))
         with self.assertRaises(product_page.ProductBodyUnavailable):

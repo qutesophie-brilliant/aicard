@@ -6,7 +6,7 @@ that page is then fetched and analysed through the normal guarded pipeline.
 import ipaddress
 import json
 import re
-from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit, unquote
 
 import httpx
 
@@ -67,7 +67,20 @@ def parse_sources(payload, original):
     return {'status': 'found' if rows else 'empty', 'sources': rows, 'suggestions': suggestions}
 
 
-def resolve_sources(result, original):
+def conflicting_model(title, target):
+    """Reject an explicit near-model suffix mismatch, not opaque retailer IDs."""
+    def tokens(text):
+        return [m.upper() for m in re.findall(r'(?<![A-Za-z0-9])[A-Za-z0-9]{6,24}(?![A-Za-z0-9])', text)
+                if re.search(r'[A-Za-z]', m) and len(re.findall(r'\d', m)) >= 2]
+    expected = tokens(title)
+    actual = tokens(unquote(urlsplit(target).path))
+    if len(expected) != 1 or expected[0] in actual:
+        return False
+    wanted = expected[0]
+    return any(len(value) >= 6 and value[:6] == wanted[:6] and value != wanted for value in actual)
+
+
+def resolve_sources(result, original, title=''):
     """Unwrap Google's citation redirect, retaining the citation for attribution."""
     rows, seen = [], set()
     for row in result['sources']:
@@ -89,7 +102,10 @@ def resolve_sources(result, original):
         # Grounding can cite identification videos as well as product pages.
         # Video/social links are not usable inputs for the product-page reader.
         non_product = ('youtube.com', 'youtu.be', 'instagram.com', 'tiktok.com', 'facebook.com')
+        path = urlsplit(target).path.rstrip('/').lower()
+        listing = bool(re.match(r'^/(?:category|categories|search|sellerhome)(?:/|$)', path))
         if (any(host == domain or host.endswith('.' + domain) for domain in non_product)
+                or listing or conflicting_model(title, target)
                 or not identity or identity == source_identity(original) or identity in seen):
             continue
         seen.add(identity)
@@ -124,7 +140,7 @@ def search(url, title=''):
                                     'generationConfig': generation},
                               timeout=check_budget.remaining(35))
         response.raise_for_status()
-        return resolve_sources(parse_sources(response.json(), clean), clean)
+        return resolve_sources(parse_sources(response.json(), clean), clean, title)
     except Exception:
         # Do not expose provider bodies or keys, nor label search failure as no product.
         return unavailable

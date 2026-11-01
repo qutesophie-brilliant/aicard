@@ -381,7 +381,11 @@ def product_body(html: str, url: str) -> BeautifulSoup:
                     '.dyson_cms_row_config:has(.promos), '
                     '.dyson_cms_row_config[id*="caveat"]')
     elif host in ('mi.com', 'www.mi.com') and re.match(r'^/[a-z]{2}/product/[^/]+/?$', urlsplit(url).path):
-        selector = '.product_v4 main[class*="fly-birds-page"]'
+        # Both legacy and current Korean product overviews use explicit main
+        # roots. Restrict these to a product URL and the product_v4 wrapper;
+        # purchase controls, category pages and reviews remain excluded.
+        selector = ('.product_v4 main[class*="fly-birds-page"], '
+                    '.product_v4 main.overview_pc, .product_v4 main.overview-con')
     elif host in ('ecovacs.com', 'www.ecovacs.com') and re.fullmatch(r'/kr/campaign/deebot-[\w-]+/?', urlsplit(url).path):
         # The campaign's numbered product sections contain the actual feature
         # copy and caveats. Do not select its surrounding shop/footer/navigation.

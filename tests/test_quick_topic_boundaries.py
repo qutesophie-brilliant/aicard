@@ -7,6 +7,18 @@ from app.pipeline.run import quick_check
 
 
 class FiveTopicBoundaryTests(unittest.TestCase):
+    def test_retail_consent_is_not_appliance_data_handling(self):
+        for text in ('해당 개인 정보는 주문 및 배송 용도로만 사용됩니다.',
+                     '주문 시 제3자 개인정보 동의한 것으로 간주 됩니다.',
+                     '제 3자에 대한 개인정보 제공 동의(정보통신망법)',
+                     '정보통신 서비스 제공자는 개인 정보를 제공받는 자의 개인정보 이용목적을 알려야 한다.',
+                     '개인 정보의 이용제한'):
+            self.assertFalse(quick_coverage._matches('data', text), text)
+        self.assertTrue(quick_coverage._matches('data', '주문 정보는 배송에 사용됩니다. 음성 데이터는 기기 내부에서 처리합니다.'))
+        self.assertTrue(quick_coverage._matches('data', '앱에서 개인정보 제공 동의를 해제할 수 있습니다.'))
+        self.assertTrue(quick_coverage._other_service_brand('애플 고객센터 080-333-4000', 'LG 냉장고'))
+        self.assertFalse(quick_coverage._other_service_brand('LG전자 서비스센터', 'LG 냉장고'))
+
     cases = {
         'conditions': (
             ['AI 세탁은 세탁물 6kg 이하에서 사용할 수 있습니다.',
