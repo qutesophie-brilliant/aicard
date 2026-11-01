@@ -15,6 +15,22 @@ _OPTOUT = re.compile(r"비활성화|해제|끄(?:기|면|거나|는|고|세요)|
 _AI_CONTEXT = re.compile(r"\bAI\b|인공지능|학습|생성형|음성|인식|감지|스마트|맞춤|자동|모드", re.I)
 _SAFETY = re.compile(r"보안|안전\s*장치|과열|과부하|누전|어린이.{0,8}잠금|차일드\s*락|펌웨어|소프트웨어|업데이트|지원\s*기간|자동\s*정지|긴급\s*(?:정지|멈춤)", re.I)
 _REMEDY = re.compile(r"고객\s*센터|서비스\s*센터|A\s*/\s*S|보증|환불|반품|보상|교환|수리|피해\s*구제|소비자\s*분쟁", re.I)
+_EN_REMEDY = re.compile(r'\bwarrant(?:y|ies)\b|\b(?:customer|technical)\s+(?:service|support)\b|\b(?:refund|return)\s+policy\b', re.I)
+# A multi-brand retailer may include several manufacturers' service contacts
+# in one shared image. An explicitly different provider is not this product's
+# support. Unknown/unnamed providers are not guessed from a phone number.
+_SERVICE_BRANDS = (
+    r'캐논|\bCanon\b', r'소니|\bSony\b', r'\bDJI\b|디제이아이',
+    r'니콘|\bNikon\b', r'삼성|\bSamsung\b', r'LG전자|\bLG\b',
+    r'파나소닉|\bPanasonic\b', r'후지필름|\bFujifilm\b',
+    r'올림푸스|\bOlympus\b', r'\bMSI\b',
+)
+
+
+def _other_service_brand(text, product_name):
+    target = {i for i, p in enumerate(_SERVICE_BRANDS) if re.search(p, product_name, re.I)}
+    named = {i for i, p in enumerate(_SERVICE_BRANDS) if re.search(p, text, re.I)}
+    return bool(target and named - target)
 
 
 def _matches(key: str, text: str) -> bool:
@@ -32,7 +48,7 @@ def _matches(key: str, text: str) -> bool:
     if key == "safety":
         return bool(_SAFETY.search(text))
     if key == "remedy":
-        return bool(_REMEDY.search(text))
+        return bool(_REMEDY.search(text) or _EN_REMEDY.search(text))
     # Stock, delivery and return restrictions do not describe AI operation.
     if re.search(r'재고|생산월|매장|반품|교환|철거|회수|추가\s*비용|살균\s*효과', text):
         return False
@@ -43,10 +59,13 @@ def _matches(key: str, text: str) -> bool:
         kind=='operating' or len(set(coverage._KEYWORDS[key].findall(text))) >= 2)
 
 
-def fill(index):
+def fill(index, product_name=''):
     out = {}
     for key, query in coverage.QUERIES.items():
         candidates = index.search(query, k=30, prefer_kinds=("설명서", "사양표", "공공DB"))
+        if key == 'remedy':
+            # Korean BM25 queries cannot retrieve an English warranty row.
+            candidates += [c for c in index.condition_context() if _EN_REMEDY.search(c['quote'])]
         if key=='conditions':
             # Numerical limits may share no words with the retrieval query.
             # Use the same condition/topic checks on every available sentence.
@@ -54,6 +73,8 @@ def fill(index):
         hits = []
         seen = set()
         for c in candidates:
+            if key == 'remedy' and _other_service_brand(c['quote'], product_name):
+                continue
             normalized = re.sub(r"\s+", "", c["quote"])
             if normalized not in seen and _matches(key, c["quote"]):
                 hits.append(c)

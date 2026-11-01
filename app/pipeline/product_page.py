@@ -64,6 +64,7 @@ DETAIL_SELECTOR = (
     'body.template-product .shopify-section[id*="__product_specifications_"], '
     '#product-features, .product-features, [data-testid="product-features"], '
     '#see-all-benefits, #CMD.features, '
+    '.template-product .overview-tab, '
     '#overviewContentInsertWrapper #CMD:has(section.wd__section)'
 )
 

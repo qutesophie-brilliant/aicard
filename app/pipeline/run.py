@@ -157,7 +157,7 @@ def quick_check(name: str, url: str, sales_text: str, fine_text: str = "", use_l
         card["claims"] = claims
         with llm.rules_only():
             from . import quick_coverage
-            card["items"] = quick_coverage.fill(index)
+            card["items"] = quick_coverage.fill(index, product_name=name)
             quick_temperature.include_conditions(card)
             card["easy"] = easy.make_easy(card)
         card["checked_at"] = date.today().isoformat()

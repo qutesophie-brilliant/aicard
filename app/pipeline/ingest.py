@@ -322,6 +322,8 @@ def from_product_html(html: str, url: str, ocr_images: bool = False) -> Ingested
     capture['text'] = '\n'.join(section['text'] for section in capture['sections'])
     scope_note = ('전체 상세 설명 대신, 페이지에서 제품명이 일치하는 FAQ를 읽어 부분 결과를 제공합니다.'
                   if coverage.get('product_selection') == 'structured_product_faq'
+                  else '페이지의 제품 소개 요약만 읽어 부분 결과를 제공합니다. 상세 기능·조건은 확인 범위에 포함되지 않을 수 있습니다.'
+                  if coverage.get('product_selection', '').startswith('structured_product_')
                   else '제품 설명과 포함된 세부정보를 확인했습니다.')
     return Ingested(title=title, text=capture['text'], chunks=chunk_text(capture['text']),
                     source_capture=capture,

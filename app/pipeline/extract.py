@@ -285,7 +285,7 @@ def _rules_extract(source_chunks: list[dict[str, Any]], max_claims: int, *, comp
         # Quick previews also receive English copy on Korean manufacturer sites.
         # Keep exact source wording, without translating or changing formal rules.
         english_function = complete_quotes and bool(re.search(
-            r'\b(?:detect\w*|recogniz\w*|recognis\w*|recognition|clean\w*|mop\w*|'
+            r'\b(?:detect\w*|distinguish\w*|classif\w*|recogniz\w*|recognis\w*|recognition|clean\w*|mop\w*|'
             r'navigat\w*|control\w*|track\w*|adjust\w*|learn\w*|optimiz\w*|'
             r'optimis\w*|voice|assistant|image|sound|temperature|noise|microphones?|calls?)\b', q, re.I))
         explicit_ai_basis = complete_quotes and bool(re.search(r'인공\s*지능.{0,12}기반', q))
