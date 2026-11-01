@@ -195,7 +195,21 @@ def from_url(url: str, ocr_images: bool = True, product_only: bool = False) -> I
                     return adapter.read_product(url, ocr_images=ocr_images)
                 except (product_page.ProductBodyUnavailable, PublicURLRejected, httpx.HTTPError):
                     pass  # A public description is a fast path, never a false success.
-    r, initial_render = fetch_initial(url, _fetch) if product_only else (_fetch(url), None)
+    reader_used = False
+    try:
+        r, initial_render = fetch_initial(url, _fetch) if product_only else (_fetch(url), None)
+    except httpx.HTTPStatusError as original:
+        # A separate public HTML reader can serve a public page refused to our
+        # server. It supplies HTML, not a model-written answer or a cached card.
+        # Never retry authentication failures or rate limits via this route.
+        if not product_only or original.response.status_code != 403:
+            raise
+        try:
+            from .public_reader import read
+            r, initial_render = read(url), None
+            reader_used = True
+        except (ValueError, httpx.HTTPError, TimeoutError):
+            raise original
     ctype = r.headers.get("content-type", "")
     direct_pdf = 'pdf' in ctype or urlsplit(str(r.url)).path.lower().endswith('.pdf')
     if product_only and (direct_pdf or ctype.startswith('image/')):
@@ -225,6 +239,10 @@ def from_url(url: str, ocr_images: bool = True, product_only: bool = False) -> I
         result = from_product_html(html, source_url, ocr_images=ocr_images)
         result.source_capture['documents'] = documents
         result.source_capture['acquisition'] = stages
+        if reader_used:
+            stages.insert(0, {'stage': 'public_html_reader', 'provider': 'Jina Reader',
+                              'status': 'read', 'url': str(r.url)})
+            result.notes.insert(0, '직접 접속이 제한되어 공개 페이지 읽기 서비스(Jina Reader)로 가져온 원문을 분석했습니다. 현재 판매페이지와 차이가 있을 수 있습니다.')
         if any(s['stage'] == 'browser_render' and s['status'] == 'read' for s in stages):
             result.notes.insert(0, '페이지가 불러오는 상품 설명을 자동으로 연 뒤 확인했습니다.')
         if documents:
