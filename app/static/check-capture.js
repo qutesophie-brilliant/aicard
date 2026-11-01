@@ -30,6 +30,29 @@
     alert('상품 설명 영역을 확인하지 못했습니다. 상세 설명을 펼친 뒤 다시 눌러 주세요. 계속 안 되면 설명 글이나 캡처를 AI 정보카드에 넣어 주세요.');
     return;
   }
+  function captureImageSource(n) {
+    const lazyKeys = ['ec-data-src', 'data-src', 'data-original', 'data-lazy-src', 'data-echo', 'data-goods-lazy'];
+    const usable = value => value && !value.trim().toLowerCase().startsWith('data:');
+    for (const key of lazyKeys) {
+      const value = n.getAttribute(key);
+      if (usable(value)) return value;
+    }
+    let srcset = n.getAttribute('data-srcset') || n.getAttribute('srcset');
+    if (!srcset && n.closest('picture')) {
+      const sources = Array.from(n.closest('picture').querySelectorAll('source[data-srcset],source[srcset]'));
+      sources.sort((a,b) => Number((a.getAttribute('media') || '').includes('max-width')) - Number((b.getAttribute('media') || '').includes('max-width')));
+      srcset = sources.map(s => s.getAttribute('data-srcset') || s.getAttribute('srcset')).find(Boolean);
+    }
+    if (srcset) {
+      const choices = srcset.trim().split(/,\s+|(?<=[wx]),\s*/).map(entry => {
+        const parts = entry.trim().split(/\s+/);
+        return {url:parts[0], size:parseFloat(parts[1]) || 1};
+      }).filter(c => usable(c.url)).sort((a,b) => b.size-a.size);
+      if (choices.length) return choices[0].url;
+    }
+    const src = n.getAttribute('src');
+    return usable(src) ? src : '';
+  }
   const out = document.implementation.createHTMLDocument(document.title);
   const noise = /review|rating|comment|recommend|related|cart|cookie|login|account|checkout|payment|order|customer/i;
   const forbidden = 'script,style,noscript,iframe,object,embed,form,input,textarea,select,button,nav,header,footer,aside,svg,[contenteditable]';
@@ -41,11 +64,13 @@
     copy.querySelectorAll('[class],[id]').forEach(n => {
       if (noise.test((n.id || '') + ' ' + (n.getAttribute('class') || ''))) n.remove();
     });
+    // Resolve picture/source variants before stripping any attributes.
+    const images = new Map(Array.from(copy.querySelectorAll('img')).map(n => [n, captureImageSource(n)]));
     [copy, ...copy.querySelectorAll('*')].forEach(n => {
       let src = '';
       if (n.tagName === 'IMG') {
-        src = n.getAttribute('ec-data-src') || n.getAttribute('data-src') || n.getAttribute('data-original') || n.getAttribute('data-lazy-src') || n.getAttribute('data-echo') || n.getAttribute('data-goods-lazy') || n.getAttribute('src') || '';
-        try { const u = new URL(src, base); src = /^https?:$/.test(u.protocol) && !u.username && !u.password ? u.href : ''; } catch (_) { src = ''; }
+        src = images.get(n) || '';
+        try { const u = src ? new URL(src, base) : null; src = u && /^https?:$/.test(u.protocol) && !u.username && !u.password ? u.href : ''; } catch (_) { src = ''; }
       }
       Array.from(n.attributes).forEach(a => { if (!['class', 'id', 'itemprop'].includes(a.name)) n.removeAttribute(a.name); });
       if (n.tagName === 'IMG') { if (src) n.setAttribute('src', src); else n.remove(); }
