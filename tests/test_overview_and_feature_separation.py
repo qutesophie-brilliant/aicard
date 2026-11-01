@@ -84,6 +84,29 @@ class FeatureSeparationTests(unittest.TestCase):
         ])]
         self.assertEqual(_rules_extract(rows, 14, complete_quotes=True), [])
 
+    def test_audio_ai_description_survives_structured_source_to_preview(self):
+        from app.pipeline.source_capture import capture_product_html
+        quote = ('6-Mic AI Clear Calls: With a noise cancelling algorithm, a wind noise '
+                 'reduction tech, and six microphones, enjoy clear calls wherever you are.')
+        html = '<script type="application/ld+json">' + json.dumps({
+            '@type': 'Product', 'name': 'Example earbuds', 'description': quote}) + '</script>'
+        capture = capture_product_html(html, 'https://example.com/products/earbuds')
+        card, _ = quick_check('Example earbuds', '', capture['text'], source_capture=capture)
+        self.assertEqual([c['text'] for c in card['claims']], [quote])
+        self.assertEqual(card['claims'][0]['source']['quote'], quote)
+        from app.pipeline.extract import _rules_extract
+        rows = [{'doc_id': 1, 'chunk': 0, 'quote': quote}]
+        self.assertEqual(_rules_extract(rows, 14), [])  # Formal extraction unchanged.
+
+    def test_audio_marketing_noise_is_not_promoted_to_ai_claim(self):
+        from app.pipeline.extract import _rules_extract
+        quotes = ['Six microphones provide clear calls with noise reduction.',
+                  'Customer review: AI clear calls are great.',
+                  'AI clear calls discount coupon shipping offer',
+                  'Test conditions: AI noise reduction was tested in a lab.']
+        rows = [{'doc_id': 1, 'chunk': i, 'quote': q} for i, q in enumerate(quotes)]
+        self.assertEqual(_rules_extract(rows, 14, complete_quotes=True), [])
+
     def test_navigation_does_not_borrow_suction_trial(self):
         source = 'AI 카메라가 장애물을 인식하고 위치를 파악합니다.\n시험 조건: 싸이클론 흡입력은 독립시험기관에서 측정했습니다.'
         card, _ = quick_check('로봇청소기', '', source)
