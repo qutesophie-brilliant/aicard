@@ -35,6 +35,21 @@ class AlternativeTests(unittest.TestCase):
     def test_tracking_removed_model_retained(self):
         self.assertEqual('https://shop.example/item?model=ABC123', alt.public_hint('https://shop.example/item?model=ABC123&utm_source=foo#tracking'))
 
+    def test_citation_redirect_preserved_but_analysis_uses_actual_page(self):
+        citation = 'https://vertexaisearch.cloud.google.com/grounding-api-redirect/example'
+        response = httpx.Response(302, headers={'location': SOURCE}, request=httpx.Request('GET', citation))
+        with patch.object(alt, 'fetch_public', return_value=response):
+            result = alt.resolve_sources(alt.parse_sources(payload(citation), ORIGINAL), ORIGINAL)
+        self.assertEqual(citation, result['sources'][0]['url'])
+        self.assertEqual(SOURCE, result['sources'][0]['analysis_url'])
+
+    def test_resolved_original_is_not_an_alternative(self):
+        citation = 'https://vertexaisearch.cloud.google.com/grounding-api-redirect/example'
+        response = httpx.Response(302, headers={'location': ORIGINAL}, request=httpx.Request('GET', citation))
+        with patch.object(alt, 'fetch_public', return_value=response):
+            result = alt.resolve_sources(alt.parse_sources(payload(citation), ORIGINAL), ORIGINAL)
+        self.assertEqual([], result['sources'])
+
     def test_single_grounded_call_and_no_retry(self):
         with patch.object(alt.config, 'GEMINI_API_KEY', 'test'), patch.object(alt, 'public_addresses'), patch.object(alt.httpx, 'post', side_effect=httpx.ConnectError('offline')) as post:
             self.assertEqual('unavailable', alt.search(ORIGINAL, '세탁기 ABC123')['status'])
@@ -45,6 +60,12 @@ class AlternativeTests(unittest.TestCase):
         response = httpx.Response(200, json=payload(), request=httpx.Request('POST', 'https://api.example'))
         with patch.object(alt.config, 'GEMINI_API_KEY', 'test'), patch.object(alt, 'public_addresses'), patch.object(alt.httpx, 'post', return_value=response):
             self.assertEqual(SOURCE, alt.search(ORIGINAL, 'FX24GNGRX')['sources'][0]['url'])
+
+    def test_key_prefix_does_not_select_an_unconfigured_vertex_endpoint(self):
+        response = httpx.Response(200, json=payload(), request=httpx.Request('POST', 'https://api.example'))
+        with patch.object(alt.config, 'GEMINI_API_KEY', 'AQ.test'), patch.object(alt, 'public_addresses'), patch.object(alt.httpx, 'post', return_value=response) as post:
+            alt.search(ORIGINAL, 'FX24GNGRX')
+        self.assertEqual(alt.config.GEMINI_ENDPOINTS[0].format(model=alt.config.GEMINI_MODEL), post.call_args.args[0])
 
 
 class AlternativeRoutesTests(unittest.TestCase):

@@ -5,7 +5,8 @@
   <ul class="existing-card-list">
     {% for source in alternatives.sources %}
     <li><p><a href="{{ source.url }}" target="_blank" rel="noopener noreferrer">{{ source.title }} · 원문 열기</a></p>
-      <form method="post" action="/check"><input type="hidden" name="url" value="{{ source.url }}"><button class="btn" type="submit">이 페이지 분석하기</button></form>
+      {% if source.analysis_url and 'vertexaisearch.cloud.google.com/' not in source.analysis_url %}<p class="help" style="overflow-wrap:anywhere">{{ source.analysis_url }}</p>{% endif %}
+      <form method="post" action="/check" class="urlform"><input type="hidden" name="url" value="{{ source.analysis_url|default(source.url) }}"><button class="btn" type="submit">이 페이지 분석하기</button></form>
     </li>
     {% endfor %}
   </ul>

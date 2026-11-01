@@ -11,7 +11,7 @@ from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 import httpx
 
 from . import config, check_budget
-from .network_safety import public_addresses
+from .network_safety import public_addresses, fetch_public
 from .product_identity import source_identity
 
 
@@ -67,6 +67,31 @@ def parse_sources(payload, original):
     return {'status': 'found' if rows else 'empty', 'sources': rows, 'suggestions': suggestions}
 
 
+def resolve_sources(result, original):
+    """Unwrap Google's citation redirect, retaining the citation for attribution."""
+    rows, seen = [], set()
+    for row in result['sources']:
+        target = row['url']
+        parsed = urlsplit(target)
+        if parsed.hostname == 'vertexaisearch.cloud.google.com' and parsed.path.startswith('/grounding-api-redirect/'):
+            try:
+                response = fetch_public(target, timeout=2, max_bytes=64000, max_redirects=0,
+                                        follow_redirects=False, https_only=True,
+                                        allowed_hosts={'vertexaisearch.cloud.google.com'})
+                if response.is_redirect:
+                    resolved = public_hint(str(response.url.join(response.headers.get('location', ''))))
+                    if resolved:
+                        target = resolved
+            except Exception:
+                pass
+        identity = source_identity(target)
+        if not identity or identity == source_identity(original) or identity in seen:
+            continue
+        seen.add(identity)
+        rows.append({**row, 'analysis_url': target})
+    return {**result, 'sources': rows, 'status': 'found' if rows else 'empty'}
+
+
 def search(url, title=''):
     unavailable = {'status': 'unavailable', 'sources': [], 'suggestions': ''}
     clean = public_hint(url)
@@ -75,8 +100,9 @@ def search(url, title=''):
     try:
         public_addresses(clean)
         # One bounded call, no retry cascade and no paid calls for successful URLs.
-        from .pipeline import llm
-        ep, model = llm._gemini_ok or (config.GEMINI_ENDPOINTS[1 if config.GEMINI_API_KEY.startswith('AQ.') and len(config.GEMINI_ENDPOINTS) > 1 else 0], config.GEMINI_MODEL)
+        # Search capability is endpoint-specific. A key prefix is not evidence
+        # that Vertex is enabled; use the configured primary endpoint.
+        ep, model = config.GEMINI_ENDPOINTS[0], config.GEMINI_MODEL
         prompt = ('Find public Korean manufacturer or retailer product pages for the SAME product described by the data below. '
                   'Use Google Search, at most two focused search queries. If a title/model is supplied, search that exact model first. '
                   'If only a URL is supplied, first search the exact URL to identify the product; do not guess from the store name. '
@@ -93,7 +119,7 @@ def search(url, title=''):
                                     'generationConfig': generation},
                               timeout=check_budget.remaining(35))
         response.raise_for_status()
-        return parse_sources(response.json(), clean)
+        return resolve_sources(parse_sources(response.json(), clean), clean)
     except Exception:
         # Do not expose provider bodies or keys, nor label search failure as no product.
         return unavailable
