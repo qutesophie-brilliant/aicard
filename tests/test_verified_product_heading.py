@@ -77,6 +77,18 @@ class VerifiedProductHeadingTests(unittest.TestCase):
                     self.assertFalse(claim['evidence'])
                     self.assertEqual(self.url, docs[claim['source']['doc_id']]['url'])
 
+    def test_functional_title_does_not_borrow_general_safety_or_manual_modes(self):
+        name = '[다룸] 퓨어 AI 살균 통세척 가열식 가습기 6L'
+        html = self.streamed().replace(self.name, name).replace(json.dumps(self.name), json.dumps(name))
+        html = html.replace('<img src="/detail.jpg">',
+                            '<h2>안전 기능</h2><p>기울임 감지부터 과열 방지 기능까지 꼼꼼하게 설계했습니다.</p>'
+                            '<h2>수동 조작</h2><p>가습량 조절 및 세척 모드 설정 가능. 수면, 표준, 쾌속, 세척 순서입니다.</p>')
+        capture = source_capture.capture_product_html(html, self.url)
+        card, _ = run.quick_check(name, self.url, capture['text'], source_capture=capture)
+        self.assertTrue(card['claims'])
+        title = next(c for c in card['claims'] if 'AI 살균' in c['text'])
+        self.assertFalse(title['evidence'])
+
     def test_quick_card_still_excludes_bare_brand_model_and_category(self):
         for name in ('Bespoke AI 스팀 울트라', 'AI 가습기 6L', 'ThinQ 스마트 가습기'):
             with self.subTest(name=name):

@@ -134,6 +134,14 @@ def quick_check(name: str, url: str, sales_text: str, fine_text: str = "", use_l
             # (e.g. a mechanical blade) explains the AI mentioned in that overview.
             # Keep the overview's own explanation, rather than borrowing details.
             intro_docs = {d['id']: d for d in docs if not use_llm and d.get('feature_scope') == '제품 소개'}
+            # A retained title advertises a function but is not an explanation.
+            # Broad retrieval from the whole page can otherwise attach unrelated
+            # safety or manual-mode instructions simply sharing appliance words.
+            title_sources = {c['source']['doc_id'] for c in claims if not use_llm
+                             and re.sub(r'\s+', '', c['text']) in compact_name
+                             and not extract.VERBISH.search(c['text'])
+                             and _quick_functional_title(c['text'])}
+            intro_docs.update({d['id']: d for d in docs if d['id'] in title_sources})
             linked = []
             if not intro_docs:
                 linked = link.link_claims(claims, index, exclude_testimonials=True)
