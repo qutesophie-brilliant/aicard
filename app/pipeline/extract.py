@@ -182,7 +182,7 @@ SCENE_DESCRIPTION = re.compile(r'(?:이미지|화면)(?:의)?\s*(?:왼쪽|오른
 FRAG_START = re.compile(r"^\S{1,8}(니다|습니다|어요|세요|죠)\.\s")  # "작습니다. 고정밀 …"처럼 앞 문장 꼬리가 붙은 조각
 
 
-def _postfilter(rows: list[dict[str, Any]], max_claims: int, product_has_ai: bool = True, *, allow_spaced_ai: bool = False) -> list[dict[str, Any]]:
+def _postfilter(rows: list[dict[str, Any]], max_claims: int, product_has_ai: bool = True, *, allow_spaced_ai: bool = False, exact_duplicates: bool = False) -> list[dict[str, Any]]:
     kept: list[dict[str, Any]] = []
     for r in rows:
         t = r["text"]
@@ -208,6 +208,13 @@ def _postfilter(rows: list[dict[str, Any]], max_claims: int, product_has_ai: boo
         b = _bigrams(t)
         dup = False
         for k in kept:
+            if exact_duplicates:
+                # Preview recall: shared wording does not make two different
+                # functions or numeric conditions the same quotation.
+                if re.sub(r'\s+', '', t) == re.sub(r'\s+', '', k['text']):
+                    dup = True
+                    break
+                continue
             kb = _bigrams(k["text"])
             if b and kb and len(b & kb) / min(len(b), len(kb)) >= 0.6:
                 # 되풀이·조각: 더 긴(설명이 담긴) 쪽을 남긴다
@@ -279,7 +286,7 @@ def _rules_extract(source_chunks: list[dict[str, Any]], max_claims: int, *, comp
         q = c["quote"]
         ai_match = AI_PATTERN.search(q)
         if complete_quotes and not ai_match:
-            ai_match = re.search(r'인공\s+지능|지능형', q)
+            ai_match = CORE_AI.search(q) or re.search(r'인공\s+지능', q)
         if not ai_match:
             continue
         if complete_quotes and re.search(r'^\s*(?:learn|read|find\s+out)\s+more\b', q, re.I):
@@ -299,7 +306,7 @@ def _rules_extract(source_chunks: list[dict[str, Any]], max_claims: int, *, comp
             continue
         if complete_quotes and (not CORE_AI.search(re.sub(r'인공\s+지능', '인공지능', q)) or FOOTNOTE_INLINE.match(q)):
             continue  # Quick-check counts explicit AI wording, not every nearby automatic feature.
-        key = re.sub(r"\W", "", q)[:30]
+        key = re.sub(r'\s+', '', q) if complete_quotes else re.sub(r"\W", "", q)[:30]
         if key in seen:
             continue
         seen.add(key)
@@ -319,4 +326,4 @@ def _rules_extract(source_chunks: list[dict[str, Any]], max_claims: int, *, comp
                     "source": {"doc_id": c["doc_id"], "chunk": c["chunk"], "quote": q}})
         if len(out) >= max_claims * 3:
             break
-    return _postfilter(out, max_claims, allow_spaced_ai=complete_quotes)
+    return _postfilter(out, max_claims, allow_spaced_ai=complete_quotes, exact_duplicates=complete_quotes)

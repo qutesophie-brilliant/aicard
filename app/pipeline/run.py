@@ -110,7 +110,9 @@ def quick_check(name: str, url: str, sales_text: str, fine_text: str = "", use_l
             source_chunks = [c for c in source_chunks if not (
                 re.sub(r"\s+", "", c["quote"]) in compact_name
                 and not extract.VERBISH.search(c["quote"]))]
-        claims = extract.extract_claims(source_chunks) if use_llm else extract._rules_extract(source_chunks, 14, complete_quotes=True)
+        # Rule-only previews examine every acquired source chunk. A display
+        # count of 14 must not silently discard additional distinct claims.
+        claims = extract.extract_claims(source_chunks) if use_llm else extract._rules_extract(source_chunks, max(1, len(source_chunks)), complete_quotes=True)
         uploaded = bool(source_capture and source_capture.get('coverage', {}).get('scope') == 'uploaded_documents')
         if uploaded:
             from . import quick_diagrams
