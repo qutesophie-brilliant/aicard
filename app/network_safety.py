@@ -1,6 +1,7 @@
 """Bounded public-web fetches. Validate and pin every connection and redirect."""
 import ipaddress
 import socket
+import io
 
 import httpx
 
@@ -68,12 +69,26 @@ def fetch_public(url: str, *, timeout: float = 25, max_bytes: int = 16 * 1024 * 
                         data = bytearray()
                         if not stream.is_redirect:
                             stream.raise_for_status()
-                            if image_only and not stream.headers.get('content-type', '').startswith('image/'):
+                            content_type = stream.headers.get('content-type', '').split(';', 1)[0].strip().lower()
+                            binary_image = image_only and content_type == 'application/octet-stream'
+                            if image_only and not (content_type.startswith('image/') or binary_image):
                                 raise PublicURLRejected('이미지 파일이 아닌 응답입니다.')
                             for block in stream.iter_bytes():
                                 if len(data) + len(block) > max_bytes:
                                     raise PublicURLRejected('분석 가능한 다운로드 크기를 초과했습니다.')
                                 data.extend(block)
+                            if binary_image:
+                                # Some product CDNs serve genuine raster images
+                                # as octet-stream. Do not trust extensions or a
+                                # claimed signature: verify the bounded payload.
+                                from PIL import Image
+                                try:
+                                    with Image.open(io.BytesIO(data)) as im:
+                                        if im.format not in ('JPEG', 'PNG', 'WEBP', 'GIF', 'BMP'):
+                                            raise ValueError('unsupported image')
+                                        im.verify()
+                                except Exception as exc:
+                                    raise PublicURLRejected('이미지 파일이 아닌 응답입니다.') from exc
                         response_headers = {k: v for k, v in stream.headers.items()
                                             if k not in ('content-encoding', 'content-length')}
                         response = httpx.Response(stream.status_code, headers=response_headers,

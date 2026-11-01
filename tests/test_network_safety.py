@@ -101,6 +101,28 @@ class NetworkSafetyTests(unittest.TestCase):
             result = safety.fetch_public('https://example.com/product')
         self.assertEqual(result.content, raw)
 
+    def test_binary_cdn_payload_requires_valid_raster_image(self):
+        import io
+        from PIL import Image
+        for fmt in ('PNG', 'WEBP'):
+            output = io.BytesIO()
+            Image.new('RGB', (10, 10), 'white').save(output, format=fmt)
+            body = output.getvalue()
+            with self.subTest(fmt=fmt), patch.object(safety.socket, 'getaddrinfo', side_effect=dns), \
+                 patch.object(safety.httpx, 'Client', side_effect=self.client_factory(
+                     lambda request: httpx.Response(200, headers={'Content-Type':'application/octet-stream'}, content=body))):
+                self.assertEqual(body, safety.fetch_public('https://cdn.example.com/file', image_only=True).content)
+                with self.assertRaises(safety.PublicURLRejected):
+                    safety.fetch_public('https://cdn.example.com/file', image_only=True, max_bytes=5)
+
+    def test_binary_html_and_forged_image_signature_rejected(self):
+        for body in (b'<html>Access denied</html>', b'RIFF1234WEBP<html>not an image</html>'):
+            with self.subTest(body=body), patch.object(safety.socket, 'getaddrinfo', side_effect=dns), \
+                 patch.object(safety.httpx, 'Client', side_effect=self.client_factory(
+                     lambda request: httpx.Response(200, headers={'Content-Type':'application/octet-stream'}, content=body))):
+                with self.assertRaises(safety.PublicURLRejected):
+                    safety.fetch_public('https://cdn.example.com/image.webp', image_only=True)
+
     def test_redirect_limit_and_image_host_allowlist(self):
         def handler(request):
             return httpx.Response(302, headers={'Location':'https://other.example.com/a'})
