@@ -5,6 +5,35 @@ from urllib.parse import urljoin, urlsplit
 from . import product_page, ocr
 from .. import config
 
+
+def spread_candidates(candidates, limit):
+    """Cover long descriptions before spending the budget on adjacent slices.
+
+    Explicit AI-labelled images retain priority. Within each priority group,
+    visit both ends and successively split the widest gap. A slow CDN should
+    not make the first promotional/installation panels our entire evidence.
+    """
+    if len(candidates) <= limit:
+        return candidates
+    ordered = []
+    for score in sorted({score for score, _ in candidates}, reverse=True):
+        group = [row for row in candidates if row[0] == score]
+        picks = [0] if len(group) == 1 else [0, len(group)-1]
+        gaps = [(0, len(group)-1)]
+        while len(picks) < min(limit, len(group)):
+            left, right = max(gaps, key=lambda pair: pair[1]-pair[0])
+            gaps.remove((left, right))
+            if right-left <= 1:
+                break
+            middle = (left+right)//2
+            picks.append(middle)
+            gaps.extend([(left,middle),(middle,right)])
+        selected = set(picks)
+        ordered.extend(group[i] for i in picks)
+        ordered.extend(row for i,row in enumerate(group) if i not in selected)
+    return ordered
+
+
 def capture_images(html, url, capture, fetch_bytes=None, reader=None, limit=24):
     import httpx
     from .ingest import chunk_text, merge_ocr_lines
@@ -29,6 +58,7 @@ def capture_images(html, url, capture, fetch_bytes=None, reader=None, limit=24):
     duplicates = {src for _,src in candidates if re.search(r'/MO_',src,re.I)
                   and re.sub(r'/MO_', '/PC_', src, flags=re.I) in sources}
     candidates = [(score,src) for score,src in candidates if src not in duplicates]
+    candidates = spread_candidates(candidates, limit)
     def download(src):
         from ..network_safety import fetch_public
         # The product body identifies candidate CDNs. Each fetch and redirect
