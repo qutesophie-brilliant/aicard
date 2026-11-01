@@ -282,6 +282,8 @@ def _rules_extract(source_chunks: list[dict[str, Any]], max_claims: int, *, comp
             ai_match = re.search(r'인공\s+지능', q)
         if not ai_match:
             continue
+        if complete_quotes and re.search(r'^\s*(?:learn|read|find\s+out)\s+more\b', q, re.I):
+            continue  # Navigation copy does not describe this product's AI.
         # Quick previews also receive English copy on Korean manufacturer sites.
         # Keep exact source wording, without translating or changing formal rules.
         english_function = complete_quotes and bool(re.search(

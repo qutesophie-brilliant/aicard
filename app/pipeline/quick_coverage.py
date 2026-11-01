@@ -42,6 +42,13 @@ def _matches(key: str, text: str) -> bool:
     if SCENE_DESCRIPTION.search(text) or SITE_COMMON.search(text):
         return False
     if key == "data":
+        # Interface throughput is not a statement about collection or handling
+        # of a consumer's data. Preserve explicit personal/cloud-data clauses.
+        interface_spec = re.search(r'USB\d*|Type[ -]?C|Thunderbolt|썬더볼트|포트|인터페이스', text, re.I)
+        throughput = re.search(r'데이터\s*전송|전송\s*속도|[GM]bps|[GM]B/s', text, re.I)
+        personal_handling = re.search(r'개인\s*정보|개인\s*데이터|사용자|이용자|고객|수집|서버|클라우드|암호화|삭제|보관', text, re.I)
+        if interface_spec and throughput and not personal_handling:
+            return False
         return bool(_DATA_SUBJECT.search(text))
     if key == "optout":
         # A refrigerator compartment's power switch does not show that its AI
