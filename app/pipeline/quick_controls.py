@@ -9,6 +9,19 @@ def connect(claims, docs):
         if not (re.search(r'AI|인공지능|지능형', text, re.I)
                 and re.search(r'습도\s*(?:조절|제어)', text)):
             continue
+        related = []
+        for evidence in claim.get('evidence', []):
+            # Retailer summaries place "+ next feature" immediately after
+            # a sensor explanation. Quote only the first feature, not its
+            # neighbouring power-saving heading or standalone explanation.
+            quote = re.split(r'\s+\+\s+', evidence['quote'], maxsplit=1)[0].strip()
+            if not re.search(r'습도|가습', quote):
+                continue
+            related.append(dict(evidence, quote=quote))
+        if claim.get('evidence') and not related and claim.get('basis_state') != '어긋남':
+            claim.update(basis_state='없음', status='자료 부족', basis=None,
+                         conditions_noted=False, conditions='', condition_evidence=[])
+        claim['evidence'] = related
         doc = documents[claim['source']['doc_id']]
         start = claim['source']['chunk']
         chunks = doc['chunks']

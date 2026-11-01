@@ -46,6 +46,19 @@ class QuickIntelligentWordingTests(unittest.TestCase):
         self.assertEqual([],check([HEADING,'AI 온도 조절',CONTROL]))
         self.assertEqual([],check([HEADING], [{'id':2,'kind':'판매페이지','chunks':[CONTROL]}]))
 
+    def test_humidity_sensor_does_not_borrow_power_saving_explanation(self):
+        from app.pipeline import quick_controls
+        sensor = '+ 지능형 자동 습도 조절 센서 공기 중의 습도 상태를 지속적으로 감지하여 습도를 조절하는 센서'
+        power = '일정 시간 후 자동으로 절전 모드로 전환되어 불필요한 전력 소모를 줄여줍니다'
+        claim={'text':HEADING,'source':{'doc_id':1,'chunk':0},'basis_state':'있음',
+               'evidence':[{'doc_id':1,'quote':sensor+' + 자동으로 전환되는 절전 모드'},
+                           {'doc_id':1,'quote':power}]}
+        result=quick_controls.connect([claim],[{'id':1,'kind':'판매페이지','chunks':[HEADING,CONTROL]}])[0]
+        quotes=[e['quote'] for e in result['evidence']]
+        self.assertIn(sensor,quotes)
+        self.assertIn(CONTROL,quotes)
+        self.assertFalse(any('절전' in q for q in quotes))
+
     def test_functional_context_required_and_formal_rules_unchanged(self):
         for text in ['지능형 디자인과 아름다운 색상', '지능형 제품 할인 쿠폰 받기']:
             card, _ = quick_check('제품', '', text)
