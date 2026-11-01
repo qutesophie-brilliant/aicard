@@ -151,7 +151,8 @@ def run_browser(url, fetch=None):
                 except Exception:
                     pass  # Some shops never finish navigation; only actual product DOM can pass later.
                 # Scroll to explicit descriptions; never click purchases/consent/login controls.
-                from .product_page import DETAIL_SELECTOR
+                from .product_page import detail_selector
+                selector = detail_selector(page.url)
                 for step in range(6):
                     if time.monotonic() >= deadline: break
                     await page.evaluate('''([selector, step]) => {
@@ -165,7 +166,7 @@ def run_browser(url, fetch=None):
                         const target = nodes.find(n => n.tagName !== 'IFRAME');
                         if (target && step === 0) target.scrollIntoView();
                         else window.scrollBy(0, 700);
-                    }''', [DETAIL_SELECTOR, step])
+                    }''', [selector, step])
                     await page.wait_for_timeout(650)
                 html = await page.content()
                 # A rendered iframe has its own document: page.content() alone
@@ -178,7 +179,7 @@ def run_browser(url, fetch=None):
                 for frame in page.frames[1:4]:
                     try:
                         owner = await frame.frame_element()
-                        identified = await owner.evaluate('(el, selector) => !!el.closest(selector)', DETAIL_SELECTOR)
+                        identified = await owner.evaluate('(el, selector) => !!el.closest(selector)', selector)
                         if not identified or frame.url.startswith(('about:', 'data:')): continue
                         if any(word in frame.url.lower() for word in ('youtube','vimeo','doubleclick','review','recommend','tracking','advert')): continue
                         from .page_recovery import access_problem
@@ -196,7 +197,7 @@ def run_browser(url, fetch=None):
                                 im.attrs.pop(key,None)
                         holder = soup.new_tag('div', attrs={'class':'product-description','data-source-url':frame.url})
                         for node in list((child.body or child).contents): holder.append(node)
-                        target = next((n for n in soup.select(DETAIL_SELECTOR) if n.name != 'iframe'), soup.body or soup)
+                        target = next((n for n in soup.select(selector) if n.name != 'iframe'), soup.body or soup)
                         target.append(holder)
                         for old in list(soup.select('iframe')):
                             if urljoin(page.url,old.get('src','')) == frame.url: old.decompose()

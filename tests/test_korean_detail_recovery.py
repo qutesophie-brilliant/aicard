@@ -6,6 +6,18 @@ from app.pipeline.product_page import product_body, product_text, ProductBodyUna
 
 
 class KoreanDetailRecoveryTests(unittest.TestCase):
+    def test_platform_restriction_reaches_conditions_without_inventing_support(self):
+        from app.pipeline.run import quick_check
+        from app.pipeline import quick_coverage
+        quote = '통합 및 기능 호환성은 플랫폼에 따라 다를 수 있습니다.'
+        card, _ = quick_check('회의 카메라', 'https://example.com/product',
+                              'AI 비디오 인텔리전스로 화면을 조절합니다.\n' + quote)
+        self.assertIn(quote, [e['quote'] for e in card['items']['conditions']['evidence']])
+        for text in ('배송 지원은 플랫폼에 따라 다를 수 있습니다.',
+                     '기능 호환성은 모든 플랫폼에서 지원됩니다.',
+                     '반품 기능은 플랫폼에 따라 다를 수 있습니다.'):
+            self.assertFalse(quick_coverage._matches('conditions', text))
+
     def test_intelligent_assistant_is_a_claim_not_proof_of_machine_learning(self):
         from app.pipeline.run import quick_check
         text = '지능형 어시스턴트\n*앱 내 실시간 채팅 기능은 추후 OTA 업데이트로 제공됩니다. 이 기능은 영어 대화만 지원합니다.'

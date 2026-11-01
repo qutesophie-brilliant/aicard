@@ -1,5 +1,6 @@
 """User-initiated product DOM transfer; never collect browser credentials."""
 from bs4 import BeautifulSoup
+from urllib.parse import urljoin, urlsplit
 from ..network_safety import public_addresses
 from . import product_page, ingest
 
@@ -11,9 +12,20 @@ def read(html, url):
     soup = BeautifulSoup(html, 'html.parser')
     for n in list(soup.select('script,style,noscript,iframe,object,embed,form,input,textarea,select,button,nav,header,footer,aside,svg,[contenteditable]')):
         if n.parent: n.decompose()
+    image_sources = {id(n): product_page.image_source(n) for n in soup.select('img')}
     for n in soup.find_all(True):
+        # Resolve the public detail image before dropping lazy-load attributes.
+        # Do not forward any unrelated data attributes or browser credentials.
+        raw_src = image_sources.get(id(n), '')
+        src = urljoin(url, raw_src) if raw_src else ''
         n.attrs = {k:v for k,v in n.attrs.items() if k in ('class','id','itemprop','src')}
-        if n.name != 'img': n.attrs.pop('src',None)
+        n.attrs.pop('src', None)
+        if n.name == 'img':
+            parsed = urlsplit(src)
+            if parsed.scheme in ('http', 'https') and not parsed.username and not parsed.password:
+                n['src'] = src
+            else:
+                n.decompose()
     # Only known product sections can become evidence; no whole-page fallback.
     product_page.product_body(str(soup), url)
     result = ingest.from_product_html(str(soup), url, ocr_images=True)

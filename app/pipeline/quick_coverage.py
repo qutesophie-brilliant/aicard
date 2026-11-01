@@ -96,6 +96,11 @@ def _matches_sentence(key: str, text: str) -> bool:
     # Stock, delivery and return restrictions do not describe AI operation.
     if re.search(r'재고|생산월|매장|반품|교환|철거|회수|추가\s*비용|살균\s*효과', text):
         return False
+    # Compatibility restrictions can refer to "features" without repeating AI.
+    # Keep restrictions, not blanket compatibility or store/payment policies.
+    if re.search(r'(?:기능|통합|연동|호환성).{0,35}(?:플랫폼|운영\s*체제|OS\b|앱\s*버전)'
+                 r'.{0,25}(?:따라\s*다를|달라질|제한|지원되지|지원하지)', text, re.I):
+        return True
     # A language restriction is an operating condition even when a footnote
     # refers to "this feature" instead of repeating the AI feature's name.
     if re.search(r'(?:기능|음성|대화|명령|어시스턴트|챗봇|인식).{0,50}'

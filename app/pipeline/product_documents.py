@@ -182,7 +182,7 @@ def prepare(html, url, fetch):
     # Iframes must be explicitly inside an identified description, or have a
     # known description-frame ID. Advertising/video/recommendation frames stay out.
     frames = []
-    description_roots = soup.select(product_page.DETAIL_SELECTOR) + product_page.semantic_details(soup)
+    description_roots = soup.select(product_page.detail_selector(url)) + product_page.semantic_details(soup)
     for root in description_roots:
         for frame in ([root] if root.name == 'iframe' else root.select('iframe')):
             identity = ' '.join([frame.get('id', ''), frame.get('title', ''), frame.get('src', '')]).lower()
@@ -252,7 +252,7 @@ def prepare(html, url, fetch):
             fragment = child.body.decode_contents() if child.body else str(child)
             holder = BeautifulSoup('<div class="product-description" data-source-url="' + escape(base, quote=True) + '">' + fragment + '</div>', 'html.parser')
             # Attach within selected root so manufacturer-specific selectors work.
-            roots = soup.select(product_page.DETAIL_SELECTOR)
+            roots = soup.select(product_page.detail_selector(url))
             target = next((r for r in roots if r.name != 'iframe'), soup.body or soup)
             target.append(holder)
             records.append({'url':base, 'status':'read'})
@@ -266,7 +266,7 @@ def prepare(html, url, fetch):
         # Keep its parent-page provenance separate from the linked description.
         holder = BeautifulSoup('<div class="product-description" data-source-url="' +
             escape(url, quote=True) + '"><h2>상품명</h2><p>' + escape(heading) + '</p></div>', 'html.parser')
-        roots = soup.select(product_page.DETAIL_SELECTOR)
+        roots = soup.select(product_page.detail_selector(url))
         target = next((r for r in roots if r.name != 'iframe'), soup.body or soup)
         target.append(holder)
     return str(soup), records

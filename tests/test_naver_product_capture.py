@@ -10,6 +10,33 @@ TEXT = 'AI 맞춤 운전은 실내 습도를 감지하여 가습량을 자동으
 
 
 class NaverProductCaptureTests(unittest.TestCase):
+    def test_naver_detail_iframe_enters_shared_fetch_pipeline(self):
+        import httpx
+        from unittest.mock import Mock
+        from app.pipeline import product_documents
+        html = '<div id="pib_detail_page"><iframe src="/public-description"></iframe></div><div id="REVIEW"><iframe src="/review"></iframe></div>'
+        response = httpx.Response(200, text='<p>' + TEXT + '</p><img data-src="https://cdn.example/detail.jpg">',
+                                 headers={'content-type':'text/html'},
+                                 request=httpx.Request('GET', 'https://smartstore.naver.com/public-description'))
+        fetch = Mock(return_value=response)
+        prepared, records = product_documents.prepare(html, URL, fetch)
+        fetch.assert_called_once_with('https://smartstore.naver.com/public-description')
+        self.assertEqual('read', records[0]['status'])
+        self.assertIn(TEXT, product_page.product_text(product_page.product_body(prepared, URL)))
+        self.assertIn(product_page.NAVER_DETAIL_SELECTOR, product_page.detail_selector(URL))
+        self.assertNotIn(product_page.NAVER_DETAIL_SELECTOR, product_page.detail_selector('https://blog.naver.com/a'))
+
+    def test_browser_transfer_preserves_lazy_picture_image_without_private_attributes(self):
+        html = '<div id="pib_detail_page"><p>' + TEXT + '</p><picture><source srcset="https://cdn.example/small.jpg 400w, https://cdn.example/large.jpg 1200w"><img src="data:image/png;base64,placeholder" data-private="secret"></picture><img data-src="/detail.jpg"><img></div>'
+        result = ingest.Ingested('x', TEXT, [], source_capture={})
+        with patch.object(browser_capture, 'public_addresses'), patch.object(ingest, 'from_product_html', return_value=result) as parse:
+            browser_capture.read(html, URL)
+        transferred = parse.call_args.args[0]
+        self.assertIn('https://cdn.example/large.jpg', transferred)
+        self.assertIn('https://smartstore.naver.com/detail.jpg', transferred)
+        self.assertNotIn('secret', transferred)
+        self.assertNotIn('data-src', transferred)
+
     def test_both_editors_preserve_description_and_lazy_images(self):
         for wrapper in ('<div id="pib_detail_page">{}</div>',
                         '<div class="editor_wrap se_smartstore_wrap"><div class="se-main-container">{}</div></div>'):

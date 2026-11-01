@@ -89,6 +89,12 @@ DETAIL_SELECTOR = (
 )
 
 
+def detail_selector(url):
+    """Use the same scoped description roots during fetch and rendering."""
+    return (DETAIL_SELECTOR + ', ' + NAVER_DETAIL_SELECTOR
+            if is_naver_product(url) else DETAIL_SELECTOR)
+
+
 def _detail_media(node):
     return (node.name == 'c-hp-hero-banner' or node.find_parent('c-hp-hero-banner') is not None or
             'c-hp-hero-banner__description' in node.get('class', []) or
