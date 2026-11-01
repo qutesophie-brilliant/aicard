@@ -5,6 +5,12 @@ from app.pipeline.product_page import product_body, product_text, ProductBodyUna
 
 
 class EmbeddedFeatureTests(unittest.TestCase):
+    def test_feature_translation_and_app_prerequisite(self):
+        from app.pipeline.quick_coverage import _matches
+        self.assertFalse(_matches('optout', '고성능 그래픽을 통해 더 빠른 편집과 같은 AI 경험을 해제할 수 있습니다.'))
+        self.assertTrue(_matches('optout', '설정에서 AI 기능을 해제할 수 있습니다.'))
+        self.assertTrue(_matches('conditions', '*탭하여 공유 기능을 사용하려면 Smart Share 앱이 실행 중이어야 합니다.'))
+
     def page(self, suffix='', extra=None):
         data = {'productFeatures': {'productFeatures': [{
             'galleryList': [{'altStr': '광고 장면 AI 설명', 'contentList': [{

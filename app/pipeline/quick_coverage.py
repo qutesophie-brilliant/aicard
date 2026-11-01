@@ -50,6 +50,9 @@ def _matches(key: str, text: str) -> bool:
         # actions such as "Prestige AI / Disable Wi-Fi / Disable lighting".
         # Keep the named intelligent function and the action in one clause.
         for clause in re.split(r'[/;。!?]|\.(?:\s|$)', text):
+            # Translated "unlock AI experiences/potential" is a benefit, not
+            # an instruction for turning the feature off.
+            clause = re.sub(r'(?:경험|잠재력|가능성)(?:을|를)\s*해제', '', clause)
             if not re.search(r'\bAI\b|인공지능|학습|생성형|음성|인식|감지|스마트|자동', clause, re.I):
                 continue
             if _OPTOUT.search(clause) or _EN_OPTOUT.search(clause):
@@ -62,6 +65,8 @@ def _matches(key: str, text: str) -> bool:
     # Stock, delivery and return restrictions do not describe AI operation.
     if re.search(r'재고|생산월|매장|반품|교환|철거|회수|추가\s*비용|살균\s*효과', text):
         return False
+    if re.search(r'(?:사용|이용)(?:하려면|하기\s*위해).{0,60}앱.{0,20}실행\s*중이어야', text):
+        return True
     from .condition_type import condition_type
     explicit_trial=re.search(r'^(?:[\s*※-])*(?:시험|실험|테스트)\s*(?:부하|조건|환경|방법|모델)\s*[:：]',text)
     kind=condition_type(text)
