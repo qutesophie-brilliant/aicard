@@ -666,9 +666,11 @@ def _read_check_uploads(payloads: list[tuple[str, str, bytes]]) -> tuple[list[st
         texts: list[str] = []
         notes: list[str] = []
         engines = {"llm": "AI 문자 인식", "tesseract": "서버 내 문자 인식", "windows_ocr": "Windows 문자 인식", "mixed": "AI·서버 문자 인식", "pdf": "PDF 텍스트 추출", "none": "글자 읽기 결과 미확인"}
-        def keep(r):
+        def keep(r, label):
             texts.extend(r.texts)
-            notes.extend(r.notes)
+            for note in r.notes:
+                scoped = note.startswith(('확인 대상 이미지', '이미지 ', '긴 이미지의 일부'))
+                notes.append(f"{label}: {note}" if scoped else note)
             notes.append("글자 읽기: " + engines.get(r.engine, "문자 인식"))
         with ExitStack() as staging:
             checked = []
@@ -683,18 +685,20 @@ def _read_check_uploads(payloads: list[tuple[str, str, bytes]]) -> tuple[list[st
                 checked.append((filename, upload.content_type, stream))
                 del upload
             imgs = []
+            image_numbers = []
             def flush():
                 if imgs:
                     try:
-                        keep(_read_upload_images(imgs, allow_llm=config.CHECK_OCR_LLM))
+                        keep(_read_upload_images(imgs, allow_llm=config.CHECK_OCR_LLM), "파일 " + ", ".join(image_numbers))
                     finally:
                         imgs.clear()
+                        image_numbers.clear()
                         release_ocr_heap()
-            for filename, ctype, stream in checked:
+            for number, (filename, ctype, stream) in enumerate(checked, 1):
                 if ctype == "application/pdf":
                     flush()
                     try:
-                        keep(ocr.read_pdf(stream.read(), allow_llm=config.CHECK_OCR_LLM, image_reader=_read_upload_images))
+                        keep(ocr.read_pdf(stream.read(), allow_llm=config.CHECK_OCR_LLM, image_reader=_read_upload_images), f"파일 {number}")
                     except ValueError:
                         raise
                     except Exception as e:
@@ -708,6 +712,7 @@ def _read_check_uploads(payloads: list[tuple[str, str, bytes]]) -> tuple[list[st
                     if is_long:
                         flush()
                     imgs.append(data)
+                    image_numbers.append(str(number))
                     del data
                     # A long capture gets its own full tile budget. Ordinary
                     # images retain efficient indexed OCR in groups of four.

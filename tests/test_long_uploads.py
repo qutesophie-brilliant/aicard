@@ -144,10 +144,12 @@ class LongImageTests(unittest.TestCase):
         sizes = []
         def reader(images, **kwargs):
             sizes.append(len(images))
-            return ocr.OcrResult(texts=['image ' + str(len(sizes))], engine='test')
+            return ocr.OcrResult(texts=['image ' + str(len(sizes))], engine='test', notes=['확인 대상 이미지 1장 중 1장에서 글자를 읽었습니다.'])
         with patch.object(main, '_read_upload_images', side_effect=reader), \
              patch.object(ocr, 'read_pdf', return_value=ocr.OcrResult(texts=['PDF middle'], engine='pdf')):
-            texts, _ = main._read_check_uploads(payloads)
+            texts, notes = main._read_check_uploads(payloads)
+        self.assertEqual(3, len([n for n in notes if '확인 대상 이미지' in n]))
+        self.assertTrue(any(n.startswith('파일 4:') for n in notes))
         self.assertEqual([1, 1, 1], sizes)
         self.assertEqual('image 1', texts[0])
         self.assertIn('PDF middle', texts[1])
