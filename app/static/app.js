@@ -387,5 +387,16 @@
   }
   window.addEventListener('hashchange', flash); flash();
 
+  // Replacing an upload document can retain its old scroll position. Start a
+  // newly received result at its heading, not at the request form below it.
+  const previewCard = document.querySelector('article.quick:not(.recovery-card)');
+  if (previewCard && !location.hash) {
+    requestAnimationFrame(() => {
+      previewCard.tabIndex = -1;
+      previewCard.focus({preventScroll:true});
+      window.scrollTo({top:0, behavior:'instant'});
+    });
+  }
+
   sync();
 })();
