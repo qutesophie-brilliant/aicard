@@ -4,6 +4,17 @@ from app.pipeline.run import quick_check
 
 
 class ProductOverviewBoundaries(unittest.TestCase):
+    def test_wrapped_english_pdf_ai_sentence_is_retained(self):
+        from app.pipeline.quick_diagrams import capture_uploads
+        text=('Make every call sound like a conversation. Four adaptive\n'
+              'beamforming mics, powered by the AI algorithm, monitor your environment and intelligently\n'
+              'eliminate both echoes and ambient noise from any direction.\n'
+              'Smart Talk\nSmart Talk automatically switches modes.')
+        card,_=quick_check('Headphones','',text,source_capture=capture_uploads([text],''))
+        claims=[c['text'] for c in card['claims']]
+        self.assertTrue(any('Four adaptive beamforming mics' in c and 'ambient noise from any direction.' in c for c in claims))
+        self.assertTrue(all('Smart Talk' not in c for c in claims))
+
     def test_html_quote_does_not_end_inside_noise_word(self):
         quote='Full HD, 60 fps 웹캠과 AI 소음 제거 기술을 탑재한 마이크가 배경 소리를 줄여줍니다.'
         html=f'<div class="productOverview"><div class="overContent"><p>{quote}</p></div></div>'

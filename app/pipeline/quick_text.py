@@ -6,7 +6,7 @@ import re
 from .ingest import normalize_spacing
 
 
-def chunks(text):
+def chunks(text, *, visual_lines=False):
     text = normalize_spacing(text)
     # PDF/OCR visual line breaks can split one sentence after a connective.
     # Join only explicit continuations; keep headings and footnotes separate.
@@ -16,6 +16,14 @@ def chunks(text):
         line=line.strip()
         if not line:
             lines.append('')
+        elif (visual_lines and lines and lines[-1]
+              and re.match(r'^[a-z][A-Za-z]*\b', line)
+              and re.search(r'[A-Za-z][A-Za-z,;: -]*$', lines[-1])
+              and len(lines[-1].split()) >= 2
+              and len(lines[-1]) + len(line) < 500):
+            # PDF/OCR layout wraps English prose mid-sentence. Lowercase
+            # continuations can be joined, but not headings, bullets or pages.
+            lines[-1] += ' ' + line
         elif lines and continuation.search(lines[-1]) and not re.match(r'^[*※†①-⑳]|^\d{1,2}[).]',line):
             lines[-1]+=' '+line
         else:
