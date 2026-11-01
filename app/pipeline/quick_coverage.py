@@ -55,6 +55,8 @@ def _matches(key: str, text: str) -> bool:
     from .condition_type import condition_type
     explicit_trial=re.search(r'^(?:[\s*※-])*(?:시험|실험|테스트)\s*(?:부하|조건|환경|방법|모델)\s*[:：]',text)
     kind=condition_type(text)
+    if kind == 'unspecified' and not re.search(r'경우|따라|필요|권장|제한|이상|이하|미만|초과|에서만|려면|않|못|전용|연결해야|지원하는|저하|느려|어려|달라', text):
+        return False
     return not explicit_trial and kind != 'test' and bool(_AI_CONTEXT.search(text)) and (
         kind=='operating' or len(set(coverage._KEYWORDS[key].findall(text))) >= 2)
 

@@ -186,6 +186,7 @@ def _other_quick_feature(claim_text, quote):
         r'냄새\s*케어|냄새저감|메틸메르캅탄|탈취',
         r'터보\s*샷|터보\s*워시',
         r'스팀|살균',
+        r'마이크|소음\s*제거|noise|microphone|beamforming',
     )
     claimed = {i for i, pattern in enumerate(families) if re.search(pattern, claim_text, re.I)}
     quoted = {i for i, pattern in enumerate(families) if re.search(pattern, quote, re.I)}

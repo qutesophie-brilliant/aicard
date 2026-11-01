@@ -4,6 +4,16 @@ from app.pipeline.run import quick_check
 
 
 class ProductOverviewBoundaries(unittest.TestCase):
+    def test_audio_claim_does_not_borrow_camera_connection(self):
+        from app.pipeline.run import _other_quick_feature
+        self.assertTrue(_other_quick_feature('ASUS AI noise-canceling microphone', '카메라를 연결하고 USB 포트에 꽂으면 됩니다.'))
+        self.assertFalse(_other_quick_feature('AI 소음 제거 마이크', '마이크가 배경 소음을 감지합니다.'))
+
+    def test_general_capability_is_not_an_operating_condition(self):
+        from app.pipeline.quick_coverage import _matches
+        self.assertFalse(_matches('conditions','스마트 감지 시스템 덕분에 최적의 방식으로 집안을 깨끗하게 청소할 수 있습니다.'))
+        self.assertFalse(_matches('conditions','스마트 AI는 사람과 차량을 인식하여 알려줍니다.'))
+
     def test_wrapped_english_pdf_ai_sentence_is_retained(self):
         from app.pipeline.quick_diagrams import capture_uploads
         text=('Make every call sound like a conversation. Four adaptive\n'
