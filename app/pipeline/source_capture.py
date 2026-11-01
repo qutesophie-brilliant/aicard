@@ -22,7 +22,12 @@ def capture_product_html(html, url, _body=None):
     raw = BeautifulSoup(html, 'html.parser')
     body = _body if _body is not None else product_page.product_body(html, url)
     remote = []
-    for node in list(body.select('[data-source-url]')):
+    # Extract outer source boundaries first. Decomposing an outer node would
+    # destroy nested boundaries still in the selection; flattening all markers
+    # would also assign a nested product title to the wrong source document.
+    boundaries = [node for node in body.select('[data-source-url]')
+                  if node.find_parent(attrs={'data-source-url': True}) is None]
+    for node in boundaries:
         remote.append((node['data-source-url'], str(node)))
         node.decompose()
     text = product_page.product_text(body)
@@ -68,8 +73,11 @@ def capture_product_html(html, url, _body=None):
             section.update(section_id=len(unique), snapshot_sha256=digest)
             unique.append(section)
     for remote_url, fragment in remote:
+        child_body = BeautifulSoup(fragment, 'html.parser')
+        boundary = child_body.select_one('[data-source-url]')
+        boundary['data-origin'] = boundary.attrs.pop('data-source-url')
         child = capture_product_html(fragment, remote_url,
-                                     _body=BeautifulSoup(fragment.replace('data-source-url=', 'data-origin='), 'html.parser'))
+                                     _body=child_body)
         for section in child['sections']:
             section['section_id'] = len(unique)
             unique.append(section)

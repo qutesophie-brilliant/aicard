@@ -2,7 +2,7 @@ import json
 import unittest
 from unittest.mock import Mock
 import httpx
-from app.pipeline import product_documents, product_page
+from app.pipeline import product_documents, product_page, source_capture
 
 
 class PublishedMarketplaceDescriptionTests(unittest.TestCase):
@@ -54,6 +54,11 @@ class PublishedMarketplaceDescriptionTests(unittest.TestCase):
         body = product_page.product_body(prepared, self.gs_url)
         self.assertIn(name, body.get_text())
         self.assertTrue(any(n.get('data-source-url') == self.gs_url for n in body.select('[data-source-url]')))
+        captured = source_capture.capture_product_html(prepared, self.gs_url)
+        names = [s for s in captured['sections'] if name in s['text']]
+        explanations = [s for s in captured['sections'] if '습도센서' in s['text']]
+        self.assertEqual([self.gs_url], [s['source_url'] for s in names])
+        self.assertEqual([self.gs_detail], [s['source_url'] for s in explanations])
         mismatch = html.replace('[GS SHOP] ' + name, '[GS SHOP] 다른 상품')
         prepared, _ = product_documents.prepare(mismatch, self.gs_url, fetch)
         self.assertNotIn(name, product_page.product_body(prepared, self.gs_url).get_text())
@@ -106,3 +111,5 @@ class PublishedMarketplaceDescriptionTests(unittest.TestCase):
         fetch = Mock(return_value=self.response(url+'/view-desc', '<div class="ifrm_prdc_detail"><img src="/detail.jpg"></div>'))
         prepared, _ = product_documents.prepare(html, url, fetch)
         self.assertIn(name, product_page.product_body(prepared, url).get_text())
+        captured = source_capture.capture_product_html(prepared, url)
+        self.assertEqual([url], [s['source_url'] for s in captured['sections'] if name in s['text']])
