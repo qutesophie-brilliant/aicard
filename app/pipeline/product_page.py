@@ -118,8 +118,8 @@ def embedded_description(soup):
 
 DETAIL_LABELS = {
     '상품상세', '상품상세정보', '상품상세설명', '상품설명', '제품상세',
-    '제품상세정보', '제품설명', '제품특징', '상세설명',
-    'productdetails', 'productdescription', 'productfeatures', 'technicaldetails',
+    '제품상세정보', '제품설명', '제품특징', '상세설명', '주요기능', '주요특징',
+    'productdetails', 'productdescription', 'productfeatures', 'technicaldetails', 'keyfeatures',
 }
 
 
@@ -284,6 +284,25 @@ def product_body(html: str, url: str) -> BeautifulSoup:
     selected.section['data-aicard-selection'] = selection_method
     for node in roots:
         selected.section.append(node)
+    # A product's introduction can sit outside its feature/detail container.
+    # Add it only when the single-product description is also present verbatim
+    # in the cleaned page. Never promote metadata-only copy or review text.
+    if roots and structured:
+        intro = BeautifulSoup(structured, 'html.parser').get_text(' ', strip=True)
+        squash = lambda value: re.sub(r'\s+', '', value)
+        key = squash(intro)
+        selected_text = squash(selected.get_text(' ', strip=True))
+        if len(key) >= 30 and key not in selected_text:
+            visible = any(squash(n.get_text(' ', strip=True)) == key
+                          for n in soup.select('p,div,section,article'))
+            if visible:
+                section = selected.new_tag('section')
+                heading = selected.new_tag('h2')
+                heading.string = '제품 소개'
+                paragraph = selected.new_tag('p')
+                paragraph.string = intro
+                section.extend([heading, paragraph])
+                selected.section.append(section)
     if (not roots or (len(re.sub(r'\s+', '', selected.get_text())) < 30
                       and not any(image_source(im) for im in selected.select('img')))) and structured:
         selected.section.clear()

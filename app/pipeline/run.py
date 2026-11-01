@@ -114,7 +114,19 @@ def quick_check(name: str, url: str, sales_text: str, fine_text: str = "", use_l
             from . import quick_diagrams
             claims = quick_diagrams.link_within_units(claims, docs)
         else:
-            claims = link.link_claims(claims, index, exclude_testimonials=True)
+            # A separately recovered overview is not proof that another feature
+            # (e.g. a mechanical blade) explains the AI mentioned in that overview.
+            # Keep the overview's own explanation, rather than borrowing details.
+            intro_docs = {d['id']: d for d in docs if not use_llm and d.get('feature_scope') == '제품 소개'}
+            linked = []
+            if not intro_docs:
+                linked = link.link_claims(claims, index, exclude_testimonials=True)
+            else:
+                for claim in claims:
+                    intro_doc = intro_docs.get(claim.get('source', {}).get('doc_id'))
+                    claim_index = ChunkIndex([intro_doc]) if intro_doc is not None else index
+                    linked.extend(link.link_claims([claim], claim_index, exclude_testimonials=True))
+            claims = linked
         # Quick-check joins nearby fragments. Do not count a repeated slogan plus
         # table labels as an additional related explanation.
         for claim in claims:

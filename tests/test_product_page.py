@@ -8,6 +8,65 @@ from app.pipeline.product_page import product_body, ProductBodyUnavailable
 
 
 class ProductPageTests(unittest.TestCase):
+    def test_product_intro_is_retained_alongside_details_without_reviews(self):
+        import json
+        from app.pipeline.source_capture import capture_product_html
+        intro = 'AI가 탑재된 기술은 피부를 감지하고 면도 강도를 자동으로 조절합니다.'
+        html = '<script type="application/ld+json">' + json.dumps({
+            '@type': 'Product', 'description': intro,
+            'review': {'reviewBody': 'AI 후기를 상품 설명으로 넣지 않습니다.'}}) + '</script>'
+        html += '<p>' + intro + '</p><div id="product-features"><p>면도날은 분당 수백 번 회전하며 피부 가까이의 수염을 절삭합니다.</p><p>해당 면도날은 별도로 구매합니다.</p></div><div class="reviews">AI 후기</div>'
+        capture = capture_product_html(html, 'https://unknown.example/products/shaver')
+        self.assertIn(intro, capture['text'])
+        self.assertIn('해당 면도날은 별도로 구매합니다.', capture['text'])
+        self.assertNotIn('AI 후기', capture['text'])
+        intro_sections = [s for s in capture['sections'] if intro in s['text']]
+        self.assertEqual(len(intro_sections), 1)
+        self.assertNotIn('별도로 구매', intro_sections[0]['text'])
+        from app.pipeline.run import quick_check
+        card, _ = quick_check('면도기', '', capture['text'], source_capture=capture)
+        self.assertTrue(card['claims'])
+        for claim in card['claims']:
+            for evidence in claim.get('evidence', []):
+                self.assertNotIn('면도날', evidence['quote'])
+
+    def test_detail_intro_merge_does_not_duplicate_or_import_hidden_metadata(self):
+        import json
+        intro = 'AI가 피부 상태를 분석하여 사용자의 면도 강도를 자동으로 조절합니다.'
+        metadata = '<script type="application/ld+json">' + json.dumps({
+            '@type': 'Product', 'description': intro}) + '</script>'
+        detail = '<div id="product-features"><p>회전식 면도날로 다양한 방향으로 자라는 수염을 정교하게 절삭합니다.</p></div>'
+        for outside in ('', '<div class="reviews"><p>' + intro + '</p></div>'):
+            self.assertNotIn(intro, product_body(metadata + detail + outside, 'https://example.com/item').get_text())
+        body = product_body(metadata + '<div id="product-features"><p>' + intro + '</p></div>', 'https://example.com/item')
+        self.assertEqual(body.get_text().count(intro), 1)
+
+    def test_key_features_tab_retains_source_conditions_without_other_tabs(self):
+        from app.pipeline.source_capture import capture_product_html
+        from app.pipeline.run import quick_check
+        for label in ('주요 기능', '주요 특징', 'Key features'):
+            html = ('<a href="#features">' + label + '</a><div id="features">'
+                    '<h2>AI를 통한 선명도</h2><p>AI 이미지 강화가 선명하고 자연스러운 이미지를 제공합니다.</p>'
+                    '<p>이 기능은 전용 앱에서 활성화할 수 있습니다.</p></div>'
+                    '<div id="certifications">인증된 다른 제품 AI 카메라</div>'
+                    '<div class="reviews">AI 이미지 강화가 아주 좋아요.</div>')
+            capture = capture_product_html(html, 'https://unknown.example/webcam')
+            card, _ = quick_check('웹캠', '', capture['text'], source_capture=capture)
+            self.assertTrue(any('AI 이미지 강화' in c['text'] for c in card['claims']))
+            self.assertIn('전용 앱', capture['text'])
+            self.assertNotIn('다른 제품', capture['text'])
+            self.assertNotIn('좋아요', capture['text'])
+
+    def test_image_enhancement_preview_keeps_formal_extraction_and_noise_filters(self):
+        quote = 'AI 이미지 강화가 선명하고 자연스러운 이미지를 제공합니다.'
+        rows = [{'doc_id': 1, 'chunk': 0, 'quote': quote}]
+        self.assertEqual(extract._rules_extract(rows, 14), [])
+        self.assertEqual(extract._rules_extract(rows, 14, complete_quotes=True)[0]['text'], quote)
+        for noise in ('이미지 강화가 선명하고 자연스러운 이미지를 제공합니다.',
+                      'AI 이미지 강화가 마음에 드는 고객 후기입니다.',
+                      'AI 이미지 강화 제품을 할인된 가격으로 구매하세요.'):
+            self.assertEqual(extract._rules_extract([{'doc_id': 1, 'chunk': 0, 'quote': noise}], 14, complete_quotes=True), [])
+
     def test_cafe24_lazy_image_body_without_text(self):
         html = '''<nav>AI 추천</nav><div id="prdDetail"><img ec-data-src="/detail.jpg" src="data:image/gif;base64,AA"></div>
         <div id="prdReview">다른 제품 리뷰</div><div class="relatedProducts"><img src="/other.jpg"></div>'''
