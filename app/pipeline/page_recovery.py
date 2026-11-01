@@ -51,7 +51,7 @@ def access_problem(html, url):
     soup = BeautifulSoup(html, 'html.parser')
     title = soup.title.get_text(' ', strip=True).lower() if soup.title else ''
     host = (urlsplit(url).hostname or '').lower()
-    if host == 'nid.naver.com' or any(p in title for p in ('로그인', 'access denied', 'captcha', 'just a moment', '접근이 제한', '상품을 찾을 수 없습니다')):
+    if host == 'nid.naver.com' or any(p in title for p in ('로그인', 'access denied', 'access blocking country info', 'captcha', 'just a moment', '접근이 제한', '상품을 찾을 수 없습니다')):
         return True
     return False
 

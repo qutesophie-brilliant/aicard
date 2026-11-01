@@ -333,6 +333,8 @@ def from_product_html(html: str, url: str, ocr_images: bool = False) -> Ingested
     soup = BeautifulSoup(html, 'html.parser')
     title = soup.title.get_text(' ', strip=True) if soup.title else url
     image_count = capture.get("coverage", {}).get("image_candidates", 0)
+    from .marketplace_documents import product_heading
+    title = product_heading(soup, url) or title
     read_count = sum(bool(i["text"]) for i in capture.get("images", []))
     coverage = capture['coverage']
     image_notes = []

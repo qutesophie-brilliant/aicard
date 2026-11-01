@@ -103,6 +103,20 @@ def expand_gs_description(soup, url):
 def product_heading(soup, url):
     """Keep the actual current product name alongside recovered image copy."""
     p = urlsplit(url)
+    from .product_page import himart_product_id
+    himart = himart_product_id(url)
+    if himart:
+        def meta(key):
+            nodes = soup.select('meta[property="' + key + '"][content]')
+            return nodes[0]['content'].strip() if len(nodes) == 1 else ''
+        names = soup.select('.hm-goods-name')
+        name = names[0].get_text(' ', strip=True) if len(names) == 1 else ''
+        # The social title is only the retailer name. Require the visible
+        # product name and independently published item ID/name to agree.
+        if (name and meta('eg:itemId') == himart
+                and meta('eg:itemName') == name and meta('og:description') == name):
+            return name
+        return ''
     titles = soup.select('meta[property="og:title"][content]')
     if len(titles) != 1:
         return ''
