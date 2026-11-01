@@ -5,6 +5,22 @@ from app.pipeline.product_page import product_body, product_text, ProductBodyUna
 
 
 class NewStorefrontCopyTests(unittest.TestCase):
+    def test_server_rendered_product_editor_preserves_accessible_detail_copy(self):
+        html = '''<h2>제품 상세</h2><div>카메라 이름과 공유하기</div>
+        <div id="tab01Ssr" style="display:none" aria-hidden="true">
+        <div class="prd_detail prd_editor"><div class="eventPage">
+        <img src="https://cdn.example/feature.jpg"><div class="ir-hidden">
+        <h3>딥러닝 피사체 추적</h3><p>딥러닝 기술은 피사체의 특성을 인식하여 자세가 바뀌어도 안정적으로 추적합니다.</p>
+        <p>피사체에 따라 검출하지 못할 수 있습니다.</p></div></div></div></div>
+        <div class="recommendations">다른 카메라 AI 할인</div>'''
+        body = product_body(html, 'https://camera.example/product/detail/123')
+        text = product_text(body)
+        self.assertIn('딥러닝 기술은 피사체의 특성을', text)
+        self.assertIn('피사체에 따라 검출하지 못할 수', text)
+        self.assertNotIn('공유하기', text)
+        self.assertNotIn('다른 카메라', text)
+        self.assertEqual(body.img['src'], 'https://cdn.example/feature.jpg')
+
     def test_shopify_product_overview_keeps_copy_not_other_store_content(self):
         html = '''<main><section class="shopify-section--custom-html">
         <div class="overview-content"><section><h2>스마트 AI 감지</h2>

@@ -57,7 +57,7 @@ DETAIL_SELECTOR = (
     '#productDetail, #prodDetail, #prdDetail, .product-detail, .product_detail, '
     '#compGoodsFeatures, #prdDetailContent, #prdDetailCont, #goods_description, '
     '#goodsDescription, #goods_contents, #goodsContents, .goods_description, '
-    '#sit_inf_explan, .prod_view_detail, '
+    '#sit_inf_explan, .prod_view_detail, .prd_detail.prd_editor, '
     '.xans-product-additional #prdDetail .cont, #detailIfrm, #ifrmDesc, '
     '#productDescriptionArea, #llis-root, #llis-goodsdetail-frame, '
     'body.template-product .product-media-and-text, '
