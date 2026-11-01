@@ -60,6 +60,7 @@ class AlternativeTests(unittest.TestCase):
     def test_category_and_explicit_model_suffix_mismatch_are_excluded(self):
         title = '삼성 AI 냉장고 RM70F90R2DD'
         for target in ('https://m.ssg.com/sellerhome/104777/category?dispCtgId=6000208876',
+                       'https://www.mi.com/kr/event/black-friday-2026/',
                        'https://www.samsung.com/sec/support/model/RM70F90R2D/'):
             result = alt.resolve_sources(alt.parse_sources(payload(target), ORIGINAL), ORIGINAL, title)
             self.assertEqual([], result['sources'])

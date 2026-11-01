@@ -103,7 +103,7 @@ def resolve_sources(result, original, title=''):
         # Video/social links are not usable inputs for the product-page reader.
         non_product = ('youtube.com', 'youtu.be', 'instagram.com', 'tiktok.com', 'facebook.com')
         path = urlsplit(target).path.rstrip('/').lower()
-        listing = bool(re.match(r'^/(?:category|categories|search|sellerhome)(?:/|$)', path))
+        listing = bool(re.match(r'^/(?:[a-z]{2}(?:-[a-z]{2})?/)?(?:category|categories|search|sellerhome|events?|promotion)(?:/|$)', path))
         if (any(host == domain or host.endswith('.' + domain) for domain in non_product)
                 or listing or conflicting_model(title, target)
                 or not identity or identity == source_identity(original) or identity in seen):
