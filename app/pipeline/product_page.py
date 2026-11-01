@@ -53,7 +53,7 @@ def image_source(image):
 
 DETAIL_SELECTOR = (
     '[itemprop="description"], #productDescription, #product-description, '
-    '.product-description, .product__description, #product-detail, '
+    '.product-description, .product__description, .product-feature, #product-detail, '
     '#productDetail, #prodDetail, #prdDetail, .product-detail, .product_detail, '
     '#compGoodsFeatures, #prdDetailContent, #prdDetailCont, #goods_description, '
     '#goodsDescription, #goods_contents, #goodsContents, .goods_description, '

@@ -9,6 +9,12 @@ class OverviewRecoveryTests(unittest.TestCase):
     url = 'https://www.mi.com/kr/product/example-robot/buy/'
     overview = 'https://www.mi.com/kr/product/example-robot/'
 
+    def test_explicit_feature_modules_keep_images_without_product_gallery(self):
+        html = '<main><div class="gallery"><img src="/thumbnail.jpg"></div><div class="product-feature"><h2>AI 물체 인식</h2><img src="/description.jpg"><p>카메라로 장애물을 인식하고 회피합니다.</p></div><div class="recommend"><div class="product-feature">다른 제품 AI 음성 인식</div></div></main>'
+        body = product_page.product_body(html, 'https://example.com/product/robot')
+        self.assertEqual([im['src'] for im in body.select('img')], ['/description.jpg'])
+        self.assertNotIn('다른 제품', body.get_text())
+
     def shell(self, target):
         return '<script>window.__PRELOADED_STATE__ = ' + json.dumps({'pageButton': [{'link': target}]}) + ';</script>'
 
