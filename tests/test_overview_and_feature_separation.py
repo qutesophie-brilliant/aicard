@@ -43,6 +43,24 @@ class OverviewRecoveryTests(unittest.TestCase):
 
 
 class FeatureSeparationTests(unittest.TestCase):
+    def test_quick_preview_keeps_english_ai_function_source(self):
+        from app.pipeline.extract import _rules_extract
+        quote = 'The AI Instant Re-Mop is capable of detecting areas on the floor that require deep cleaning.'
+        rows = [{'doc_id': 1, 'chunk': 0, 'quote': quote}]
+        quick = _rules_extract(rows, 14, complete_quotes=True)
+        self.assertEqual(quick[0]['text'], quote)
+        self.assertEqual(quick[0]['source']['quote'], quote)
+        self.assertEqual(_rules_extract(rows, 14), [])
+
+    def test_english_checkout_and_non_ai_functions_are_not_claims(self):
+        from app.pipeline.extract import _rules_extract
+        rows = [{'doc_id': 1, 'chunk': i, 'quote': q} for i,q in enumerate([
+            'AI cleaning discount coupon shipping offer',
+            'The robot can clean the floor automatically.',
+            'Test conditions: AI cleaning was tested in our laboratory.'
+        ])]
+        self.assertEqual(_rules_extract(rows, 14, complete_quotes=True), [])
+
     def test_navigation_does_not_borrow_suction_trial(self):
         source = 'AI 카메라가 장애물을 인식하고 위치를 파악합니다.\n시험 조건: 싸이클론 흡입력은 독립시험기관에서 측정했습니다.'
         card, _ = quick_check('로봇청소기', '', source)

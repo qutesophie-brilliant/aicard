@@ -278,7 +278,15 @@ def _rules_extract(source_chunks: list[dict[str, Any]], max_claims: int, *, comp
         q = c["quote"]
         if not AI_PATTERN.search(q):
             continue
-        if _NOISE_LINE.search(q) or not _FUNC_CUE.search(q) or len(q) > (500 if complete_quotes else 200):
+        # Quick previews also receive English copy on Korean manufacturer sites.
+        # Keep exact source wording, without translating or changing formal rules.
+        english_function = complete_quotes and bool(re.search(
+            r'\b(?:detect\w*|recogniz\w*|recognis\w*|recognition|clean\w*|mop\w*|'
+            r'navigat\w*|control\w*|track\w*|adjust\w*|learn\w*|optimiz\w*|'
+            r'optimis\w*|voice|assistant|image|sound|temperature)\b', q, re.I))
+        if _NOISE_LINE.search(q) or not (_FUNC_CUE.search(q) or english_function) or len(q) > (500 if complete_quotes else 200):
+            continue
+        if english_function and re.search(r'^\s*(?:[*†※]|note\s*:|test\s+conditions\s*:)|\b(?:customer review|add to cart|shipping|discount|coupon)\b', q, re.I):
             continue
         if complete_quotes and (not CORE_AI.search(q) or FOOTNOTE_INLINE.match(q)):
             continue  # Quick-check counts explicit AI wording, not every nearby automatic feature.
