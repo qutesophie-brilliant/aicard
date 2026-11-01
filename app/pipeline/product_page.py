@@ -65,6 +65,7 @@ DETAIL_SELECTOR = (
     '#product-features, .product-features, [data-testid="product-features"], '
     '#see-all-benefits, #CMD.features, '
     '.template-product .overview-tab, '
+    '.productOverview .overContent, .product-info .overview-content, '
     '#overviewContentInsertWrapper #CMD:has(section.wd__section)'
 )
 
@@ -73,6 +74,13 @@ def _detail_media(node):
     return ('usp-banner-wrap' in node.get('class', []) or
             ('list-item-banner' in node.get('class', []) and
              node.find_parent(class_='product-media-and-text') is not None))
+
+
+def _detail_heading(node):
+    # A feature-card-header is a product heading, not the site's header.
+    # Retaining it also stops a preceding specification joining the next feature.
+    return (node.name in ('h1', 'h2', 'h3', 'h4', 'h5', 'h6')
+            and node.find_parent(class_=lambda value: value in ('feature-card', 'product-feature')) is not None)
 
 
 def structured_description(soup):
@@ -283,7 +291,7 @@ def product_body(html: str, url: str) -> BeautifulSoup:
             continue
         identity = " ".join([node.get("id", ""), *node.get("class", [])])
         identity = re.sub(r"([a-z])([A-Z])", r"\1 \2", identity)
-        if _NOISE.search(identity) and not _detail_media(node):
+        if _NOISE.search(identity) and not _detail_media(node) and not _detail_heading(node):
             node.decompose()
 
     if host in ('dyson.co.kr', 'www.dyson.co.kr') and soup.select_one('body.catalog-product-view'):
@@ -377,7 +385,7 @@ def product_body(html: str, url: str) -> BeautifulSoup:
         if node.parent is None: continue
         identity = ' '.join([node.get('id', ''), *node.get('class', [])])
         identity = re.sub(r'([a-z])([A-Z])', r'\1 \2', identity)
-        if _NOISE.search(identity) and not _detail_media(node):
+        if _NOISE.search(identity) and not _detail_media(node) and not _detail_heading(node):
             node.decompose()
     text = selected.get_text(" ", strip=True)
     # Empty/short shells and title-only pages are inconclusive, not negative AI findings.

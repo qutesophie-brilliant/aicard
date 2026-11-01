@@ -92,7 +92,9 @@ def quick_check(name: str, url: str, sales_text: str, fine_text: str = "", use_l
             for doc in docs:
                 if doc.get('source_type') == 'image_ocr' and doc.get('diagram_text'):
                     doc['text'] = doc['diagram_text']
-                    doc['chunks'] = quick_text.chunks(doc['diagram_text'])
+                # HTML quotations need the same sentence-safe boundaries:
+                # syllables in words such as 소음 are not sentence endings.
+                doc['chunks'] = quick_text.chunks(doc['text'])
     if not docs:
         raise ValueError("본문 글자를 받지 못했습니다.")
     with (contextlib.nullcontext() if use_llm else llm.rules_only()):
