@@ -261,5 +261,28 @@ class ProductPageTests(unittest.TestCase):
         self.assertIn('[AI 맞춤출수]',docs[1]['text'])
 
 
+    def test_overview_cms_keeps_feature_sections_instead_of_short_metadata(self):
+        from app.pipeline.product_page import product_text
+        html = '''<script type="application/ld+json">{"@type":"Product","description":"A lightweight laptop with a high resolution display and processor."}</script>
+        <nav>다른 제품의 AI 기능을 추천합니다.</nav>
+        <div id="overviewContentInsertWrapper"><div id="CMD">
+        <section class="wd__section"><h2>AI 경험</h2><p>AI가 영상의 배경 소음을 분석하여 음성을 선명하게 전달합니다.</p><img src="/detail.jpg"></section>
+        <section class="wd__section"><h2>사용 조건</h2><p>일부 AI 기능은 인터넷 연결과 계정 등록이 필요합니다.</p></section>
+        <div class="reviews">AI 후기로 평가한 다른 제품입니다.</div>
+        </div></div><div class="recommendations">AI 추천 상품입니다.</div>'''
+        body = product_body(html, 'https://example.com/laptops/model-a/')
+        text = product_text(body)
+        self.assertIn('배경 소음을 분석', text)
+        self.assertIn('인터넷 연결과 계정 등록', text)
+        self.assertEqual('/detail.jpg', body.img['src'])
+        self.assertNotIn('lightweight', text)
+        self.assertNotIn('후기로', text)
+        self.assertNotIn('추천', text)
+        self.assertEqual('explicit_product_container', body.section['data-aicard-selection'])
+        # A generic CMD container outside the product-overview CMS is not enough.
+        unrelated = html.replace('overviewContentInsertWrapper', 'generic-container')
+        self.assertEqual('structured_product_description', product_body(unrelated, 'https://example.com/').section['data-aicard-selection'])
+
+
 if __name__ == "__main__":
     unittest.main()
