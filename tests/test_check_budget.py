@@ -47,6 +47,13 @@ class BudgetTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(['AI 센서가 사람을 감지합니다.'], texts)
         self.assertIn(check_budget.PARTIAL_NOTE, notes)
 
+    async def test_initial_product_body_survives_slow_detail_collection(self):
+        from app.pipeline import page_recovery
+        with patch.object(page_recovery.product_documents, 'prepare', side_effect=TimeoutError('detail stalled')):
+            result = await check_budget.call(check_budget.Budget(), page_recovery.acquire,
+                                             HTML, 'https://example.com/item', None, fallback='url')
+        self.assertIn('사람을 인식', result.text)
+
     async def test_request_checkpoints_are_isolated(self):
         def read(value):
             check_budget.remember_uploads([value], [])

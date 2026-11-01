@@ -30,10 +30,26 @@ def access_problem(html, url):
     return False
 
 
+def _remember_body(html, url):
+    """Keep an identified body before following slower detail links."""
+    from .. import check_budget
+    if not check_budget.active():
+        return
+    from bs4 import BeautifulSoup
+    from .source_capture import capture_product_html
+    try:
+        capture = capture_product_html(html, url)
+    except product_page.ProductBodyUnavailable:
+        return
+    soup = BeautifulSoup(html, 'html.parser')
+    check_budget.remember_capture(capture, soup.title.get_text(' ', strip=True) if soup.title else url)
+
+
 def acquire(html, url, fetch, renderer=None):
     """Return an identified product body, with the actual strategies recorded."""
     if access_problem(html, url):
         raise product_page.ProductBodyUnavailable('판매사이트가 로그인·접근 제한 또는 상품 없음 화면을 보내 왔습니다. 공개된 상품 상세주소인지 확인해 주세요.')
+    _remember_body(html, url)
     overview = product_documents.overview_link(html, url)
     canonical = None
     if not overview:
@@ -56,10 +72,12 @@ def acquire(html, url, fetch, renderer=None):
                 raise ValueError('access_required')
             product_page.product_body(response.text, final)
             html, url = response.text, final
+            _remember_body(html, url)
             overview_stages.append({'stage': 'canonical_product_detail' if canonical else 'product_overview', 'status': 'read', 'url': final})
         except (ValueError, httpx.HTTPError):
             overview_stages.append({'stage': 'canonical_product_detail' if canonical else 'product_overview', 'status': 'unavailable'})
     prepared, documents = product_documents.prepare(html, url, lambda u: fetch_retry(u, fetch))
+    _remember_body(prepared, url)
     stages = overview_stages + [{'stage': 'html_and_linked_description', 'status': 'read'}]
     have_body = False
     summary_only = False
