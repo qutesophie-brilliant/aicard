@@ -67,6 +67,10 @@ DETAIL_SELECTOR = (
     '.template-product .overview-tab, '
     '.productOverview .overContent, .product-info .overview-content, '
     'main .shopify-section--custom-html .overview-content, '
+    'main #ipc-listing .ipc_template > :is('
+    '[id^="GraphicMore_"], [id^="MultiLayoutGraphicBlock_"], '
+    '[id^="GraphicOverlay_"], [id^="AplusDesc_"], [id^="Graphic_"], '
+    '[id^="ImageWithText_"]), '
     '#overviewContentInsertWrapper #CMD:has(section.wd__section)'
 )
 

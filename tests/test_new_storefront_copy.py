@@ -5,6 +5,25 @@ from app.pipeline.product_page import product_body, product_text, ProductBodyUna
 
 
 class NewStorefrontCopyTests(unittest.TestCase):
+    def test_product_cms_feature_modules_keep_images_and_conditions_only(self):
+        html = '''<main><div id="ipc-listing"><div class="ipc_template">
+        <div id="GraphicOverlay_123"><section><h3>AI.See Obstacle Avoidance</h3>
+        <h4>Advanced AI and RGB visual recognition.</h4>
+        <img data-src="https://cdn.example/obstacles.jpg">
+        <p>Remove wires or other small-sized obstacles.</p></section></div>
+        <div id="Faq_456"><p>Other model E28 navigation settings.</p></div>
+        <div id="Specs_789">Other model AI comparison</div>
+        <div id="SelectStore_123">AI shopping benefits</div>
+        <div class="reviews">Customer AI review</div>
+        </div></div></main>'''
+        body = product_body(html, 'https://store.example/products/robot')
+        text = product_text(body)
+        self.assertIn('Advanced AI and RGB visual recognition.', text)
+        self.assertIn('Remove wires or other small-sized obstacles.', text)
+        self.assertEqual(body.img['data-src'], 'https://cdn.example/obstacles.jpg')
+        for noise in ('Other model', 'shopping benefits', 'Customer AI'):
+            self.assertNotIn(noise, text)
+
     def test_server_rendered_product_editor_preserves_accessible_detail_copy(self):
         html = '''<h2>제품 상세</h2><div>카메라 이름과 공유하기</div>
         <div id="tab01Ssr" style="display:none" aria-hidden="true">
