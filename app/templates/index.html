@@ -90,7 +90,7 @@
           <div class="urlform">
             <input id="hero-url" aria-describedby="hero-scope" type="url" name="url" placeholder="판매페이지 주소를 붙여 넣으세요">
           </div>
-          <p class="alt" id="hero-scope">약 1분 정도 걸릴 수 있습니다. 자동 접속을 차단하는 사이트는 캡처·PDF로 확인해 주세요.</p>
+          <p class="alt" id="hero-scope"><strong>가능하면 제조사 공식 홈페이지의 제품 상세페이지 주소를 넣어 주세요.</strong> 네이버 스마트스토어 등 일부 쇼핑몰은 자동 접속이 제한되어 분석이 어려울 수 있습니다. 이 경우 상품 설명 이미지나 PDF를 올려 주세요.</p>
           <p class="upload-or"><span>또는 캡처·PDF로 확인</span></p>
           {% set home_upload = true %}{% include "_check_upload.html" %}
           <div class="check-submit-action"><button class="btn primary" type="submit" id="go" data-check-submit>분석 시작</button></div>
@@ -235,9 +235,10 @@
       <p class="lede">상품명이나 상세 설명에서 ‘AI·인공지능’ 기능을 소개한 제품을 확인합니다. 판매페이지 주소나 캡처를 넣으면 읽어 온 자료에서 ‘AI’ 문구와 관련 설명을 연결합니다. 정식 카드가 필요하면 그 자리에서 요청하세요.</p>
       <form class="urlform" method="post" action="/check">
         <label class="sr" for="cta-url">판매페이지 주소</label>
-        <input id="cta-url" type="url" name="url" placeholder="https://" required>
+        <input id="cta-url" aria-describedby="cta-url-help" type="url" name="url" placeholder="https://" required>
         <button class="btn primary" type="submit">바로 확인</button>
       </form>
+      <p class="alt" id="cta-url-help">제조사 공식 제품 상세페이지 주소를 권장합니다. 자동 접속이 제한되면 <a href="/check#drop">상품 설명 이미지나 PDF로 확인해 주세요.</a></p>
     </div>
   </div>
 </section>

@@ -9,10 +9,11 @@
 </section>
 {% if error %}<div class="notice" role="alert" tabindex="-1" id="checkerror">{{ error }}{% if upload_fallback %}<p><a class="btn primary" href="#browser-recovery">PC에서 열린 상품 설명 보내기</a> <a class="btn" href="#drop">캡처·PDF로 확인하기</a></p><p>PC에서 상품 페이지가 정상적으로 열린다면, 아래 안내에 따라 설명과 이미지 주소를 함께 보낼 수 있습니다.</p>{% endif %}</div>{% endif %}
 <form class="check-form" method="post" action="/check" enctype="multipart/form-data" id="checkform" data-max-files="{{ CHECK_MAX_FILES }}" data-max-mb="{{ CHECK_MAX_FILE_MB }}">
-  <p class="help" id="check-scope"><strong>분석 대상은 상품명이나 상세 설명에서 ‘AI·인공지능’ 기능을 소개한 제품입니다.</strong> 공식몰이나 오픈마켓의 상품 상세페이지 주소를 넣어 주세요.</p>
+  <p class="help" id="check-scope"><strong>분석 대상은 상품명이나 상세 설명에서 ‘AI·인공지능’ 기능을 소개한 제품입니다.</strong> 가능하면 제조사 공식 홈페이지의 제품 상세페이지 주소를 넣어 주세요.</p>
   <label>판매페이지 주소
-    <input aria-describedby="check-scope" type="url" name="url" value="{{ url }}" placeholder="https://">
+    <input aria-describedby="check-scope check-url-help" type="url" name="url" value="{{ url }}" placeholder="https://">
   </label>
+  <p class="help" id="check-url-help">네이버 스마트스토어 등 일부 쇼핑몰은 자동 접속이 제한되어 분석이 어려울 수 있습니다. 이 경우 상품 설명 이미지나 PDF를 올려 주세요.</p>
 
   <p class="upload-or"><span>또는 캡처·PDF로 확인</span></p>
   {% include "_check_upload.html" %}
