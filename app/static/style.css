@@ -1001,15 +1001,10 @@ body.menu-open .topbar{z-index:60;background:var(--paper)}
 .problem-evidence{margin-top:36px}
 .problem-label{margin:0 0 16px;color:var(--ink-3);font-size:.79rem;font-weight:600}
 .problem-figures{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:24px 32px;margin:0}
-.problem-figure{display:flex;flex-direction:row;align-items:center;gap:16px;min-width:0;padding-top:22px;border-top:1px solid #c7d3e3}
-.problem-figure-primary{grid-column:1/-1;padding:0 0 4px;border:0;gap:28px}
+.problem-figure{display:flex;flex-direction:column;align-items:flex-start;gap:14px;min-width:0;padding-top:22px;border-top:1px solid #c7d3e3}
 .problem-figure dt{order:2;margin:0;color:var(--ink-2);font-size:.85rem;font-weight:500;line-height:1.65;word-break:keep-all;overflow-wrap:break-word}
-.problem-figure dd{order:1;flex-shrink:0;margin:0;color:var(--navy);font-size:clamp(1.85rem,2.4vw,2.2rem);font-weight:750;line-height:1.1;letter-spacing:-.04em;font-variant-numeric:tabular-nums;white-space:nowrap}
+.problem-figure dd{order:1;flex-shrink:0;margin:0;color:var(--navy);font-size:clamp(2.6rem,4.5vw,4.2rem);font-weight:750;line-height:1.1;letter-spacing:-.04em;font-variant-numeric:tabular-nums;white-space:nowrap}
 .problem-figure dd>span{font-size:.46em;font-weight:600;margin-left:3px;letter-spacing:0}
-.problem-figure-primary dd{font-size:clamp(4.3rem,5.6vw,5.1rem);font-weight:800;letter-spacing:-.055em}
-.problem-figure-primary dt{font-size:1.05rem;line-height:1.6}
-.problem-figure-primary dt>span{display:block;margin-bottom:5px;font-size:.76rem;font-weight:500;color:var(--ink-3)}
-.problem-figure-primary dt strong{font-weight:700;color:var(--navy)}
 .problem-source{margin-top:12px;color:var(--ink-3);font-size:.76rem;line-height:1.8;word-break:keep-all;overflow-wrap:break-word}
 .problem-source summary{display:list-item;width:fit-content;min-height:44px;align-content:center;cursor:pointer;text-underline-offset:4px}
 .problem-source summary:hover{text-decoration:underline}
@@ -1074,9 +1069,7 @@ body.menu-open .topbar{z-index:60;background:var(--paper)}
  .hero-refined .hero-grid{gap:28px}
  .problem-figures{gap:20px 16px}
  .problem-figure{gap:12px}
- .problem-figure:not(.problem-figure-primary){flex-direction:column;align-items:flex-start;gap:10px}
- .problem-figure dd{font-size:1.9rem}
- .problem-figure-primary dd{font-size:4.2rem}
+ .problem-figure dd{font-size:clamp(2.6rem,4.5vw,4.2rem)}
  .problem-figure dt{font-size:.8rem}
  .hero-refined h1{font-size:clamp(2rem,4.1vw,3rem)}
  .hero-refined .hero-stats{gap:22px}
@@ -1092,11 +1085,8 @@ body.menu-open .topbar{z-index:60;background:var(--paper)}
  .problem-evidence{margin-top:30px}
  .problem-figures{grid-template-columns:repeat(2,minmax(0,1fr));gap:22px 24px}
  .problem-figure{flex-direction:column;align-items:flex-start;gap:9px;padding:18px 0 0;border-top:1px solid #cbd6e6}
- .problem-figure-primary{flex-direction:row;align-items:center;gap:24px;padding:0;border:0}
- .problem-figure dd{flex:0 0 auto;font-size:2rem}
- .problem-figure-primary dd{font-size:clamp(3.75rem,16vw,4.8rem)}
+ .problem-figure dd{flex:0 0 auto;font-size:clamp(2.6rem,10vw,4.2rem)}
  .problem-figure dt{margin:0;font-size:.86rem;line-height:1.6}
- .problem-figure-primary dt{font-size:.95rem}
  .problem-source{margin-top:8px;font-size:.75rem}
  .problem-source a{min-height:44px;margin-left:0}
  .hero-refined .hero-copy .sub{font-size:1rem;line-height:1.8;margin-top:20px;max-width:none}
