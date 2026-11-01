@@ -13,6 +13,17 @@ from .retrieve import ChunkIndex
 CLAIM_SOURCE_KINDS = ("판매페이지",)
 
 
+def _quick_functional_title(text: str) -> bool:
+    """A source title can advertise an AI function without a sentence ending.
+
+    Preserve explicit functional wording, not a bare AI brand/model or appliance
+    category. This only affects previews; evidence linking still decides whether
+    the source explains how the advertised function works.
+    """
+    return bool(re.search(r'(?<![A-Za-z])AI(?![A-Za-z])|인공지능', text, re.I)
+                and re.search(r'조절|제어|살균|세척|최적화|맞춤|절약|절전|보정|예측|탐지|인식|감지|분석|학습|판단', text))
+
+
 def build_card(product_id: int, keep_reviewer_edits: bool = True) -> dict[str, Any]:
     product = db.get_product(product_id)
     if not product:
@@ -109,7 +120,8 @@ def quick_check(name: str, url: str, sales_text: str, fine_text: str = "", use_l
             compact_name = re.sub(r"\s+", "", name)
             source_chunks = [c for c in source_chunks if not (
                 re.sub(r"\s+", "", c["quote"]) in compact_name
-                and not extract.VERBISH.search(c["quote"]))]
+                and not extract.VERBISH.search(c["quote"])
+                and not _quick_functional_title(c["quote"]))]
         # Rule-only previews examine every acquired source chunk. A display
         # count of 14 must not silently discard additional distinct claims.
         claims = extract.extract_claims(source_chunks) if use_llm else extract._rules_extract(source_chunks, max(1, len(source_chunks)), complete_quotes=True)

@@ -96,11 +96,28 @@ def product_heading(soup, url):
     elif p.netloc == 'www.29cm.co.kr' and re.fullmatch(r'/products/\d+/?', p.path):
         names = soup.select('h2#pdp_product_name')
         canonical = soup.select('link[rel="canonical"][href]')
-        if len(names) != 1 or len(canonical) != 1:
+        if len(names) > 1 or len(canonical) != 1:
             return ''
         target = urlsplit(urljoin(url, canonical[0]['href']))
-        name = names[0].get_text(' ', strip=True)
-        # The DOM product name, social title, and canonical product ID must
+        name = names[0].get_text(' ', strip=True) if names else ''
+        if not names:
+            # The streamed page can supply its name in published Product JSON
+            # before the visible heading is hydrated. Require both item IDs,
+            # canonical URL and social title; never use the social title alone.
+            products = []
+            for node in soup.select('script[type="application/ld+json"]'):
+                try:
+                    value = json.loads(node.string or node.get_text())
+                except (ValueError, TypeError):
+                    continue
+                if isinstance(value, dict) and value.get('@type') == 'Product':
+                    products.append(value)
+            item = p.path.rstrip('/').rsplit('/', 1)[-1]
+            if (len(products) == 1 and products[0].get('sku') == item
+                    and products[0].get('@id') == 'urn:29cm:product:' + item
+                    and isinstance(products[0].get('name'), str)):
+                name = products[0]['name'].strip()
+        # The actual product name, social title, and canonical product ID must
         # agree. A title alone or another product's recommendation is not copy.
         if (name and target.scheme == p.scheme and target.netloc == p.netloc
                 and target.path.rstrip('/') == p.path.rstrip('/')
