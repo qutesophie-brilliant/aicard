@@ -96,6 +96,12 @@ def _matches_sentence(key: str, text: str) -> bool:
     # Stock, delivery and return restrictions do not describe AI operation.
     if re.search(r'재고|생산월|매장|반품|교환|철거|회수|추가\s*비용|살균\s*효과', text):
         return False
+    # A language restriction is an operating condition even when a footnote
+    # refers to "this feature" instead of repeating the AI feature's name.
+    if re.search(r'(?:기능|음성|대화|명령|어시스턴트|챗봇|인식).{0,50}'
+                 r'(?:한국어|영어|일본어|중국어|언어).{0,12}'
+                 r'(?:만\s*지원|지원하지|지원되지)', text):
+        return True
     if re.search(r'(?:사용|이용)(?:하려면|하기\s*위해).{0,60}앱.{0,20}실행\s*중이어야', text):
         return True
     from .condition_type import condition_type

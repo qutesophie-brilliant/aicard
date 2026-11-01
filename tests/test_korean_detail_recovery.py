@@ -12,6 +12,14 @@ class KoreanDetailRecoveryTests(unittest.TestCase):
         card, _ = quick_check('로봇청소기', 'https://example.com/product', text)
         self.assertEqual(['지능형 어시스턴트'], [c['text'] for c in card['claims']])
         self.assertTrue(card['quick_has_intelligent_wording'])
+        self.assertIn('이 기능은 영어 대화만 지원합니다.',
+                      [e['quote'] for e in card['items']['conditions']['evidence']])
+        from app.pipeline import quick_coverage
+        for quote in ('이 기능은 영어 대화만 지원합니다.',
+                      '음성 인식 기능은 한국어를 지원하지 않습니다.'):
+            self.assertTrue(quick_coverage._matches('conditions', quote))
+        for quote in ('영어 상품 설명서만 지원합니다.', '이 기능은 영어와 한국어를 지원합니다.'):
+            self.assertFalse(quick_coverage._matches('conditions', quote))
         negative, _ = quick_check('기기', 'https://example.com/product', '음성 어시스턴트 기능으로 명령할 수 있습니다.')
         self.assertEqual([], negative['claims'])
 
