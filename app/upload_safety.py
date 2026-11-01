@@ -14,7 +14,9 @@ from pathlib import Path
 from PIL import Image, ImageOps, UnidentifiedImageError
 
 
-MAX_PIXELS = 32_000_000
+# Long retail detail sheets are decoded one at a time on the 2 GB worker.
+# Keep this bounded below Pillow's decompression-bomb warning threshold.
+MAX_PIXELS = 80_000_000
 MAX_IMAGE_SIDE = 1600
 MAX_PDF_PAGES = 200
 MAX_PDF_OBJECTS = 20_000

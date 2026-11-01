@@ -85,8 +85,25 @@ class LongImageTests(unittest.TestCase):
     def test_excessive_length_fails_before_ocr_instead_of_dropping_tail(self):
         with patch.object(product_ocr, '_read_images') as reader:
             with self.assertRaisesRegex(ValueError, '나누어'):
-                product_ocr.read_images([picture((40, 40000))], allow_llm=False)
+                product_ocr.read_images([picture((40, 65000))], allow_llm=False)
         reader.assert_not_called()
+
+    def test_retail_sheet_57288_pixels_keeps_first_and_last_tiles(self):
+        # Match the height of a real Sony overview, without allocating its
+        # entire 68 MP fixture in the regression suite.
+        raw = picture((40, 57288))
+        tiles = image_tiles.split_image(raw)
+        self.assertEqual(39, len(tiles))
+        with Image.open(io.BytesIO(tiles[0])) as first, Image.open(io.BytesIO(tiles[-1])) as last:
+            self.assertEqual((255, 0, 0), first.getpixel((10, 10)))
+            self.assertEqual((0, 0, 255), last.getpixel((10, last.height - 1)))
+        def reader(batch, *args, **kwargs):
+            return [reading('visible text') for _ in batch]
+        with patch.object(product_ocr, '_read_images', side_effect=reader):
+            rows = product_ocr.read_images([raw], allow_llm=False)
+        self.assertEqual(39, rows[0]['tile_count'])
+        self.assertEqual(0, rows[0]['unconfirmed_tiles'])
+        self.assertEqual('read', rows[0]['status'])
 
     def test_only_exact_overlap_lines_are_removed(self):
         self.assertEqual('처음\n조건 6kg\n마지막', image_tiles.join_texts(['처음\n조건 6kg', '조건 6kg\n마지막']))

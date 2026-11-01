@@ -25,6 +25,17 @@ class CheckRateReservationTests(unittest.TestCase):
         main._refund_check_ocr('key',1.0)
         self.assertEqual([2.0],main._check_hits['key'])
 
+    def test_upload_total_limit_rejects_before_decode_or_ai(self):
+        with patch.object(main.config, 'CHECK_MAX_TOTAL_MB', 1), \
+             patch.object(main, '_read_check_uploads') as reader:
+            result = TestClient(main.app).post('/check', files=[
+                ('files', ('a.jpg', b'x' * 600000, 'image/jpeg')),
+                ('files', ('b.jpg', b'x' * 600000, 'image/jpeg')),
+            ])
+        self.assertEqual(200, result.status_code)
+        self.assertIn('전체 용량은 1MB', result.text)
+        reader.assert_not_called()
+
     def test_upload_after_blocked_url_does_not_revisit_seller(self):
         url='https://blocked-seller.example/item/1'
         with patch.object(main,'_read_check_url',side_effect=ProductBodyUnavailable('source unavailable')) as fetch, \

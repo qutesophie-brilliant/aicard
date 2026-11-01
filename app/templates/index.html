@@ -85,7 +85,7 @@
         <a href="#find" class="input-catalog-link">공개된 {{ hero.products }}개 제품 카드 보기 <span aria-hidden="true">→</span></a>
       </div>
       <div>
-        <form class="hero-check" method="post" action="/check" enctype="multipart/form-data" id="checkform" data-max-files="{{ CHECK_MAX_FILES }}" data-max-mb="{{ CHECK_MAX_FILE_MB }}">
+        <form class="hero-check" method="post" action="/check" enctype="multipart/form-data" id="checkform" data-max-files="{{ CHECK_MAX_FILES }}" data-max-mb="{{ CHECK_MAX_FILE_MB }}" data-max-total-mb="{{ CHECK_MAX_TOTAL_MB }}">
           <label class="input-label" for="hero-url">판매페이지 주소</label>
           <div class="urlform">
             <input id="hero-url" aria-describedby="hero-scope" type="url" name="url" placeholder="판매페이지 주소를 붙여 넣으세요">

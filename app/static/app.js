@@ -116,6 +116,7 @@
     const dt = new DataTransfer();
     const form = document.getElementById('checkform');
     const maxFiles = Number(form.dataset.maxFiles), maxMB = Number(form.dataset.maxMb);
+    const maxTotalMB = Number(form.dataset.maxTotalMb || 64);
     const fileError = document.getElementById('fileerror');
     const fileStatus = document.getElementById('file-status');
     const go = document.getElementById('go');
@@ -153,6 +154,8 @@
         if (f.size > maxMB * 1024 * 1024) errors.push(f.name + ': 파일당 ' + maxMB + 'MB까지 올릴 수 있습니다.');
       });
       if (dt.files.length + incoming.length > maxFiles) errors.push('파일은 한 번에 ' + maxFiles + '개까지 올릴 수 있습니다. 선택한 파일은 추가하지 않았습니다.');
+      const totalBytes = [...Array.from(dt.files), ...incoming].reduce((sum, f) => sum + f.size, 0);
+      if (totalBytes > maxTotalMB * 1024 * 1024) errors.push('선택한 파일의 전체 용량은 ' + maxTotalMB + 'MB까지 처리할 수 있습니다.');
       fileError.textContent = errors.join(' '); fileError.hidden = !errors.length;
       if (errors.length) return 0;
       incoming.forEach(f => {

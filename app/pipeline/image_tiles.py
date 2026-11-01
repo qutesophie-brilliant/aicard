@@ -4,14 +4,13 @@ import math
 
 from PIL import Image
 
-# Public retailer detail images can exceed 25 MP (850 x 32890, for example).
-# Keep a bounded decode and the existing 24-tile request budget per image.
-# Uploads use the same per-file limit and are processed in bounded groups.
-MAX_PIXELS = 32_000_000
+# Uploads are decoded sequentially; preserve text in long retail detail sheets.
+from ..upload_safety import MAX_PIXELS
 TILE_SIDE = 1600
 MAX_SHORT_SIDE = 1200
 OVERLAP = 120
 MAX_TILES = 24
+MAX_IMAGE_TILES = 40
 
 
 def split_image(data):
@@ -32,7 +31,7 @@ def split_image(data):
         size = (max(1, round(width * scale)), max(1, round(height * scale)))
         length = max(size)
         count = 1 + math.ceil(max(0, length - TILE_SIDE) / (TILE_SIDE - OVERLAP))
-        if count > MAX_TILES:
+        if count > MAX_IMAGE_TILES:
             raise ValueError('상세 이미지가 너무 깁니다. 제품 설명을 나누어 올려 주세요.')
         # Keep the decoded RGB source itself rather than copying a whole long
         # image. Non-RGB input still uses the same RGB conversion as before.

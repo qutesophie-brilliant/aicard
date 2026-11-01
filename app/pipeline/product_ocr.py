@@ -152,12 +152,12 @@ def provider_failure_notes(rows):
 
 
 def read_images(images, allow_llm=True, local_timeout_seconds=None, recover_unconfirmed=False):
-    from .image_tiles import split_image, join_texts, MAX_TILES
+    from .image_tiles import split_image, join_texts, MAX_IMAGE_TILES
     groups = [split_image(data) for data in images]
     if len(groups) <= BATCH_IMAGES and all(len(group) == 1 for group in groups):
         return _read_images(images, allow_llm, local_timeout_seconds, recover_unconfirmed)
     payloads = [tile for group in groups for tile in group]
-    if len(payloads) > MAX_TILES:
+    if len(payloads) > MAX_IMAGE_TILES:
         raise ValueError('한 번에 읽을 상세 이미지가 너무 많습니다. 파일을 나누어 올려 주세요.')
     deadline = time.monotonic() + LONG_OCR_SECONDS
     batches = [payloads[start:start + BATCH_IMAGES]

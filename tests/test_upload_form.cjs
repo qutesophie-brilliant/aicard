@@ -49,7 +49,7 @@ function fixture(asyncMode = false) {
   const navigated = [], written = [];
   if (asyncMode) window.fetch = (url, options) => { submitted.push(options.body.data); return pending; };
   window.history = { pushState: (a, b, url) => navigated.push(url) };
-  form.dataset = { maxFiles: '8', maxMb: '8' };
+  form.dataset = { maxFiles: '8', maxMb: '24', maxTotalMb: '64' };
   form.querySelector = selector => ({ '[name="url"]': url, '[name="text"]': body }[selector] || null);
   form.querySelectorAll = selector => selector === '[data-check-submit]' ? [ids.go] : [];
   Object.defineProperty(url, 'validity', { get() {
@@ -106,6 +106,19 @@ for (const ext of ['jpg', 'png', 'pdf']) {
     assert.equal(f.submitted[0].files[0].name, 'sample.' + ext);
   });
 }
+
+test('large retail images are accepted but a batch exceeding 64 MB is rejected intact', () => {
+  const f = fixture();
+  const file = (name, mb) => ({name, type: 'image/jpeg', size: mb * 1024 * 1024});
+  f.ids.files.files = [file('overview.jpg', 20), file('specification.jpg', 2)];
+  f.ids.files.emit('change');
+  assert.equal(f.ids.files.files.length, 2);
+  assert.equal(f.ids.go.textContent, '파일 2개 분석 시작');
+  f.ids.files.files = [file('extra1.jpg', 24), file('extra2.jpg', 24)];
+  f.ids.files.emit('change');
+  assert.equal(f.ids.files.files.length, 2);
+  assert.match(f.ids.fileerror.textContent, /전체 용량은 64MB/);
+});
 
 test('body input ignores an invalid URL without changing its text', () => {
   const f = fixture(); f.url.value = 'unfinished-url'; f.body.value = 'AI 작동 설명';

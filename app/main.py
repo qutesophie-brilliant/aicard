@@ -56,6 +56,7 @@ templates.env.globals.update(
     BASIS_KINDS=BASIS_KINDS, BASIS_LABEL=BASIS_LABEL, BASIS_HELP=BASIS_HELP, basis_counts=basis_counts, global_extra=global_extra,
     provider=llm.provider, llm_available=llm.available,
     CHECK_MAX_FILES=config.CHECK_MAX_FILES, CHECK_MAX_FILE_MB=config.CHECK_MAX_FILE_MB,
+    CHECK_MAX_TOTAL_MB=config.CHECK_MAX_TOTAL_MB,
     CHECK_OCR_AI=config.CHECK_OCR_LLM and llm.available(), CHECK_CONNECT_AI=config.CHECK_LLM and llm.available(),
 )
 
@@ -774,11 +775,16 @@ async def check_url(request: Request, url: str = Form(""), text: str = Form(""),
             return render(request, "check.html", base=base, bookmarklet=bm, url=url, q="",
                           error=f"파일은 한 번에 {config.CHECK_MAX_FILES}개까지 올릴 수 있습니다.")
         payloads: list[tuple[str, str, bytes]] = []
+        total_upload_bytes = 0
         for f in uploads:
             data = await f.read(config.CHECK_MAX_FILE_MB * 1024 * 1024 + 1)
             if len(data) > config.CHECK_MAX_FILE_MB * 1024 * 1024:
                 return render(request, "check.html", base=base, bookmarklet=bm, url=url, q="",
                               error=f"파일 하나는 {config.CHECK_MAX_FILE_MB}MB까지만 올릴 수 있습니다. ({f.filename})")
+            total_upload_bytes += len(data)
+            if total_upload_bytes > config.CHECK_MAX_TOTAL_MB * 1024 * 1024:
+                return render(request, "check.html", base=base, bookmarklet=bm, url=url, q="",
+                              error=f"선택한 파일의 전체 용량은 {config.CHECK_MAX_TOTAL_MB}MB까지 처리할 수 있습니다.")
             ctype = (f.content_type or "").lower()
             if not (ctype == "application/pdf" or ctype.startswith("image/") or f.filename.lower().endswith((".pdf", ".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp"))):
                 return render(request, "check.html", base=base, bookmarklet=bm, url=url, q="",

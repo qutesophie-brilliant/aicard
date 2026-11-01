@@ -1,10 +1,10 @@
 <div class="drop" id="drop" tabindex="0" role="group" aria-label="캡처 이미지나 PDF 올리기">
   <input type="file" id="files" name="files" accept="image/*,application/pdf" multiple hidden>
   <p class="drop-t"><b>캡처 이미지·PDF 올리기</b><span>파일을 선택한 다음, 아래의 ‘분석 시작’을 눌러 주세요.</span></p>
-  <p class="upload-limits"><span>JPG·PNG·PDF</span><span>최대 {{ CHECK_MAX_FILES }}개 · 파일당 {{ CHECK_MAX_FILE_MB }}MB</span></p>
+  <p class="upload-limits"><span>JPG·PNG·PDF</span><span>최대 {{ CHECK_MAX_FILES }}개 · 파일당 {{ CHECK_MAX_FILE_MB }}MB · 전체 {{ CHECK_MAX_TOTAL_MB }}MB</span></p>
   <div class="drop-b"><button type="button" class="btn" id="pick" aria-describedby="file-status">JPG·PNG·PDF 선택</button><span class="meta">여기로 파일을 끌어다 놓아도 됩니다.<span class="paste-hint"> 복사한 캡처는 Ctrl+V(⌘V)로 붙여 넣으세요.</span></span></div>
   <p class="file-status" id="file-status" role="status" aria-live="polite">선택한 파일이 없습니다.</p>
   <ul class="drop-list" id="droplist" aria-label="선택한 파일"></ul>
-  <p class="upload-auto">세로로 긴 이미지는 자동으로 나누어 읽습니다. 파일 용량이나 이미지 크기가 지나치게 크면 분석이 지연되거나 실패할 수 있습니다.</p>
+  <p class="upload-auto">상세 설명이 여러 이미지로 나뉘어 있으면 순서대로 함께 선택해 올려 주세요. 세로로 긴 이미지는 자동으로 나누어 읽습니다. 파일 용량이나 이미지 크기가 지나치게 크면 분석이 지연되거나 실패할 수 있습니다.</p>
   <p id="fileerror" class="notice" role="alert" hidden></p>
 </div>

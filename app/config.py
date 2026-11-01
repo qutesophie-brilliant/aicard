@@ -51,7 +51,8 @@ CHECK_LLM = os.getenv("CHECK_LLM", "0") == "1"
 CHECK_LLM_PER_HOUR = int(os.getenv("CHECK_LLM_PER_HOUR", "6"))
 CHECK_OCR_PER_HOUR = int(os.getenv("CHECK_OCR_PER_HOUR", "8"))
 CHECK_MAX_FILES = int(os.getenv("CHECK_MAX_FILES", "8"))
-CHECK_MAX_FILE_MB = int(os.getenv("CHECK_MAX_FILE_MB", "8"))
+CHECK_MAX_FILE_MB = int(os.getenv("CHECK_MAX_FILE_MB", "24"))
+CHECK_MAX_TOTAL_MB = 64
 
 # 검토자 화면 보호용 토큰. 비어 있으면 누구나 접근 가능(로컬 개발용).
 REVIEW_TOKEN = os.getenv("REVIEW_TOKEN", "")
