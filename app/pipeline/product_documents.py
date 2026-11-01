@@ -136,8 +136,14 @@ def published_seller_frame(soup, url):
 
 
 def matching_description_frame(src, url):
-    """Gmarket frames must describe this item, not another group item's detail."""
+    """Known marketplace frames must describe the requested product."""
     parent, child = urlsplit(url), urlsplit(src)
+    himart_id = product_page.himart_product_id(url)
+    if himart_id:
+        return (child.netloc == parent.netloc and child.scheme == parent.scheme
+                and not child.fragment
+                and child.path == '/app/goods/getGoodsDescContMob'
+                and parse_qs(child.query, keep_blank_values=True) == {'goodsNo': [himart_id]})
     gs_id = marketplace_documents.gs_product_id(url)
     if gs_id:
         return (child.netloc == parent.netloc and not child.fragment

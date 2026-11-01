@@ -1,7 +1,7 @@
 """Select product copy before quick-check extraction; never fall back to site-wide text."""
 import re
 import json
-from urllib.parse import urlsplit
+from urllib.parse import urlsplit, parse_qs
 
 from bs4 import BeautifulSoup, Comment
 from ..product_identity import is_naver_product
@@ -102,6 +102,8 @@ _ACER_FEATURES = ('main#main .level-page-content, main#main section.section, '
 
 def detail_selector(url):
     """Use the same scoped description roots during fetch and rendering."""
+    if himart_product_id(url):
+        return DETAIL_SELECTOR + ', iframe#goodsDescCont'
     if _costco_product(url):
         return _COSTCO_FEATURES
     if _acer_product(url):
@@ -110,6 +112,17 @@ def detail_selector(url):
         return DETAIL_SELECTOR + ', ' + _TAPO_FEATURES
     return (DETAIL_SELECTOR + ', ' + NAVER_DETAIL_SELECTOR
             if is_naver_product(url) else DETAIL_SELECTOR)
+
+
+def himart_product_id(url):
+    parsed = urlsplit(url)
+    ids = parse_qs(parsed.query, keep_blank_values=True).get('goodsNo', [])
+    if (parsed.netloc == 'www.e-himart.co.kr'
+            and parsed.scheme in ('http', 'https')
+            and parsed.path == '/app/goods/goodsDetail'
+            and len(ids) == 1 and re.fullmatch(r'[0-9]+', ids[0])):
+        return ids[0]
+    return ''
 
 
 def _tapo_product(url):
