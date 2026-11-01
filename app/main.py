@@ -653,17 +653,16 @@ def _read_upload_images(images, allow_llm=True):
 
 
 def _read_check_uploads(payloads: list[tuple[str, str, bytes]]) -> tuple[list[str], list[str]]:
-    """OCR runs outside the async request loop; bound peak memory on the 512MB instance."""
+    """Validate all files first, then OCR bounded groups in original input order."""
+    import io
+    from contextlib import ExitStack
+    from tempfile import TemporaryFile
+    from PIL import Image
     if not _check_ocr_gate.acquire(blocking=False):
         raise ValueError("다른 파일의 글자를 읽고 있습니다. 잠시 뒤 다시 시도해 주세요.")
     try:
         from .upload_safety import check_image_batch
         check_image_batch(payloads)
-        # Validate the entire batch before sending any image to external OCR.
-        checked = [check_upload(filename, ctype, data,
-                    max_bytes=config.CHECK_MAX_FILE_MB * 1024 * 1024)
-                   for filename, ctype, data in payloads]
-        imgs: list[bytes] = []
         texts: list[str] = []
         notes: list[str] = []
         engines = {"llm": "AI 문자 인식", "tesseract": "서버 내 문자 인식", "windows_ocr": "Windows 문자 인식", "mixed": "AI·서버 문자 인식", "pdf": "PDF 텍스트 추출", "none": "글자 읽기 결과 미확인"}
@@ -671,19 +670,50 @@ def _read_check_uploads(payloads: list[tuple[str, str, bytes]]) -> tuple[list[st
             texts.extend(r.texts)
             notes.extend(r.notes)
             notes.append("글자 읽기: " + engines.get(r.engine, "문자 인식"))
-        for (filename, _, _), upload in zip(payloads, checked):
-            data = upload.data
-            if upload.content_type == "application/pdf":
-                try:
-                    keep(ocr.read_pdf(data, allow_llm=config.CHECK_OCR_LLM, image_reader=_read_upload_images))
-                except ValueError:
-                    raise
-                except Exception as e:
-                    raise ValueError(f"PDF를 읽지 못했습니다. 손상되거나 암호가 설정된 파일인지 확인해 주세요. ({filename})") from e
-            else:
-                imgs.append(data)
-        if imgs:
-            keep(_read_upload_images(imgs, allow_llm=config.CHECK_OCR_LLM))
+        with ExitStack() as staging:
+            checked = []
+            # Disk-backed temporary files avoid retaining every reconstructed
+            # PNG in memory. Nothing reaches external OCR until all pass.
+            for filename, ctype, data in payloads:
+                upload = check_upload(filename, ctype, data,
+                    max_bytes=config.CHECK_MAX_FILE_MB * 1024 * 1024)
+                stream = staging.enter_context(TemporaryFile())
+                stream.write(upload.data)
+                stream.seek(0)
+                checked.append((filename, upload.content_type, stream))
+                del upload
+            imgs = []
+            def flush():
+                if imgs:
+                    try:
+                        keep(_read_upload_images(imgs, allow_llm=config.CHECK_OCR_LLM))
+                    finally:
+                        imgs.clear()
+                        release_ocr_heap()
+            for filename, ctype, stream in checked:
+                if ctype == "application/pdf":
+                    flush()
+                    try:
+                        keep(ocr.read_pdf(stream.read(), allow_llm=config.CHECK_OCR_LLM, image_reader=_read_upload_images))
+                    except ValueError:
+                        raise
+                    except Exception as e:
+                        raise ValueError(f"PDF를 읽지 못했습니다. 손상되거나 암호가 설정된 파일인지 확인해 주세요. ({filename})") from e
+                    finally:
+                        release_ocr_heap()
+                else:
+                    data = stream.read()
+                    with Image.open(io.BytesIO(data)) as probe:
+                        is_long = max(probe.size) > 1601 and max(probe.size) / min(probe.size) >= 2
+                    if is_long:
+                        flush()
+                    imgs.append(data)
+                    del data
+                    # A long capture gets its own full tile budget. Ordinary
+                    # images retain efficient indexed OCR in groups of four.
+                    if is_long or len(imgs) == 4:
+                        flush()
+            flush()
         return texts, list(dict.fromkeys(notes))
     finally:
         try:

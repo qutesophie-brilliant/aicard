@@ -220,8 +220,19 @@
         document.getElementById('wait-elapsed').textContent = seconds < 60 ? seconds + '초' : Math.floor(seconds / 60) + '분 ' + seconds % 60 + '초';
         document.getElementById('wait-slow').hidden = seconds < 45;
       }, 1000);
+      submitCheckInPlace(e, form, message => {
+        clearInterval(waitTimer);
+        busy.hidden = true;
+        form.removeAttribute('aria-busy');
+        if (omittedInvalidUrl) { urlField.disabled = false; omittedInvalidUrl = false; }
+        form.querySelectorAll('[data-check-submit]').forEach(b => b.disabled = false);
+        render();
+        fileError.textContent = message;
+        fileError.hidden = false; fileError.tabIndex = -1; fileError.focus();
+      });
     });
     window.addEventListener('pageshow', () => {
+      if (form.dataset.asyncPending) return;
       clearInterval(waitTimer);
       document.getElementById('busy').hidden = true;
       form.querySelectorAll('[data-check-submit]').forEach(b => b.disabled = false);
@@ -231,6 +242,43 @@
     });
     render();
     const checkError = document.getElementById('checkerror'); if (checkError) checkError.focus();
+  }
+
+  // Keep this document active while the server works. A native POST navigation
+  // can suspend mobile timers before the response arrives.
+  function submitCheckInPlace(event, form, onFailure) {
+    if (typeof window.fetch !== 'function') return;
+    event.preventDefault();
+    form.dataset.asyncPending = 'true';
+    const payload = new FormData(form);
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 600000);
+    window.fetch(form.action || '/check', {
+      method: 'POST', body: payload, credentials: 'same-origin', signal: controller.signal
+    }).then(async response => {
+      if (!response.ok) {
+        throw new Error(response.status === 429
+          ? '현재 요청이 많습니다. 잠시 뒤 다시 시도해 주세요.'
+          : '분석 서버에서 응답을 받지 못했습니다. 잠시 뒤 다시 시도해 주세요.');
+      }
+      if (!(response.headers.get('content-type') || '').includes('text/html')) {
+        throw new Error('분석 결과를 표시하지 못했습니다. 잠시 뒤 다시 시도해 주세요.');
+      }
+      const html = await response.text();
+      const target = new URL(response.url || form.action || '/check', location.href);
+      if (target.origin !== new URL(location.href).origin) throw new Error('분석 결과 주소를 확인하지 못했습니다.');
+      clearTimeout(timeout);
+      window.history.pushState(null, '', target.href);
+      document.open(); document.write(html); document.close();
+    }).catch(error => {
+      clearTimeout(timeout);
+      delete form.dataset.asyncPending;
+      onFailure(error.name === 'AbortError'
+        ? '분석 응답 시간이 길어 연결을 종료했습니다. 잠시 뒤 다시 확인해 주세요.'
+        : error instanceof TypeError
+          ? '서버 연결이 끊겼습니다. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.'
+          : error.message);
+    });
   }
 
   // 첫 화면의 두 주소 입력창에도 같은 대기 피드백을 제공한다.
@@ -246,14 +294,24 @@
       if (form.getAttribute('aria-busy') === 'true') { e.preventDefault(); return; }
       form.setAttribute('aria-busy', 'true'); buttons.forEach(b => b.disabled = true);
       box.hidden = false; box.focus({preventScroll:true}); box.scrollIntoView({block:'center',behavior:'auto'});
+      box.querySelector('[role="status"]').textContent = 'AI 문구와 관련 설명을 찾고 있습니다.';
+      box.querySelector('[data-elapsed]').textContent = '0초';
+      box.querySelector('[data-slow]').hidden = true;
       const start = Date.now();
       timer = setInterval(() => {
         const sec = Math.floor((Date.now()-start)/1000);
         box.querySelector('[data-elapsed]').textContent = sec < 60 ? sec+'초' : Math.floor(sec/60)+'분 '+sec%60+'초';
         box.querySelector('[data-slow]').hidden = sec < 45;
       },1000);
+      submitCheckInPlace(e, form, message => {
+        clearInterval(timer);
+        form.removeAttribute('aria-busy'); buttons.forEach(b => b.disabled = false);
+        box.querySelector('[role="status"]').textContent = message;
+        box.querySelector('[data-slow]').hidden = true;
+        box.focus();
+      });
     });
-    window.addEventListener('pageshow', () => { clearInterval(timer); box.hidden = true; form.removeAttribute('aria-busy'); buttons.forEach(b => b.disabled = false); });
+    window.addEventListener('pageshow', () => { if (form.dataset.asyncPending) return; clearInterval(timer); box.hidden = true; form.removeAttribute('aria-busy'); buttons.forEach(b => b.disabled = false); });
   });
 
   // 상단 바: 스크롤하면 그림자

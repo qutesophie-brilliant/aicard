@@ -5,8 +5,8 @@ import math
 from PIL import Image
 
 # Public retailer detail images can exceed 25 MP (850 x 32890, for example).
-# Keep a bounded decode and the existing 24-tile request budget. Uploads retain
-# their separate, combined 25 MP validation limit.
+# Keep a bounded decode and the existing 24-tile request budget per image.
+# Uploads use the same per-file limit and are processed in bounded groups.
 MAX_PIXELS = 32_000_000
 TILE_SIDE = 1600
 MAX_SHORT_SIDE = 1200

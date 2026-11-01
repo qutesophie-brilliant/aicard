@@ -112,17 +112,47 @@ class LongImageTests(unittest.TestCase):
         with Image.open(io.BytesIO(ocr._shrink(raw))) as image:
             self.assertEqual(1600, max(image.size))
 
-    def test_combined_pixel_budget_rejects_before_decode_or_ocr(self):
+    def test_combined_pixels_no_longer_reject_valid_individual_files(self):
         raw = picture((20, 30))
         payloads = [('first.png', 'image/png', raw), ('second.png', 'image/png', raw)]
+        sizes = []
+        def read(images, **kwargs):
+            sizes.append(len(images))
+            return ocr.OcrResult(texts=['first', 'second'], engine='test')
+        with patch.object(upload_safety, 'MAX_PIXELS', 1000), \
+             patch.object(main, '_read_upload_images', side_effect=read):
+            texts, _ = main._read_check_uploads(payloads)
+        self.assertEqual(['first', 'second'], texts)
+        self.assertEqual([2], sizes)
+
+    def test_per_file_pixel_limit_still_rejects_before_decode(self):
+        raw = picture((20, 60))
         with patch.object(upload_safety, 'MAX_PIXELS', 1000), \
              patch.object(main, 'check_upload') as decode, \
-             patch.object(main, '_read_upload_images') as reader, \
-             patch.object(Image.Image, 'load', side_effect=AssertionError('decoded too early')):
-            with self.assertRaisesRegex(upload_safety.UploadSafetyError, '전체 해상도'):
-                main._read_check_uploads(payloads)
+             patch.object(main, '_read_upload_images') as reader:
+            with self.assertRaises(upload_safety.UploadSafetyError):
+                main._read_check_uploads([('large.png', 'image/png', raw)])
         decode.assert_not_called()
         reader.assert_not_called()
+
+    def test_long_files_are_sequential_and_mixed_pdf_order_is_preserved(self):
+        with pymupdf.open() as doc:
+            doc.new_page().insert_text((50, 50), 'PDF middle')
+            pdf = doc.tobytes()
+        payloads = [('a.png', 'image/png', picture()), ('b.pdf', 'application/pdf', pdf),
+                    ('c.png', 'image/png', picture()), ('d.png', 'image/png', picture())]
+        sizes = []
+        def reader(images, **kwargs):
+            sizes.append(len(images))
+            return ocr.OcrResult(texts=['image ' + str(len(sizes))], engine='test')
+        with patch.object(main, '_read_upload_images', side_effect=reader), \
+             patch.object(ocr, 'read_pdf', return_value=ocr.OcrResult(texts=['PDF middle'], engine='pdf')):
+            texts, _ = main._read_check_uploads(payloads)
+        self.assertEqual([1, 1, 1], sizes)
+        self.assertEqual('image 1', texts[0])
+        self.assertIn('PDF middle', texts[1])
+        self.assertEqual(['image 2', 'image 3'], texts[2:])
+
 
 
 class LongPdfTests(unittest.TestCase):
