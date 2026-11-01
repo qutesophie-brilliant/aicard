@@ -160,7 +160,8 @@ def semantic_details(soup):
             parts.append(str(sibling))
         fragment = BeautifulSoup('<section class="product-description">' + ''.join(parts) + '</section>', 'html.parser').section
         if (len(fragment.get_text(' ', strip=True)) - len(heading.get_text(' ', strip=True)) >= 30
-                or any(image_source(im) for im in fragment.select('img'))):
+                or any(image_source(im) for im in fragment.select('img'))
+                or any(frame.get('src') or frame.get('data-src') for frame in fragment.select('iframe'))):
             roots.append(fragment)
     return roots
 

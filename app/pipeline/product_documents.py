@@ -49,7 +49,8 @@ def prepare(html, url, fetch):
     # Iframes must be explicitly inside an identified description, or have a
     # known description-frame ID. Advertising/video/recommendation frames stay out.
     frames = []
-    for root in soup.select(product_page.DETAIL_SELECTOR):
+    description_roots = soup.select(product_page.DETAIL_SELECTOR) + product_page.semantic_details(soup)
+    for root in description_roots:
         for frame in ([root] if root.name == 'iframe' else root.select('iframe')):
             identity = ' '.join([frame.get('id', ''), frame.get('title', ''), frame.get('src', '')]).lower()
             if any(word in identity for word in ('youtube', 'vimeo', 'doubleclick', 'review', 'recommend', 'tracking', 'advert')):

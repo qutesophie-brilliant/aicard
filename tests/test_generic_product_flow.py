@@ -47,6 +47,21 @@ class GenericProductFlowTests(unittest.TestCase):
         self.assertIn('장애물',product_page.product_text(product_page.product_body(recovered,url)))
         self.assertEqual(stages[-1]['stage'],'browser_render')
 
+    def test_unknown_labelled_detail_frame_is_fetched_without_site_adapter(self):
+        url='https://new-seller.example/42'
+        html='<main><h2>상품 상세정보</h2><iframe src="/editor/42"></iframe><h2>후기</h2><iframe src="/reviews/42"></iframe></main>'
+        child=httpx.Response(200,text='<p>'+self.text+'</p><img src="/full.png">',
+                             headers={'content-type':'text/html'},request=httpx.Request('GET','https://new-seller.example/editor/42'))
+        fetch=Mock(return_value=child)
+        renderer=Mock()
+        recovered,_,documents,_=page_recovery.acquire(html,url,fetch,renderer)
+        fetch.assert_called_once_with('https://new-seller.example/editor/42')
+        renderer.assert_not_called()
+        self.assertEqual(documents[0]['status'],'read')
+        body=product_page.product_body(recovered,url)
+        self.assertIn('장애물',body.get_text())
+        self.assertEqual(body.select_one('img')['src'],'https://new-seller.example/full.png')
+
     def test_empty_known_container_does_not_hide_labelled_description(self):
         body=product_page.product_body('<div class="product-description"></div><h2>상품 설명</h2><p>'+self.text+'</p>','https://new.example/42')
         self.assertIn('장애물',body.get_text())
