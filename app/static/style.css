@@ -975,9 +975,10 @@ body.menu-open .topbar{z-index:60;background:var(--paper)}
 @media(max-width:600px){.catalog-total{flex-direction:column;gap:4px}.catalog-total .catalog-total-separator{display:none}}
 
 /* A restrained emphasis on the catalog identity reveal action. */
-#catalog-reveal{font-weight:700;min-height:50px;padding:14px 20px;background:var(--navy-2);border-color:#355c91;box-shadow:0 0 0 3px #e0e8f4,0 4px 10px rgba(9,41,86,.12);justify-content:center}
-#catalog-reveal:hover{background:var(--navy);box-shadow:0 0 0 3px #d6e2f2,0 5px 12px rgba(9,41,86,.16)}
-#catalog-reveal:focus-visible{outline:3px solid var(--navy);outline-offset:5px}
+#find{scroll-margin-top:90px}
+#catalog-reveal{font-weight:700;min-height:50px;padding:14px 20px;color:#fff;background:var(--amber);border-color:var(--amber);box-shadow:0 0 0 3px var(--amber-soft),0 4px 10px rgba(122,59,0,.12);justify-content:center}
+#catalog-reveal:hover{background:var(--amber-ink);border-color:var(--amber-ink);box-shadow:0 0 0 3px var(--amber-soft),0 5px 12px rgba(122,59,0,.16)}
+#catalog-reveal:focus-visible{outline:3px solid var(--amber-ink);outline-offset:5px}
 
 /* Existing product evidence, comparison and review paths: no extra workflow. */
 .consumer-path{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:24px}
