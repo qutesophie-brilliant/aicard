@@ -915,14 +915,29 @@ async def api_check(request: Request):
 
 
 @app.post("/check/request")
-def check_request(request: Request, url: str = Form(""), name: str = Form(""), note: str = Form("")):
+def check_request(request: Request, url: str = Form(""), name: str = Form(""), note: str = Form(""), request_kind: str = Form("")):
     ip = request.client.host if request.client else "?"
     if not _rate_ok(ip, limit=10):
         raise HTTPException(429)
+    url, name, note = url.strip(), name.strip(), note.strip()
+    is_link_review = request_kind == "link_review"
+    if is_link_review:
+        # Intake must work even when the seller cannot be fetched. Do not fetch
+        # the URL here; normal ingestion retains its public-network checks.
+        try:
+            parsed = httpx.URL(url)
+            valid = parsed.scheme in ("http", "https") and parsed.host and not parsed.userinfo
+        except (ValueError, httpx.InvalidURL):
+            valid = False
+        if not valid or len(url) > 500:
+            raise HTTPException(400, "확인할 상품 페이지 주소를 500자 이내로 입력해 주세요.")
+        name = name or "상품 페이지 확인 요청"
+        note = "[링크 확인 요청] " + note[:300]
     if not (url or name):
         raise HTTPException(400)
     rid = db.add_request(url, name, note)
     return render(request, "check_thanks.html", rid=rid, pname=name,
+                  is_link_review=is_link_review,
                   is_correction=bool(re.fullmatch(r"/card/\d+", url.strip())))
 
 

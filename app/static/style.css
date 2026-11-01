@@ -529,6 +529,14 @@ textarea { min-height: 150px; line-height: 1.6; }
 .request-schedule { max-width: 760px; margin: 18px 0; padding: 18px 20px; border: 1px solid var(--line); border-radius: var(--r-s); background: var(--navy-tint); color: var(--ink-2); font-size: 1rem; line-height: 1.8; word-break: keep-all; overflow-wrap: anywhere; }
 .request-schedule strong { color: var(--navy); }
 .request-schedule p + p { margin-top: 8px; }
+.recovery-actions{display:flex;flex-wrap:wrap;gap:10px;margin:16px 0}
+.recovery-actions .btn{min-height:48px;white-space:normal;text-align:center}
+.link-review-request{margin:24px 0;padding:18px 20px;border:1px solid var(--line);border-radius:var(--r-s);background:var(--paper);word-break:keep-all;overflow-wrap:anywhere;scroll-margin-top:90px}
+.link-review-request summary{cursor:pointer;font-weight:600;min-height:44px;align-content:center}
+.link-review-request .form{margin-top:16px}
+.link-review-request .btn{min-height:48px;white-space:normal}
+#drop{scroll-margin-top:90px}
+@media(max-width:600px){.recovery-actions .btn{width:100%;justify-content:center}.link-review-request{padding:16px}.link-review-request input{font-size:16px}.link-review-request button{width:100%;justify-content:center}}
 .ok { border-radius: var(--r-s); background: var(--navy-soft); padding: 12px 14px; margin-top: 16px; }
 .meta { color: var(--ink-3); font-size: .88rem; }
 .quick .lb-band { background: var(--ink-2); }

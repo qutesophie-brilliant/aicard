@@ -6,6 +6,7 @@ from unittest.mock import patch
 from fastapi.testclient import TestClient
 
 from app import db, main, schema
+from app.pipeline.product_page import ProductBodyUnavailable
 
 
 class RequestScheduleTests(unittest.TestCase):
@@ -49,6 +50,50 @@ class RequestScheduleTests(unittest.TestCase):
         self.assertNotIn('12월', response.text)
         self.assertEqual(db.get_product(self.pid), self.before)
         self.assertEqual(db.get_card(self.pid), self.card)
+
+    def test_failed_link_can_be_requested_without_files_name_or_fetch(self):
+        url = 'https://seller.example/item/1?variant=blue'
+        with patch.object(main, '_read_check_url', side_effect=ProductBodyUnavailable('본문을 가져오지 못했습니다.')) as fetch, \
+             patch.object(main, '_match_published', return_value=None):
+            failed = self.client.post('/check', data={'url': url})
+            self.assertIn('관리자에게 링크 확인 요청', failed.text)
+            from bs4 import BeautifulSoup
+            page = BeautifulSoup(failed.text, 'html.parser')
+            section = page.select_one('#link-review-request')
+            self.assertTrue(section.has_attr('open'))
+            form = section.find('form')
+            self.assertIsNone(form.find_parent('form'))
+            self.assertEqual(form.select_one('[name=url]')['value'], url)
+            response = self.client.post('/check/request', data={
+                'url': url, 'request_kind': 'link_review',
+            })
+            self.assertEqual(fetch.call_count, 1)
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('링크 확인 요청을 받았습니다', response.text)
+        self.assertIn('접수번호는', response.text)
+        self.assertIn('2026년 12월 말부터', response.text)
+        pending = db.list_requests('new')
+        self.assertEqual(len(pending), 1)
+        self.assertEqual(pending[0]['url'], url)
+        self.assertIn('[링크 확인 요청]', pending[0]['note'])
+        self.assertEqual(db.get_product(self.pid), self.before)
+        self.assertEqual(db.get_card(self.pid), self.card)
+        # The same existing queue is rendered on the protected reviewer screen.
+        with patch.object(main.config, 'REVIEW_TOKEN', ''):
+            review = self.client.get('/review')
+        self.assertEqual(review.status_code, 200)
+        self.assertIn('[링크 확인 요청]', review.text)
+
+    def test_link_request_rejects_invalid_schemes_credentials_and_long_url(self):
+        for url in ('', 'javascript:alert(1)', 'file:///etc/passwd',
+                    'https://user:password@seller.example/item',
+                    'https://seller.example/' + 'a' * 500):
+            with self.subTest(url=url):
+                response = self.client.post('/check/request', data={
+                    'url': url, 'request_kind': 'link_review',
+                })
+                self.assertEqual(response.status_code, 400)
+        self.assertEqual(db.list_requests(), [])
 
 
 if __name__ == '__main__':
