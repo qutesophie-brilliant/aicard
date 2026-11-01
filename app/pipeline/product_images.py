@@ -38,6 +38,7 @@ def capture_images(html, url, capture, fetch_bytes=None, reader=None, limit=24):
     fetch_bytes=fetch_bytes or download
     import math
     import time
+    from .. import check_budget
     from .image_tiles import MAX_PIXELS, MAX_TILES, TILE_SIDE, OVERLAP, MAX_SHORT_SIDE
     audit=[]; payloads=[]; loaded=[]; total_bytes=0; total_tiles=0
     download_deadline = time.monotonic() + 35
@@ -45,7 +46,7 @@ def capture_images(html, url, capture, fetch_bytes=None, reader=None, limit=24):
         row={'url':src,'text':'','engine':'none','status':'pending','image_number':index+1,
              'download_attempts':0,'ocr_attempts':0}
         audit.append(row)
-        if index >= limit or time.monotonic() >= download_deadline:
+        if index >= limit or time.monotonic() >= download_deadline or check_budget.remaining(15) < 15:
             row['status']='skipped_limit'
             continue
         try:
@@ -96,6 +97,7 @@ def capture_images(html, url, capture, fetch_bytes=None, reader=None, limit=24):
                 capture['sections'].append({'section_id':len(capture['sections']),'feature_scope':'',
                     'text':text,'diagram_text':result['text'],'chunks':chunk_text(text,ocr=True),'source_url':row['url'],
                     'snapshot_sha256':row['image_sha256'],'source_type':'image_ocr','ocr_engine':row['engine']})
+                check_budget.remember_capture(capture)
     capture['images']=audit
     capture['coverage'].update(image_candidates=len(candidates),image_attempted=sum(r['download_attempts'] > 0 for r in audit),
         image_duplicate_variants=len(duplicates),image_skipped_limit=sum(r['status']=='skipped_limit' for r in audit),

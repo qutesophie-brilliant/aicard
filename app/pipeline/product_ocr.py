@@ -152,6 +152,8 @@ def provider_failure_notes(rows):
 
 
 def read_images(images, allow_llm=True, local_timeout_seconds=None, recover_unconfirmed=False):
+    from .. import check_budget
+    check_budget.checkpoint()
     from .image_tiles import split_image, join_texts, MAX_IMAGE_TILES
     groups = [split_image(data) for data in images]
     if len(groups) <= BATCH_IMAGES and all(len(group) == 1 for group in groups):
@@ -159,7 +161,7 @@ def read_images(images, allow_llm=True, local_timeout_seconds=None, recover_unco
     payloads = [tile for group in groups for tile in group]
     if len(payloads) > MAX_IMAGE_TILES:
         raise ValueError('한 번에 읽을 상세 이미지가 너무 많습니다. 파일을 나누어 올려 주세요.')
-    deadline = time.monotonic() + LONG_OCR_SECONDS
+    deadline = time.monotonic() + check_budget.remaining(LONG_OCR_SECONDS)
     batches = [payloads[start:start + BATCH_IMAGES]
                for start in range(0, len(payloads), BATCH_IMAGES)]
     def read_batch(batch):
@@ -207,7 +209,12 @@ def _read_images(images, allow_llm=True, local_timeout_seconds=None, recover_unc
     rows = [{'text': '', 'engine': 'none', 'status': 'not_read', 'attempts': 0} for _ in payloads]
     if not payloads:
         return rows
-    deadline = deadline or time.monotonic() + TOTAL_OCR_SECONDS
+    from .. import check_budget
+    deadline = min(deadline or float('inf'), time.monotonic() + check_budget.remaining(TOTAL_OCR_SECONDS if deadline is None else LONG_OCR_SECONDS))
+    if deadline - time.monotonic() < 1:
+        for row in rows:
+            row['status'] = 'timeout'
+        return rows
     def read_local(payloads):
         texts, engines, notes = [], set(), []
         for payload in payloads:

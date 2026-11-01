@@ -292,6 +292,9 @@ def from_product_html(html: str, url: str, ocr_images: bool = False) -> Ingested
     """Use an explicitly supplied rendered product snapshot, without hidden fetches."""
     from .source_capture import capture_product_html
     capture = capture_product_html(html, url)
+    from .. import check_budget
+    title_soup = BeautifulSoup(html, 'html.parser')
+    check_budget.remember_capture(capture, title_soup.title.get_text(' ', strip=True) if title_soup.title else url)
     if ocr_images:
         from .product_images import capture_images
         capture_images(html, url, capture)

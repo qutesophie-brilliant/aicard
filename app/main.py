@@ -619,10 +619,10 @@ def _match_published(url: str) -> dict[str, Any] | None:
     return next(iter(matches.values())) if len(matches) == 1 else None
 
 @app.get("/check", response_class=HTMLResponse)
-def check_page(request: Request, q: str = ""):
+def check_page(request: Request, q: str = "", url: str = ""):
     base = _public_base(request)
     return render(request, "check.html", base=base, bookmarklet=_bookmarklet(base, "/check/receive"),
-                  error=None, url="", q=q.strip()[:80])
+                  error=None, url=url.strip()[:2000], q=q.strip()[:80])
 
 
 _check_ocr_gate = threading.BoundedSemaphore(1)
@@ -673,6 +673,8 @@ def _read_check_uploads(payloads: list[tuple[str, str, bytes]]) -> tuple[list[st
                 scoped = note.startswith(('확인 대상 이미지', '이미지 ', '긴 이미지의 일부'))
                 notes.append(f"{label}: {note}" if scoped else note)
             notes.append("글자 읽기: " + engines.get(r.engine, "문자 인식"))
+            from . import check_budget
+            check_budget.remember_uploads(texts, notes)
         with ExitStack() as staging:
             checked = []
             # Disk-backed temporary files avoid retaining every reconstructed
@@ -696,6 +698,8 @@ def _read_check_uploads(payloads: list[tuple[str, str, bytes]]) -> tuple[list[st
                         image_numbers.clear()
                         release_ocr_heap()
             for number, (filename, ctype, stream) in enumerate(checked, 1):
+                from . import check_budget
+                check_budget.checkpoint()
                 if ctype == "application/pdf":
                     flush()
                     try:
@@ -745,9 +749,26 @@ def _read_check_url(url: str):
             _check_ocr_gate.release()
 
 
+async def _quick_result(name, url, sales, fine, use_llm=False, source_capture=None, seconds=8):
+    """Prepare a source-based baseline before optional model enrichment."""
+    from . import check_budget
+    budget = check_budget.Budget(seconds=seconds)
+    baseline = await check_budget.call(budget, quick_check, name, url, sales, fine,
+                                       use_llm=False, source_capture=source_capture)
+    if use_llm and budget.remaining() > .1:
+        try:
+            return await check_budget.call(budget, quick_check, name, url, sales, fine,
+                                           use_llm=True, source_capture=source_capture)
+        except Exception:
+            pass
+    return baseline
+
+
 @app.post("/check", response_class=HTMLResponse)
 async def check_url(request: Request, url: str = Form(""), text: str = Form(""),
                     files: list[UploadFile] = File(default=[])):
+    from . import check_budget
+    budget = check_budget.Budget()
     ip = request.client.host if request.client else "?"
     if not _rate_ok(ip):
         raise HTTPException(429, "잠시 뒤 다시 시도해 주세요.")
@@ -791,9 +812,12 @@ async def check_url(request: Request, url: str = Form(""), text: str = Form(""),
                               error=f"이미지(JPG·PNG)나 PDF만 올릴 수 있습니다. ({f.filename})")
             payloads.append((f.filename, ctype, data))
         try:
-            read_texts, read_notes = await run_in_threadpool(_read_check_uploads, payloads)
+            read_texts, read_notes = await check_budget.call(budget, _read_check_uploads, payloads, fallback='uploads')
         except ValueError as e:
             return render(request, "check.html", base=base, bookmarklet=bm, url=url, q="", error=str(e))
+        except Exception:
+            return render(request, "check.html", base=base, bookmarklet=bm, url=url, q="", upload_fallback=True,
+                          error="파일의 글자 읽기를 완료하지 못했습니다. 아래에서 다시 분석하거나 다른 캡처·PDF로 계속할 수 있습니다.")
         notes.extend(read_notes)
         from .pipeline.quick_diagrams import capture_uploads
         source_capture = capture_uploads(([text] if text else []) + read_texts, url)
@@ -817,7 +841,7 @@ async def check_url(request: Request, url: str = Form(""), text: str = Form(""),
         ocr_hits = _check_hits.get(ip + ':ocr', [])
         ocr_ticket = ocr_hits[-1] if ocr_hits else None
         try:
-            ing = await run_in_threadpool(_read_check_url, url)
+            ing = await check_budget.call(budget, _read_check_url, url, fallback='url')
         except ingest.product_page.ProductBodyUnavailable as e:
             _refund_check_ocr(ip + ':ocr', ocr_ticket)
             return render(request, "check.html", base=base, bookmarklet=bm, url=url, q="", error=str(e), upload_fallback=True)
@@ -844,9 +868,14 @@ async def check_url(request: Request, url: str = Form(""), text: str = Form(""),
                       error="판매페이지 주소를 넣거나, 캡처 이미지·PDF를 올리거나, 설명 글을 붙여 넣어 주세요.")
     use_llm = config.CHECK_LLM and _rate_ok(ip + ":llm", limit=config.CHECK_LLM_PER_HOUR)
     try:
-        card, docs = await run_in_threadpool(quick_check, name, url, sales, fine, use_llm=use_llm, source_capture=source_capture)
+        card, docs = await _quick_result(name, url, sales, fine, use_llm=use_llm, source_capture=source_capture)
     except ValueError as e:
         return render(request, "check.html", base=base, bookmarklet=bm, url=url, q="", error=str(e))
+    except Exception:
+        return render(request, "check.html", base=base, bookmarklet=bm, url=url, q="", upload_fallback=True,
+                      error="원문은 읽었지만 관련 문장 정리를 완료하지 못했습니다. 읽은 원문을 먼저 확인해 주세요.",
+                      recovered_text=(sales + '\n' + fine)[:6000])
+    card['quick_partial'] = check_budget.PARTIAL_NOTE in notes
     return render(request, "check_result.html", card=card, docs=docs, pname=name, url=url, s=_check_summary(card), notes=notes)
 
 
@@ -858,6 +887,8 @@ def check_receive(request: Request):
 @app.post("/api/check")
 async def api_check(request: Request):
     """북마클릿 수신 창이 보내는 본문으로 즉석 확인 결과를 HTML 조각으로 돌려준다."""
+    from . import check_budget
+    budget = check_budget.Budget()
     ip = request.client.host if request.client else "?"
     if not _rate_ok(ip):
         raise HTTPException(429)
@@ -895,21 +926,22 @@ async def api_check(request: Request):
                 try: release_ocr_heap()
                 finally: _check_ocr_gate.release()
         try:
-            ing = await run_in_threadpool(read_capture)
+            ing = await check_budget.call(budget, read_capture, fallback='url')
         except ValueError as e:
             _refund_check_ocr(ip + ':ocr', ticket)
-            raise HTTPException(400, str(e))
+            return render(request, '_check_pending.html', pname=name, url=url, error=str(e))
         except Exception:
             _refund_check_ocr(ip + ':ocr', ticket)
-            raise HTTPException(502, '받은 상품 설명의 분석을 완료하지 못했습니다. 잠시 뒤 다시 시도해 주세요.')
+            return render(request, '_check_pending.html', pname=name, url=url, error='받은 상품 설명을 읽지 못했습니다. 다른 자료로 확인을 이어갈 수 있습니다.')
         data['sales_text'], data['fine_text'] = split_fine_print(ing.text)
         notes = ing.notes
         source_capture = ing.source_capture
     use_llm = config.CHECK_LLM and _rate_ok(ip + ":llm", limit=config.CHECK_LLM_PER_HOUR)
     try:
-        card, docs = await run_in_threadpool(quick_check, name, url, data.get("sales_text", ""), data.get("fine_text", ""), use_llm=use_llm, source_capture=source_capture)
-    except ValueError as e:
-        raise HTTPException(400, str(e))
+        card, docs = await _quick_result(name, url, data.get("sales_text", ""), data.get("fine_text", ""), use_llm=use_llm, source_capture=source_capture)
+    except Exception:
+        return render(request, '_check_pending.html', pname=name, url=url, error='관련 문장 정리를 완료하지 못했습니다. 다른 자료로 확인을 이어갈 수 있습니다.')
+    card['quick_partial'] = check_budget.PARTIAL_NOTE in notes
     return render(request, "_check_body.html", card=card, docs=docs, pname=name,
                   url=url, s=_check_summary(card), notes=notes)
 

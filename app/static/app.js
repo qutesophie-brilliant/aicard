@@ -253,10 +253,12 @@
   function submitCheckInPlace(event, form, onFailure, onComplete = () => {}) {
     if (typeof window.fetch !== 'function') return;
     event.preventDefault();
+    const previousRecovery = document.getElementById('client-recovery-card');
+    if (previousRecovery) previousRecovery.remove();
     form.dataset.asyncPending = 'true';
     const payload = new FormData(form);
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 600000);
+    const timeout = setTimeout(() => controller.abort(), 115000);
     window.fetch(form.action || '/check', {
       method: 'POST', body: payload, credentials: 'same-origin', signal: controller.signal
     }).then(async response => {
@@ -278,11 +280,30 @@
     }).catch(error => {
       clearTimeout(timeout);
       delete form.dataset.asyncPending;
-      onFailure(error.name === 'AbortError'
+      const message = error.name === 'AbortError'
         ? '분석 응답 시간이 길어 연결을 종료했습니다. 잠시 뒤 다시 확인해 주세요.'
         : error instanceof TypeError
           ? '서버 연결이 끊겼습니다. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.'
-          : error.message);
+          : error.message;
+      onFailure(message);
+      let recovery = document.getElementById('client-recovery-card');
+      if (!recovery) {
+        recovery = document.createElement('article');
+        recovery.id = 'client-recovery-card'; recovery.className = 'label quick recovery-card';
+        recovery.tabIndex = -1; recovery.setAttribute('role', 'status');
+        if (form.parentNode) form.parentNode.insertBefore(recovery, form);
+        else document.body.appendChild(recovery);
+      }
+      recovery.innerHTML = '';
+      const title = document.createElement('h2'); title.textContent = '자료 확인 필요'; recovery.appendChild(title);
+      const description = document.createElement('p');
+      description.textContent = message + ' 분석을 완료한 카드가 아닙니다. 선택한 파일과 입력한 주소는 이 화면에 남아 있습니다.';
+      recovery.appendChild(description);
+      const source = form.querySelector('[name="url"]');
+      const link = document.createElement('a'); link.className = 'btn primary';
+      link.href = '/check?url=' + encodeURIComponent(source ? source.value : '') + '#link-review-request';
+      link.textContent = '관리자에게 링크 확인 요청'; recovery.appendChild(link);
+      recovery.focus(); recovery.scrollIntoView({block:'center'});
     });
   }
 
@@ -291,7 +312,7 @@
     const box = document.createElement('section');
     box.className = 'check-wait'; box.hidden = true; box.tabIndex = -1;
     box.setAttribute('aria-label', '자료 확인 중');
-    box.innerHTML = '<span class="wait-spinner" aria-hidden="true"></span><div><h2>자료를 확인하고 있습니다</h2><p role="status">AI 문구와 관련 설명을 찾고 있습니다.</p><p class="meta">분석에는 약 1분이 걸릴 수 있습니다. 페이지에 따라 더 오래 걸릴 수 있습니다.</p><p class="meta">경과 시간 <strong data-elapsed>0초</strong> · 이 화면에서 기다려 주세요.</p><p class="meta" data-slow hidden>평소보다 시간이 걸리고 있습니다. 외부 서비스 응답에 따라 확인이 늦어질 수 있습니다.</p><figure class="wait-example"><figcaption><strong>정식 카드 예시</strong><br>사람이 원문을 확인한 공개 카드의 기존 화면입니다.<br>현재 입력한 링크의 분석 결과가 아닙니다.</figcaption><img src="/static/check-card-example.png" alt="공개 카드 예시: 제품명, AI 문구별 확인 상태와 주의사항" width="1265" height="712" loading="lazy"><p class="meta">바로 확인에서는 관련 문장과 조건을 보여 주며, 위와 같은 정식 판정은 하지 않습니다.</p><a href="/card/67" target="_blank" rel="noopener">예시 카드 새 창에서 보기 ↗</a></figure></div>';
+    box.innerHTML = '<span class="wait-spinner" aria-hidden="true"></span><div><h2>자료를 확인하고 있습니다</h2><p role="status">AI 문구와 관련 설명을 찾고 있습니다.</p><p class="meta">자료를 받은 뒤 약 1~2분 안에 읽은 내용부터 보여 드립니다.</p><p class="meta">경과 시간 <strong data-elapsed>0초</strong> · 이 화면에서 기다려 주세요.</p><p class="meta" data-slow hidden>평소보다 시간이 걸리고 있습니다. 외부 서비스 응답에 따라 확인이 늦어질 수 있습니다.</p><figure class="wait-example"><figcaption><strong>정식 카드 예시</strong><br>사람이 원문을 확인한 공개 카드의 기존 화면입니다.<br>현재 입력한 링크의 분석 결과가 아닙니다.</figcaption><img src="/static/check-card-example.png" alt="공개 카드 예시: 제품명, AI 문구별 확인 상태와 주의사항" width="1265" height="712" loading="lazy"><p class="meta">바로 확인에서는 관련 문장과 조건을 보여 주며, 위와 같은 정식 판정은 하지 않습니다.</p><a href="/card/67" target="_blank" rel="noopener">예시 카드 새 창에서 보기 ↗</a></figure></div>';
     form.after(box);
     let timer;
     const buttons = Array.from(form.querySelectorAll('button'));
@@ -361,6 +382,7 @@
   function flash() {
     const id = location.hash.slice(1); if (!id) return;
     const el = document.getElementById(id); if (!el) return;
+    if (el.tagName === 'DETAILS') el.open = true;
     el.classList.add('hit'); setTimeout(() => el.classList.remove('hit'), 1600);
   }
   window.addEventListener('hashchange', flash); flash();

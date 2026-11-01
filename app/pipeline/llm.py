@@ -43,6 +43,9 @@ _ocr_budget = contextvars.ContextVar('aicard_ocr_budget', default=None)
 
 
 def _request_timeout(default):
+    from .. import check_budget
+    check_budget.checkpoint()
+    default = check_budget.remaining(default)
     budget = _ocr_budget.get()
     if budget is None:
         return default
@@ -114,7 +117,8 @@ def _extract_json(text: str) -> Any:
 
 def _anthropic_call(prompt: str, images: list[bytes] | None, max_tokens: int) -> str:
     import anthropic
-    options = {'timeout': _request_timeout(180), 'max_retries': 0} if _ocr_budget.get() is not None else {}
+    from .. import check_budget
+    options = {'timeout': _request_timeout(180), 'max_retries': 0} if _ocr_budget.get() is not None or check_budget.active() else {}
     client = anthropic.Anthropic(**options)
     content: list[dict[str, Any]] = []
     for img in images or []:
@@ -130,7 +134,8 @@ def _anthropic_call(prompt: str, images: list[bytes] | None, max_tokens: int) ->
 
 def _openai_call(prompt: str, images: list[bytes] | None, max_tokens: int) -> str:
     from openai import OpenAI
-    options = {'timeout': _request_timeout(180), 'max_retries': 0} if _ocr_budget.get() is not None else {}
+    from .. import check_budget
+    options = {'timeout': _request_timeout(180), 'max_retries': 0} if _ocr_budget.get() is not None or check_budget.active() else {}
     client = OpenAI(**options)
     content: list[dict[str, Any]] = [{"type": "text", "text": prompt}]
     for img in images or []:

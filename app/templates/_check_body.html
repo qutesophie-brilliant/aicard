@@ -11,6 +11,7 @@
     <span class="lb-cat">{{ 'AI로 관련 문장 연결' if card.quick_llm else '규칙으로 관련 문장 연결' }}</span>
   </div>
   <p class="review-state automatic">입력자에게 제공하는 미승인 자동 분석 결과입니다. 정식 카드로 저장·공개되지 않으며, 관리자의 원문 대조와 승인을 마친 카드와 구분됩니다.</p>
+  {% if card.quick_partial %}<p class="notice" role="status"><strong>읽은 자료로 먼저 만든 부분 결과입니다.</strong> 일부 자료의 처리를 완료하지 못했습니다. 아래 내용은 확보한 원문 범위에서 확인해 주세요.</p>{% endif %}
   <div class="lb-head">
     <div>
       <h2 class="lb-name">{{ pname }}</h2>

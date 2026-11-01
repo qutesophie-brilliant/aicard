@@ -44,6 +44,7 @@ function fixture(asyncMode = false) {
   const window = new Element();
   const submitted = [];
   const timers = [];
+  const timeouts = [];
   let now = 0, resolve, reject;
   const pending = new Promise((a, b) => { resolve = a; reject = b; });
   const navigated = [], written = [];
@@ -72,10 +73,10 @@ function fixture(asyncMode = false) {
     File: class { constructor(parts, name, options) { this.name = name; this.type = options.type; this.size = 100; } },
     localStorage: { getItem: () => null, setItem() {} },
     location: { hash: '', href: 'https://example.test/check' }, navigator: {},
-    setInterval: fn => { timers.push(fn); return timers.length; }, clearInterval(id) { timers[id - 1] = null; }, setTimeout: () => 1, clearTimeout() {},
+    setInterval: fn => { timers.push(fn); return timers.length; }, clearInterval(id) { timers[id - 1] = null; }, setTimeout: (fn,ms) => { timeouts.push(ms); return timeouts.length; }, clearTimeout() {},
   });
   return {
-    ids, form, url, body, submitted, navigated, written,
+    ids, form, url, body, submitted, navigated, written, timeouts, recoveryCards: document.body.children,
     tick(ms) { now += ms; timers.filter(Boolean).forEach(fn => fn()); },
     resolve, reject,
     async settle() { await new Promise(done => setImmediate(done)); },
@@ -216,4 +217,16 @@ test('server 502 returns a clear retry state without replacing page with an erro
   assert.equal(f.written.length, 0);
   assert.equal(f.ids.go.disabled, false);
   assert.match(f.ids.fileerror.textContent, /분석 서버/);
+  assert.equal(f.recoveryCards.length, 1);
+  assert.match(f.recoveryCards[0].children[1].textContent, /분석을 완료한 카드가 아닙니다/);
+});
+
+test('115-second response deadline retains input and shows an explicit recovery card', async () => {
+  const f = fixture(true); f.url.value = 'https://example.test/item?a=1&b=2'; f.addFile('pdf'); f.submit();
+  assert.ok(f.timeouts.includes(115000));
+  f.reject(Object.assign(new Error('timeout'), {name:'AbortError'})); await f.settle();
+  assert.equal(f.ids.files.files.length, 1);
+  assert.equal(f.ids.busy.hidden, true);
+  assert.equal(f.recoveryCards[0].children[0].textContent, '자료 확인 필요');
+  assert.match(f.recoveryCards[0].children[2].href, /a%3D1%26b%3D2/);
 });

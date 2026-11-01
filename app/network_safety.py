@@ -49,7 +49,9 @@ def fetch_public(url: str, *, timeout: float = 25, max_bytes: int = 16 * 1024 * 
                  allowed_hosts: set[str] | None = None, image_only: bool = False,
                  https_only: bool = False, follow_redirects: bool = True) -> httpx.Response:
     current = url
+    from . import check_budget
     for hop in range(max_redirects + 1):
+        check_budget.checkpoint()
         original, addresses = public_addresses(current)
         if https_only and original.scheme != 'https':
             raise PublicURLRejected('안전한 이미지 주소로 연결되지 않았습니다.')
@@ -63,7 +65,8 @@ def fetch_public(url: str, *, timeout: float = 25, max_bytes: int = 16 * 1024 * 
             pinned = original.copy_with(host=address)
             request_headers = {**(headers or {}), 'Host': original.netloc.decode('ascii')}
             try:
-                with httpx.Client(timeout=timeout, follow_redirects=False, trust_env=False) as client:
+                check_budget.checkpoint()
+                with httpx.Client(timeout=max(.1, check_budget.remaining(timeout)), follow_redirects=False, trust_env=False) as client:
                     with client.stream('GET', pinned, headers=request_headers,
                                        extensions={'sni_hostname': original.host}) as stream:
                         data = bytearray()
@@ -74,6 +77,7 @@ def fetch_public(url: str, *, timeout: float = 25, max_bytes: int = 16 * 1024 * 
                             if image_only and not (content_type.startswith('image/') or binary_image):
                                 raise PublicURLRejected('이미지 파일이 아닌 응답입니다.')
                             for block in stream.iter_bytes():
+                                check_budget.checkpoint()
                                 if len(data) + len(block) > max_bytes:
                                     raise PublicURLRejected('분석 가능한 다운로드 크기를 초과했습니다.')
                                 data.extend(block)

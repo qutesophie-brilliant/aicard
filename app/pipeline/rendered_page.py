@@ -38,6 +38,8 @@ def memory_pressure():
 
 
 def render(url):
+    from .. import check_budget
+    check_budget.checkpoint()
     from ..network_safety import public_addresses
     public_addresses(url)
     if os.getenv('CHECK_RENDER_FALLBACK', '1') != '1':
@@ -55,7 +57,7 @@ def render(url):
                                 start_new_session=os.name != 'nt')
         reason = 'timeout'
         try:
-            deadline = time.monotonic() + MAX_SECONDS
+            deadline = time.monotonic() + check_budget.remaining(MAX_SECONDS)
             while proc.poll() is None and time.monotonic() < deadline:
                 if memory_pressure():
                     reason = 'memory'
