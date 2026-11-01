@@ -84,7 +84,8 @@ def capture_images(html, url, capture, fetch_bytes=None, reader=None, limit=24):
             readings=[{'text':r.text,'engine':r.engine,'status':'read' if r.text.strip() else 'no_text','attempts':1} for r in results]
         else:
             from . import product_ocr
-            readings=product_ocr.read_images(payloads,allow_llm=config.CHECK_OCR_LLM)
+            readings=product_ocr.read_images(payloads,allow_llm=config.CHECK_OCR_LLM,
+                                             local_timeout_seconds=8, recover_unconfirmed=True)
         for i,row in enumerate(loaded):
             result=readings[i]
             text=merge_ocr_lines(result['text'])

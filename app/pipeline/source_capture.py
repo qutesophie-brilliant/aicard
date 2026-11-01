@@ -92,6 +92,7 @@ def capture_product_html(html, url, _body=None):
             pdf_links.append(href)
     return {'source_url': url, 'snapshot_sha256': digest, 'text': text,
             'sections': unique, 'coverage': {
+                'product_selection': (body.select_one('[data-aicard-selection]') or {}).get('data-aicard-selection', 'explicit_product_container'),
                 'product_text_chars': len(text), 'sections': len(unique),
                 'embedded_detail_panels': len(body.select('.dropContent, details')),
                 'unresolved_panel_targets': sorted(set(unresolved)),

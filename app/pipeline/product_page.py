@@ -114,6 +114,57 @@ def embedded_description(soup):
     return descriptions[0] if len(descriptions) == 1 else ''
 
 
+def semantic_details(soup):
+    """Find explicitly labelled product sections without knowing a seller's CSS.
+
+    Do not use the whole main/body or infer product claims from generic images.
+    A section ends at the next peer heading, preserving source order and footnotes.
+    """
+    labels = {
+        '상품상세', '상품상세정보', '상품상세설명', '상품설명', '제품상세',
+        '제품상세정보', '제품설명', '제품특징', '상세설명',
+        'productdetails', 'productdescription', 'productfeatures', 'technicaldetails',
+    }
+    def named(text):
+        return re.sub(r'[\s:：]+', '', text).lower() in labels
+    def rank(node):
+        if re.fullmatch(r'h[1-6]', node.name):
+            return int(node.name[1])
+        value = node.get('aria-level', '2')
+        return int(value) if str(value).isdigit() else 2
+    roots = [n for n in soup.select('section[aria-label],article[aria-label],div[role="region"][aria-label],div[role="tabpanel"][aria-label]')
+             if named(n.get('aria-label', ''))]
+    for heading in soup.select('h1,h2,h3,h4,h5,h6,[role="heading"]'):
+        if not named(heading.get_text(' ', strip=True)):
+            continue
+        if any(root is parent for root in roots for parent in heading.parents):
+            continue
+        level = rank(heading)
+        anchor = heading
+        # A title is commonly wrapped in an otherwise empty div. Ascend only
+        # those title-only wrappers; never swallow a page-level container.
+        for _ in range(2):
+            parent = anchor.parent
+            if (not parent or parent.name not in ('div', 'header')
+                    or parent.get_text(' ', strip=True) != heading.get_text(' ', strip=True)
+                    or parent.find(['img', 'iframe', 'table'])):
+                break
+            anchor = parent
+        parts = [str(heading)]
+        for sibling in list(anchor.next_siblings)[:60]:
+            if getattr(sibling, 'name', None):
+                headings = ([sibling] if re.fullmatch(r'h[1-6]', sibling.name) or sibling.get('role') == 'heading'
+                            else sibling.select('h1,h2,h3,h4,h5,h6,[role="heading"]'))
+                if any(rank(h) <= level for h in headings):
+                    break
+            parts.append(str(sibling))
+        fragment = BeautifulSoup('<section class="product-description">' + ''.join(parts) + '</section>', 'html.parser').section
+        if (len(fragment.get_text(' ', strip=True)) - len(heading.get_text(' ', strip=True)) >= 30
+                or any(image_source(im) for im in fragment.select('img'))):
+            roots.append(fragment)
+    return roots
+
+
 def product_body(html: str, url: str) -> BeautifulSoup:
     """Return only identified product sections, retaining their conditions/footnotes.
 
@@ -176,6 +227,12 @@ def product_body(html: str, url: str) -> BeautifulSoup:
     nodes = soup.select(selector)
     if not nodes or all(n.name == 'iframe' for n in nodes):
         nodes = soup.select(DETAIL_SELECTOR)
+    selection_method = 'explicit_product_container'
+    if not nodes or all(len(n.get_text('', strip=True)) < 30 and not any(image_source(im) for im in n.select('img')) for n in nodes):
+        discovered = semantic_details(soup)
+        if discovered:
+            nodes = discovered
+            selection_method = 'labelled_product_section'
     if host in ("lge.co.kr", "www.lge.co.kr") and nodes:
         for root in nodes:
             for common in list(root.select('.KRP0021')):
@@ -189,12 +246,14 @@ def product_body(html: str, url: str) -> BeautifulSoup:
     ids = {id(n) for n in nodes}
     roots = [n for n in nodes if not any(id(p) in ids for p in n.parents)]
     selected = BeautifulSoup("<section></section>", "html.parser")
+    selected.section['data-aicard-selection'] = selection_method
     for node in roots:
         selected.section.append(node)
     if (not roots or (len(re.sub(r'\s+', '', selected.get_text())) < 30
                       and not any(image_source(im) for im in selected.select('img')))) and structured:
         selected.section.clear()
         selected.section.append(BeautifulSoup(structured, 'html.parser'))
+        selected.section['data-aicard-selection'] = 'structured_product_description'
     # Some editors emit escaped HTML rather than child nodes.
     for node in list(selected.select('div,p,section')):
         if not node.find(True) and re.search(r'<(?:img|p|div|table)\b', node.get_text(), re.I):
