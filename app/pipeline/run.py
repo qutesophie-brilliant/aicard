@@ -139,6 +139,9 @@ def quick_check(name: str, url: str, sales_text: str, fine_text: str = "", use_l
             claims = quick_diagrams.connect(claims, docs)
         from . import quick_temperature
         claims = quick_temperature.connect(claims, docs)
+        if not use_llm:
+            from . import quick_english
+            claims = quick_english.connect(claims, docs)
         card["claims"] = claims
         with llm.rules_only():
             from . import quick_coverage

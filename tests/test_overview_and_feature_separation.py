@@ -43,6 +43,29 @@ class OverviewRecoveryTests(unittest.TestCase):
 
 
 class FeatureSeparationTests(unittest.TestCase):
+    def test_english_continuation_quotes_same_paragraph_action(self):
+        from app.pipeline import quick_english
+        quote = 'The AI cleaner detects dirty areas on the floor.'
+        following = 'It can mark these areas for repeated cleaning.'
+        doc = {'id': 1, 'kind': '판매페이지', 'text': quote + ' ' + following,
+               'chunks': [quote, following]}
+        claim = {'text': quote, 'source': {'doc_id': 1}, 'evidence': []}
+        result = quick_english.connect([claim], [doc])[0]
+        self.assertEqual(result['evidence'][0]['quote'], following)
+        self.assertEqual(result['evidence'][0]['chunk'], 1)
+
+    def test_english_continuation_never_crosses_paragraph_or_borrows_other_feature(self):
+        from app.pipeline import quick_english
+        quote = 'The AI cleaner detects dirty areas on the floor.'
+        for tail in ['\nIt can mark these areas for repeated cleaning.',
+                     ' Another sensor can mark these areas.',
+                     ' It can not mark these areas.',
+                     ' It can control another product in this room.']:
+            doc = {'id': 1, 'kind': '판매페이지', 'text': quote + tail,
+                   'chunks': [quote, tail.strip()]}
+            claim = {'text': quote, 'source': {'doc_id': 1}, 'evidence': []}
+            self.assertFalse(quick_english.connect([claim], [doc])[0]['evidence'])
+
     def test_quick_preview_keeps_english_ai_function_source(self):
         from app.pipeline.extract import _rules_extract
         quote = 'The AI Instant Re-Mop is capable of detecting areas on the floor that require deep cleaning.'
