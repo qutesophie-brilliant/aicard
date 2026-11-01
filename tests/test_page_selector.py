@@ -11,6 +11,23 @@ HTML='''<html><title>Newbrand Camera ZX 700</title><body><nav><p>Other AI produc
 
 class PageSelectorTests(unittest.TestCase):
     @patch.object(llm,'available',return_value=True)
+    def test_image_only_editor_paragraphs_survive_candidate_selection(self, _):
+        html='''<title>한글 카메라 제품 설명</title><main><h1>한글 카메라 제품 설명</h1>
+        <p><span><img src="/detail-1.jpg"></span></p>
+        <figure><p><img data-src="/detail-2.jpg" src="data:image/gif;base64,AA"></p></figure>
+        <div class="reviews"><p><img src="/review.jpg"></p></div>
+        <div class="recommended-products"><p><img src="/other.jpg"></p></div></main>'''
+        _, blocks=page_selector.candidates(html)
+        self.assertEqual([['/detail-1.jpg'], ['/detail-2.jpg']], [b['images'] for b in blocks if b['images']])
+        ids=[i for i,b in enumerate(blocks) if b['images']]
+        with patch.object(llm,'ask_json',return_value={'block_ids':ids}):
+            selected=page_selector.recover(html,'https://new-store.example/product/123')
+        body=product_page.product_body(selected,'https://new-store.example/product/123')
+        self.assertEqual(['/detail-1.jpg','/detail-2.jpg'],[product_page.image_source(i) for i in body.select('img')])
+        self.assertNotIn('review.jpg',str(body))
+        self.assertNotIn('other.jpg',str(body))
+
+    @patch.object(llm,'available',return_value=True)
     def test_unknown_layout_uses_only_selected_original_blocks(self, _):
         with patch.object(llm,'ask_json',return_value={'block_ids':[1,2,3]}) as ask:
             selected=page_selector.recover(HTML,'https://unseen.example/products/zx700')

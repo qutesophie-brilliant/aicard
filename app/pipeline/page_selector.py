@@ -10,7 +10,7 @@ from bs4 import BeautifulSoup
 from . import llm, product_page
 from .. import check_budget
 
-_EXCLUDE = re.compile(r'(?:^|[\s_-])(?:nav|menu|footer|header|review|reviews|recommendations?|related|crosssell|upsell|cart|cookie|cookies|breadcrumb)(?:$|[\s_-])', re.I)
+_EXCLUDE = re.compile(r'(?:^|[\s_-])(?:nav|menu|footer|header|review|reviews|recommend(?:ed|ation|ations)?|related|crosssell|upsell|cart|cookie|cookies|breadcrumb)(?:$|[\s_-])', re.I)
 _STOP = re.compile(r'^(?:customer reviews?|reviews?|you may also like|recommended products?|related products?|상품평|상품후기|추천상품|함께 보는 상품)$', re.I)
 
 
@@ -36,19 +36,20 @@ def candidates(html):
         if any(parent.name in ('table','figure','li','p') for parent in node.parents if parent is not root):
             continue
         text=node.get_text(' ',strip=True)
+        images=[product_page.image_source(im) for im in ([node] if node.name=='img' else node.select('img'))]
+        images=[u for u in images if u]
         if node.name in ('h1','h2','h3','h4'):
             heading=text
             if _STOP.fullmatch(text): break
         if node.name=='img':
             if not product_page.image_source(node): continue
             text=node.get('alt','')
-        elif len(text)<12 or len(text)>4500:
+        elif (len(text)<12 and not images) or len(text)>4500:
             continue
         # Lists of links to other products are not descriptions of this product.
         if node.select('a[href]') and sum(len(a.get_text(' ',strip=True)) for a in node.select('a[href]')) > max(15,len(text)*0.6):
             continue
-        images=[product_page.image_source(im) for im in ([node] if node.name=='img' else node.select('img'))]
-        nodes.append({'node':node,'text':text,'heading':heading,'images':[u for u in images if u][:4]})
+        nodes.append({'node':node,'text':text,'heading':heading,'images':images[:4]})
     if len(nodes)>96:
         nodes=[nodes[round(i*(len(nodes)-1)/95)] for i in range(96)]
     return title,nodes
