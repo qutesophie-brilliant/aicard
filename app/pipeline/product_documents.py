@@ -6,7 +6,7 @@ login/challenge pages. Every remote fetch uses the existing pinned public-IP gua
 from html import escape
 import json
 import re
-from urllib.parse import urljoin, urlsplit
+from urllib.parse import urljoin, urlsplit, parse_qs
 from bs4 import BeautifulSoup
 from . import product_page
 
@@ -94,6 +94,36 @@ def linked_html_descriptions(soup, url):
     return links
 
 
+def published_seller_frame(soup, url):
+    """Resolve 11st's published detail URL prefix for this exact product only.
+
+    No script execution or endpoint discovery: require the literal page variable,
+    the matching description iframe and the product ID in the current URL.
+    """
+    parsed = urlsplit(url)
+    product = re.fullmatch(r'/products/(\d+)/?', parsed.path)
+    if parsed.hostname != 'www.11st.co.kr' or not product:
+        return None
+    frame = soup.select_one('#ifrmDesc iframe#prdDescIfrm')
+    if frame is None or frame.get('src') != 'about:blank':
+        return None
+    prefixes = []
+    for script in soup.select('script:not([src])'):
+        prefixes += re.findall(r'''\bvar\s+_PRODUCT_DETAIL_URL_\s*=\s*["']([^"']+)["']\s*;''', script.get_text())
+    if len(set(prefixes)) != 1:
+        return None
+    prefix = prefixes[0]
+    dest = urlsplit(prefix)
+    if (dest.scheme not in ('http', 'https') or dest.hostname != parsed.hostname
+            or dest.port or dest.username or dest.password or dest.fragment
+            or dest.path != '/product/SellerProductDetail.tmall'
+            or parse_qs(dest.query, keep_blank_values=True) !=
+               {'method':['getSellerProductDetail'], 'prdNo':['']}
+            or not prefix.endswith('prdNo=')):
+        return None
+    return prefix + product.group(1)
+
+
 def prepare(html, url, fetch):
     soup = BeautifulSoup(html, 'html.parser')
     title = soup.title.get_text(' ', strip=True) if soup.title else ''
@@ -101,7 +131,9 @@ def prepare(html, url, fetch):
     if host == 'nid.naver.com' or ('로그인' in title and not soup.select(product_page.DETAIL_SELECTOR)):
         raise product_page.ProductBodyUnavailable(
             '판매사이트가 로그인 화면으로 연결해 상품 설명을 받지 못했습니다. 로그인 없이 열리는 상품 상세주소로 다시 확인해 주세요.')
-    if any(phrase in title for phrase in ('상품을 찾을 수 없습니다', '접근이 제한', 'Access Denied')):
+    missing_heading = any(n.get_text(' ', strip=True).casefold() in
+                          ('page not found', '404 not found', 'product not found') for n in soup.select('h1,h2'))
+    if missing_heading or any(phrase in title.casefold() for phrase in ('상품을 찾을 수 없습니다', '접근이 제한', 'access denied', 'page not found')):
         raise product_page.ProductBodyUnavailable('판매사이트에서 상품 설명 대신 이용 제한 또는 상품 없음 화면을 보내 왔습니다. 상품 주소를 확인해 주세요.')
 
     # Iframes must be explicitly inside an identified description, or have a
@@ -119,10 +151,17 @@ def prepare(html, url, fetch):
     for src in linked_html_descriptions(soup, url):
         if src not in frames:
             frames.append(src)
+    seller_frame = published_seller_frame(soup, url)
+    if seller_frame and seller_frame not in frames:
+        frames.append(seller_frame)
     records = []
     for src in frames[:3]:
         try:
             response = fetch(src)
+            # Legacy detail URLs can redirect back to the complete product page.
+            # Treating that page as a description would import recommendations.
+            if str(response.url).rstrip('/') == url.rstrip('/'):
+                raise ValueError('description_redirected_to_parent')
             if 'html' not in response.headers.get('content-type', '').lower():
                 raise ValueError('not_html')
             child = BeautifulSoup(response.text, 'html.parser')

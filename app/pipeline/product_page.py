@@ -67,6 +67,9 @@ DETAIL_SELECTOR = (
     '.new-common-img-layout, .media-container), '
     '.product-info .ndev-product-key-features, '
     '.shopify-section.shopify-ndev-narwal-main, '
+    '#main-content > .shopify-section > section:is('
+    '.ndev-x30-ksp, .ndev-x30-product-parameters, .ndev-x30-product-sell-point, '
+    '.ndev-x30-other-function, .ndev-x30-install-environment, .ndev-x30-app-control, .ndev-x30-specs), '
     '#product-features, .product-features, [data-testid="product-features"], '
     '#see-all-benefits, #CMD.features, '
     '.template-product .overview-tab, '
@@ -245,7 +248,7 @@ def semantic_details(soup):
         return int(value) if str(value).isdigit() else 2
     roots = linked_detail_sections(soup) + [n for n in soup.select('section[aria-label],article[aria-label],div[role="region"][aria-label],div[role="tabpanel"][aria-label]')
              if named(n.get('aria-label', ''))]
-    for heading in soup.select('h1,h2,h3,h4,h5,h6,[role="heading"]'):
+    for heading in soup.select('h1,h2,h3,h4,h5,h6,[role="heading"],p[data-testid="target-text"]'):
         if not named(heading.get_text(' ', strip=True)):
             continue
         if any(root is parent for root in roots for parent in heading.parents):
@@ -315,7 +318,15 @@ def product_body(html: str, url: str) -> BeautifulSoup:
         if _NOISE.search(identity) and not _detail_media(node) and not _detail_heading(node):
             node.decompose()
 
-    if host in ('dyson.co.kr', 'www.dyson.co.kr') and soup.select_one('body.catalog-product-view'):
+    if host in ('global.roborock.com', 'us.roborock.com') and urlsplit(url).path.startswith('/pages/'):
+        selector = '[class$="_product-container"]'
+    elif host in ('soundcore.com', 'www.soundcore.com'):
+        # The feature modules are siblings of purchase controls, FAQs and reviews.
+        # Select the modules themselves, never their shared page wrapper.
+        selector = ('main #sensor, main .sensor-lists, main .control-container, '
+                    'main .charging, main .hiFi, main .swiper-slide:has(.text-pretty), '
+                    'main .w-screen:has(#reactNoise)')
+    elif host in ('dyson.co.kr', 'www.dyson.co.kr') and soup.select_one('body.catalog-product-view'):
         # Dyson's product CMS uses feature modules rather than a description
         # container. Keep feature copy/images and caveats, never its shop-wide
         # purchase benefits, product finder, customer reviews or promotions.
