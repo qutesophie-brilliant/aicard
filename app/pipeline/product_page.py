@@ -348,6 +348,10 @@ def product_body(html: str, url: str) -> BeautifulSoup:
         selector = '[data-aicard-ai-selected="true"]'
     elif roborock_page:
         selector = '[class$="_product-container"], [class*="sections-container"]'
+    elif host in ('tp-link.com', 'www.tp-link.com'):
+        # Product specifications can carry AI detection details absent from the
+        # overview. Include that product's table, not global navigation copy.
+        selector = DETAIL_SELECTOR + ', .product-info #div_specifications'
     elif host in ('soundcore.com', 'www.soundcore.com'):
         # The feature modules are siblings of purchase controls, FAQs and reviews.
         # Select the modules themselves, never their shared page wrapper.
