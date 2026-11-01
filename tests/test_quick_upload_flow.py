@@ -13,6 +13,10 @@ class QuickUploadFlowTests(unittest.TestCase):
             self.assertFalse(quick_coverage._matches('optout', text), text)
         self.assertTrue(quick_coverage._matches('optout',
             'Test configuration: laptop / You can disable AI tracking in settings.'))
+        card, _ = quick_check('카메라', '',
+            'AI 카메라가 사람을 감지합니다. AI 기능을 설정에서 비활성화할 수 있습니다.', '')
+        self.assertTrue(card['items']['optout']['evidence'])
+        self.assertIn('비활성화', card['items']['optout']['evidence'][0]['quote'])
 
     def test_off_in_image_geometry_is_not_ai_disable(self):
         text = 'Our advanced AI optimizes your whiteboard content, keeping it in focus and even squaring it off for maximum visibility.'

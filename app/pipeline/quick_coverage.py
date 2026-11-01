@@ -78,8 +78,9 @@ def fill(index, product_name=''):
         if key == 'remedy':
             # Korean BM25 queries cannot retrieve an English warranty row.
             candidates += [c for c in index.condition_context() if _EN_REMEDY.search(c['quote'])]
-        if key=='conditions':
-            # Numerical limits may share no words with the retrieval query.
+        if key in ('conditions', 'optout'):
+            # Numerical limits and inflected disable instructions may share
+            # no exact tokens with the retrieval query.
             # Use the same condition/topic checks on every available sentence.
             candidates += index.condition_context()
         hits = []
