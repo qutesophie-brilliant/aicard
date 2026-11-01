@@ -73,3 +73,24 @@ def expand_gs_description(soup, url):
     for node in list(fragment.select('script,style,iframe,object,embed,form')):
         node.decompose()
     roots[0].append(fragment)
+
+
+def product_heading(soup, url):
+    """Keep the actual current product name alongside recovered image copy."""
+    p = urlsplit(url)
+    titles = soup.select('meta[property="og:title"][content]')
+    if len(titles) != 1:
+        return ''
+    og = titles[0]['content'].strip()
+    product = gs_product_id(url)
+    if product:
+        data = _gs_product(soup)
+        name = data.get('prdNm')
+        if (str(data.get('prdCd')) == product and isinstance(name, str)
+                and name.strip() == og.removeprefix('[GS SHOP]').strip()):
+            return name.strip()
+    elif p.hostname == 'www.11st.co.kr' and re.fullmatch(r'/products/\d+/?', p.path):
+        names = [n.get_text(' ', strip=True) for n in soup.select('h1.title')]
+        if len(names) == 1 and names[0] == og.removeprefix('[11번가]').strip():
+            return names[0]
+    return ''

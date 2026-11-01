@@ -260,4 +260,13 @@ def prepare(html, url, fetch):
             records.append({'url':src, 'status':'unavailable', 'reason':type(exc).__name__})
     if len(frames) > 3:
         records.extend({'url':s, 'status':'skipped_limit'} for s in frames[3:])
+    heading = marketplace_documents.product_heading(soup, url)
+    if heading and any(r['status'] == 'read' for r in records):
+        # A product name is itself a displayed claim, not proof of operation.
+        # Keep its parent-page provenance separate from the linked description.
+        holder = BeautifulSoup('<div class="product-description" data-source-url="' +
+            escape(url, quote=True) + '"><h2>상품명</h2><p>' + escape(heading) + '</p></div>', 'html.parser')
+        roots = soup.select(product_page.DETAIL_SELECTOR)
+        target = next((r for r in roots if r.name != 'iframe'), soup.body or soup)
+        target.append(holder)
     return str(soup), records

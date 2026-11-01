@@ -45,6 +45,19 @@ class PublishedMarketplaceDescriptionTests(unittest.TestCase):
                 product_documents.prepare(self.gs_parent(product, href), self.gs_url, fetch)
                 fetch.assert_not_called()
 
+    def test_gs_product_name_is_preserved_with_image_only_description(self):
+        name = '아이닉 AI습도조절 가습기'
+        html = self.gs_parent().replace('"prdCd":', '"prdNm": ' + json.dumps(name) + ', "prdCd":')
+        html += '<meta property="og:title" content="[GS SHOP] ' + name + '">'
+        fetch = Mock(return_value=self.response(self.gs_detail, self.gs_child()))
+        prepared, _ = product_documents.prepare(html, self.gs_url, fetch)
+        body = product_page.product_body(prepared, self.gs_url)
+        self.assertIn(name, body.get_text())
+        self.assertTrue(any(n.get('data-source-url') == self.gs_url for n in body.select('[data-source-url]')))
+        mismatch = html.replace('[GS SHOP] ' + name, '[GS SHOP] 다른 상품')
+        prepared, _ = product_documents.prepare(mismatch, self.gs_url, fetch)
+        self.assertNotIn(name, product_page.product_body(prepared, self.gs_url).get_text())
+
     def test_gs_redirect_or_empty_script_is_not_success(self):
         for url, html in [
             (self.gs_detail.replace('1068304374', '9999999999'), self.gs_child()),
@@ -85,3 +98,11 @@ class PublishedMarketplaceDescriptionTests(unittest.TestCase):
             prepared, records = product_documents.prepare(self.eleven_parent(), url, fetch)
             self.assertNotIn('WRONG_PRODUCT', prepared)
             self.assertEqual('unavailable', records[0]['status'])
+
+    def test_eleven_visible_ai_product_heading_not_lost_after_images_recovered(self):
+        url = 'https://www.11st.co.kr/products/9594783865'
+        name = 'LG HOM-BOT AI 로봇청소기 N95TWU'
+        html = self.eleven_parent() + '<h1 class="title">' + name + '</h1><meta property="og:title" content="[11번가] ' + name + '">'
+        fetch = Mock(return_value=self.response(url+'/view-desc', '<div class="ifrm_prdc_detail"><img src="/detail.jpg"></div>'))
+        prepared, _ = product_documents.prepare(html, url, fetch)
+        self.assertIn(name, product_page.product_body(prepared, url).get_text())
