@@ -6,6 +6,34 @@ from app.pipeline.run import _other_quick_feature, quick_check
 
 
 class OverviewRecoveryTests(unittest.TestCase):
+    def test_acer_new_feature_sections_keep_heading_copy_and_footnotes(self):
+        html = ('<header>전역 AI 메뉴</header><main id="main"><div id="buy-now-nav" class="buy-now-nav">'
+                '<nav>고정 구매 메뉴</nav><div class="agw-tab-content">'
+                '<section class="hero--secondary"><p>이동 중에도 AI를 사용하세요</p></section>'
+                '<section class="section white"><header><h2>스마트하고 손쉬운 AI</h2>'
+                '<p>지능형 AI가 설정을 간소화합니다.</p></header>'
+                '</section><section class="agw-img-animate-container">'
+                '<p>AI 잡음 제거 기능으로 주변 소음을 차단합니다.</p><img src="/feature.jpg">'
+                '<div class="reviews">고객은 다른 AI 제품을 추천합니다.</div></section>'
+                '<section class="agw-container"><div class="agw-footnote">'
+                '일부 기능에는 인터넷 연결과 계정이 필요합니다.</div></section>'
+                '<div class="recommend"><section class="section">다른 제품 AI 기능</section></div>'
+                '<nav>다른 AI 제품 구매</nav></div></div></main>')
+        url = 'https://www.acer.com/kr-ko/laptops/swift/swift-go-14-ai-amd'
+        body = product_page.product_body(html, url)
+        text = body.get_text(' ', strip=True)
+        for wanted in ('이동 중에도 AI', '지능형 AI가 설정', 'AI 잡음 제거', '인터넷 연결과 계정'):
+            self.assertIn(wanted, text)
+        for unwanted in ('전역 AI 메뉴', '고정 구매 메뉴', '고객은', '다른 제품', '다른 AI 제품 구매'):
+            self.assertNotIn(unwanted, text)
+        self.assertEqual(['/feature.jpg'], [im['src'] for im in body.select('img')])
+        card, _ = quick_check('Acer Swift Go 14 AI', url, text)
+        self.assertTrue(any('잡음 제거' in c['text'] for c in card['claims']))
+        for other in ('https://www.acer.com/kr-ko/laptops/swift',
+                      'https://example.com/kr-ko/laptops/swift/swift-go-14-ai-amd'):
+            with self.subTest(url=other), self.assertRaises(product_page.ProductBodyUnavailable):
+                product_page.product_body(html, other)
+
     def test_acer_product_features_are_not_replaced_by_short_summary(self):
         html = ('<script type="application/ld+json">'
                 '{"@type":"Product","description":"AI 기반 성능을 제공하는 노트북을 소개합니다. 자세한 사용 조건은 본문에서 확인하세요."}</script>'

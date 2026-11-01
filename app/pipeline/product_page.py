@@ -89,12 +89,21 @@ DETAIL_SELECTOR = (
 )
 
 
+def _acer_product(url):
+    parsed = urlsplit(url)
+    return (parsed.hostname in ('acer.com', 'www.acer.com')
+            and bool(re.fullmatch(r'/kr-ko/laptops/[^/]+/[^/]+/?', parsed.path)))
+
+
+_ACER_FEATURES = ('main#main .level-page-content, main#main section.section, '
+                  'main#main section.hero--secondary, '
+                  'main#main section.agw-img-animate-container, main#main .agw-footnote')
+
+
 def detail_selector(url):
     """Use the same scoped description roots during fetch and rendering."""
-    parsed = urlsplit(url)
-    if (parsed.hostname in ('acer.com', 'www.acer.com')
-            and re.fullmatch(r'/kr-ko/laptops/[^/]+/[^/]+/?', parsed.path)):
-        return DETAIL_SELECTOR + ', main#main .level-page-content'
+    if _acer_product(url):
+        return DETAIL_SELECTOR + ', ' + _ACER_FEATURES
     return (DETAIL_SELECTOR + ', ' + NAVER_DETAIL_SELECTOR
             if is_naver_product(url) else DETAIL_SELECTOR)
 
@@ -345,6 +354,17 @@ def product_body(html: str, url: str) -> BeautifulSoup:
         soup = BeautifulSoup('<div class="product-description">' +
                              '\n'.join(fragments) + '</div>', 'html.parser')
     linked_sections = linked_detail_sections(soup)
+    if _acer_product(url):
+        # This wrapper contains both a sticky purchase nav and the full product
+        # description. Its name must not cause the entire description to vanish.
+        for node in soup.select('main#main div#buy-now-nav:has(.agw-tab-content)'):
+            node.attrs.pop('id', None)
+            node['class'] = [c for c in node.get('class', []) if c != 'buy-now-nav']
+        # Newer product templates use a header inside each feature section for
+        # its title and explanation. These are product copy, not site navigation.
+        # Unwrap before the shared header cleanup; links/nav inside still go.
+        for node in soup.select('main#main section.section header, main#main section.agw-img-animate-container header'):
+            node.unwrap()
     for node in list(soup.select("script,style,noscript,nav,header,footer,svg,button,[role=button],[role=navigation],[role=menu]")):
         if node.parent is not None:
             node.decompose()
