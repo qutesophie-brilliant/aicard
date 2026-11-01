@@ -1,5 +1,9 @@
 (function () {
-  const B = __BASE__, R = __RECEIVE__, selector = __SELECTOR__;
+  const B = __BASE__, R = __RECEIVE__;
+  const naverProduct = __NAVER_HOSTS__.includes(location.hostname) &&
+    (!location.port || ['80', '443'].includes(location.port)) &&
+    /^\/[^/]+\/products\/[0-9]+\/?$/.test(location.pathname);
+  const selector = naverProduct ? __NAVER_SELECTOR__ : __SELECTOR__;
   const roots = Array.from(document.querySelectorAll(selector));
   // Read only an already-open, same-origin product description frame. Never
   // fetch around a challenge or include account, payment or advertising frames.

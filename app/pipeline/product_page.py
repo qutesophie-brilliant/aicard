@@ -4,6 +4,11 @@ import json
 from urllib.parse import urlsplit
 
 from bs4 import BeautifulSoup, Comment
+from ..product_identity import is_naver_product
+
+# Observed public product-description editors, scoped to Naver product URLs.
+# Never select all SmartEditor containers: reviews use the same editor family.
+NAVER_DETAIL_SELECTOR = '#pib_detail_page, .editor_wrap.se_smartstore_wrap:has(.se-main-container)'
 
 
 class ProductBodyUnavailable(ValueError):
@@ -347,6 +352,8 @@ def product_body(html: str, url: str) -> BeautifulSoup:
 
     if soup.select_one('[data-aicard-ai-selected="true"]'):
         selector = '[data-aicard-ai-selected="true"]'
+    elif is_naver_product(url):
+        selector = NAVER_DETAIL_SELECTOR
     elif roborock_page:
         selector = '[class$="_product-container"], [class*="sections-container"]'
     elif host in ('tp-link.com', 'www.tp-link.com'):

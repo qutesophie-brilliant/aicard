@@ -1019,10 +1019,12 @@ def _bookmarklet(base: str, receive: str = "/capture/receive") -> str:
     수신 창을 새로 열고, 창끼리 메시지(postMessage)로 본문을 넘긴다. 수신 창은 정보카드 서비스와 같은
     주소라서 자기 서버로 저장할 수 있다."""
     if receive == '/check/receive':
-        from .pipeline.product_page import DETAIL_SELECTOR
+        from .pipeline.product_page import DETAIL_SELECTOR, NAVER_DETAIL_SELECTOR
+        from .product_identity import NAVER_PRODUCT_HOSTS
         js = (APP_DIR / 'static' / 'check-capture.js').read_text(encoding='utf-8')
         selector = DETAIL_SELECTOR + ', .panel-area__detail-info, section.wcms-usp-scope.pc, .spec_list, .spec-sum > .spec .desc_info'
         js = js.replace('__BASE__', json.dumps(base)).replace('__RECEIVE__', json.dumps(receive)).replace('__SELECTOR__', json.dumps(selector))
+        js = js.replace('__NAVER_HOSTS__', json.dumps(sorted(NAVER_PRODUCT_HOSTS))).replace('__NAVER_SELECTOR__', json.dumps(NAVER_DETAIL_SELECTOR))
         # Bookmark URLs cannot retain raw newlines (including // comments).
         from urllib.parse import quote
         return 'javascript:' + quote(js, safe='')

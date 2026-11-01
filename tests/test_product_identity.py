@@ -5,6 +5,32 @@ from app import db, main
 
 
 class ProductIdentityTests(unittest.TestCase):
+    def test_naver_mobile_and_ad_tracking_reuse_same_product(self):
+        for host in ('smartstore.naver.com', 'brand.naver.com'):
+            sources = {1: [f'https://{host}/example/products/123456']}
+            result = self.match(f'https://m.{host}/example/products/123456/?NaPm=ad123&utm_source=naver#detail', sources)
+            self.assertEqual(1, result['id'])
+
+    def test_naver_different_store_product_options_and_hosts_stay_separate(self):
+        sources = {1: ['https://smartstore.naver.com/example/products/123456']}
+        for url in (
+            'https://smartstore.naver.com/other/products/123456',
+            'https://smartstore.naver.com/example/products/123457',
+            'https://smartstore.naver.com/example/products/123456?optionId=2',
+            'https://brand.naver.com/example/products/123456',
+            'https://m.smartstore.naver.com.evil.example/example/products/123456',
+            'https://m.smartstore.naver.com:8443/example/products/123456',
+        ):
+            with self.subTest(url=url):
+                self.assertIsNone(self.match(url, sources))
+
+    def test_naver_rules_do_not_affect_other_paths_or_sites(self):
+        from app.product_identity import source_identity
+        for base in ('https://shop.example/item/123', 'https://smartstore.naver.com/example/category/123'):
+            self.assertNotEqual(source_identity(base), source_identity(base + '?NaPm=value'))
+        self.assertNotEqual(source_identity('https://smartstore.naver.com/example/category/123'),
+                            source_identity('https://m.smartstore.naver.com/example/category/123'))
+
     def match(self, url, sources):
         products = [{'id': key, 'model': f'MODEL{key:04d}'} for key in sources]
         with patch.object(db, 'list_products', return_value=products), \
