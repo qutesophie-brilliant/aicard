@@ -809,7 +809,7 @@ async def check_url(request: Request, url: str = Form(""), text: str = Form(""),
         if matches:
             return _existing_result(request, matches, query=title, url=url, error=message)
         return render(request, 'check.html', base=base, bookmarklet=bm, url=url, q='',
-                      error=message, upload_fallback=True)
+                      pname=title[:120], error=message, upload_fallback=True)
 
     # 1) 캡처 이미지·PDF 업로드 → 글자 읽기 (소비자용: 건수·크기 제한, 비전 모델은 설정으로 켜고 끔)
     uploads = [f for f in (files or []) if f and f.filename]
@@ -955,7 +955,11 @@ async def api_check(request: Request):
     try:
         card, docs = await _quick_result(name, url, data.get("sales_text", ""), data.get("fine_text", ""), use_llm=use_llm, source_capture=source_capture)
     except Exception:
-        return render(request, '_check_pending.html', pname=name, url=url, error='관련 문장 정리를 완료하지 못했습니다. 다른 자료로 확인을 이어갈 수 있습니다.')
+        recovered_text = (data.get('sales_text', '') + '\n' + data.get('fine_text', '')).strip()[:6000]
+        return render(request, '_check_pending.html', pname=name, url=url,
+                      recovered_text=recovered_text,
+                      error=('읽은 원문으로 임시 카드를 만들었습니다. 자료를 추가해 분석을 이어갈 수 있습니다.' if recovered_text
+                             else '제품 설명을 아직 읽지 못했습니다. 자료를 추가해 분석을 이어갈 수 있습니다.'))
     card['quick_partial'] = check_budget.PARTIAL_NOTE in notes
     return render(request, "_check_body.html", card=card, docs=docs, pname=name,
                   url=url, s=_check_summary(card), notes=notes)

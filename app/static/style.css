@@ -537,6 +537,13 @@ textarea { min-height: 150px; line-height: 1.6; }
 .recovery-card>.btn{margin:8px 6px 0 0;white-space:normal}
 @media(max-width:600px){.recovery-card{padding:0 16px 16px}.recovery-card>.lb-band{margin:0 -16px 16px}.recovery-card>.btn{display:flex;margin-right:0;justify-content:center}}
 .recovery-actions .btn{min-height:48px;white-space:normal;text-align:center}
+.draft-fields{margin:14px 0;border-top:1px solid var(--line,#d9e0e7)}
+.draft-fields>div{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;padding:12px 0;border-bottom:1px solid var(--line,#d9e0e7)}
+.draft-fields dt{font-weight:600;word-break:keep-all;overflow-wrap:anywhere}
+.draft-fields dd{margin:0;font-size:14px;color:var(--muted,#56616c);word-break:keep-all;overflow-wrap:anywhere}
+.draft-fields .draft-url{grid-column:1/-1;word-break:break-all}
+.draft-source p{white-space:pre-wrap;overflow-wrap:anywhere}
+@media(max-width:600px){.draft-fields>div{grid-template-columns:minmax(0,1fr);gap:4px}}
 .link-review-request{margin:24px 0;padding:18px 20px;border:1px solid var(--line);border-radius:var(--r-s);background:var(--paper);word-break:keep-all;overflow-wrap:anywhere;scroll-margin-top:90px}
 .link-review-request summary{cursor:pointer;font-weight:600;min-height:44px;align-content:center}
 .link-review-request .form{margin-top:16px}

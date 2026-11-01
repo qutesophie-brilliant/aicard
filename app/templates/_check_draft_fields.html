@@ -1,0 +1,10 @@
+<p class="meta">{% if recovered_text %}읽은 원문을 담은 임시 카드입니다. 기능·조건별 문장 연결은 아직 완료하지 못했습니다.{% else %}입력한 자료로 임시 카드를 열었습니다. 아직 AI 기능과 조건을 분석한 결과는 아닙니다.{% endif %} 정식 카드로 저장·공개되지 않습니다.</p>
+{% if url %}<dl class="draft-fields"><div><dt>입력한 페이지</dt><dd class="draft-url">{{ url }}</dd></div></dl>{% endif %}
+{% if recovered_text %}<details class="draft-source" open><summary>이번에 읽은 원문</summary><p>{{ recovered_text }}</p></details>{% endif %}
+<h3>구매 전에 확인할 항목</h3>
+<p class="meta">아래는 이 제품의 분석 결과가 아닌 확인 질문입니다. 자료를 추가하면 읽은 내용으로 분석합니다.</p>
+<dl class="draft-fields">
+  {% for question in ['어떤 기능에 AI가 쓰이나요?', '어떤 조건에서 작동하나요?', '내 정보를 수집·전송하나요?', 'AI 기능을 끌 수 있나요?', '업데이트·문의·보증은 어떻게 지원하나요?'] %}
+  <div><dt>{{ question }}</dt><dd>아직 확인하지 못함</dd></div>
+  {% endfor %}
+</dl>

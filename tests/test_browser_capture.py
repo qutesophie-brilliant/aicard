@@ -43,7 +43,7 @@ class BrowserCaptureTests(unittest.TestCase):
             r=TestClient(main.app).post('/api/check',json={'url':URL,'product_html':HTML})
         self.assertEqual(200,r.status_code); add.assert_not_called()
         self.assertIn('recovery-card',r.text)
-        self.assertIn('분석을 완료한 카드가 아닙니다',r.text)
+        self.assertIn('아직 AI 기능과 조건을 분석한 결과는 아닙니다',r.text)
         self.assertNotIn('testclient:ocr',main._check_hits)
     def test_api_carries_evidence_and_capture_provenance(self):
         result=ingest.from_product_html(HTML,URL,ocr_images=False)

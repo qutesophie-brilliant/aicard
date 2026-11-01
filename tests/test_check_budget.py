@@ -87,8 +87,27 @@ class ResultCardTests(unittest.TestCase):
             result = TestClient(main.app).post('/check', data={'url':'https://example.com/item'})
         self.assertEqual(200, result.status_code)
         self.assertIn('자료 확인 상태 카드', result.text)
-        self.assertIn('분석을 완료한 카드가 아닙니다', result.text)
+        self.assertIn('아직 AI 기능과 조건을 분석한 결과는 아닙니다', result.text)
+        self.assertIn('data-analysis-status="draft-unverified"', result.text)
+        self.assertEqual(5, result.text.count('아직 확인하지 못함'))
+        self.assertIn('https://example.com/item', result.text)
         self.assertIn('사진·PDF로 계속하기', result.text)
+
+    def test_failed_link_keeps_fetched_title_as_unverified_draft(self):
+        def read(url):
+            check_budget.remember_title('카메라 Z · 판매페이지')
+            raise ValueError('body unavailable')
+        with patch.object(main, '_match_published', return_value=None), patch.object(main, '_product_candidates', return_value=[]), patch.object(main, '_read_check_url', side_effect=read):
+            result = TestClient(main.app).post('/check', data={'url':'https://example.com/item'})
+        self.assertIn('카메라 Z · 판매페이지', result.text)
+        self.assertIn('임시 카드 · 미검토', result.text)
+
+    def test_failed_browser_analysis_preserves_read_source_and_escapes_it(self):
+        with patch.object(main, '_match_published', return_value=None), patch.object(main, '_product_candidates', return_value=[]), patch.object(main, '_quick_result', side_effect=RuntimeError('failed')):
+            result = TestClient(main.app).post('/api/check', json={'url':'https://example.com/item','title':'camera','sales_text':'AI 센서가 사람을 감지합니다. <script>alert(1)</script>'})
+        self.assertIn('AI 센서가 사람을 감지합니다.', result.text)
+        self.assertIn('이번에 읽은 원문', result.text)
+        self.assertNotIn('<script>alert(1)</script>', result.text)
 
     def test_page_capture_error_has_card_instead_of_api_500(self):
         with patch.object(main, '_match_published', return_value=None), patch('app.pipeline.browser_capture.read', side_effect=RuntimeError('failed')):
