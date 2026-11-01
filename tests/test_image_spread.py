@@ -20,6 +20,17 @@ class ImageSpreadTests(unittest.TestCase):
         rows=[(2,'ai-detail')]+[(0,str(i)) for i in range(40)]
         self.assertEqual((2,'ai-detail'),spread_candidates(rows,24)[0])
 
+    def test_few_long_sources_cover_later_panels_before_tile_budget_runs_out(self):
+        rows=[(0,str(i)) for i in range(6)]
+        result=spread_candidates(rows,24,spread_short_sets=True)
+        self.assertEqual([(0,'0'),(0,'5'),(0,'2')],result[:3])
+        self.assertCountEqual(rows,result)
+        self.assertEqual(len(rows),len(result))
+
+    def test_short_source_spread_still_prioritizes_explicit_ai(self):
+        rows=[(2,'ai-detail')]+[(0,str(i)) for i in range(5)]
+        self.assertEqual(rows[0],spread_candidates(rows,24,spread_short_sets=True)[0])
+
     def test_prefetch_is_bounded_and_returns_each_source_bytes(self):
         import threading,time
         from app import check_budget

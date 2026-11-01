@@ -44,14 +44,14 @@ class _PrefetchImages:
         self.pending.clear()
 
 
-def spread_candidates(candidates, limit):
+def spread_candidates(candidates, limit, *, spread_short_sets=False):
     """Cover long descriptions before spending the budget on adjacent slices.
 
     Explicit AI-labelled images retain priority. Within each priority group,
     visit both ends and successively split the widest gap. A slow CDN should
     not make the first promotional/installation panels our entire evidence.
     """
-    if len(candidates) <= limit:
+    if len(candidates) <= limit and (not spread_short_sets or len(candidates) <= 3):
         return candidates
     ordered = []
     for score in sorted({score for score, _ in candidates}, reverse=True):
@@ -96,7 +96,9 @@ def capture_images(html, url, capture, fetch_bytes=None, reader=None, limit=24):
     duplicates = {src for _,src in candidates if re.search(r'/MO_',src,re.I)
                   and re.sub(r'/MO_', '/PC_', src, flags=re.I) in sources}
     candidates = [(score,src) for score,src in candidates if src not in duplicates]
-    candidates = spread_candidates(candidates, limit)
+    # A few very long images can consume the tile budget before the later
+    # feature panels. Spread those sources too, not only sets above 24 images.
+    candidates = spread_candidates(candidates, limit, spread_short_sets=True)
     def download(src):
         from ..network_safety import fetch_public
         # The product body identifies candidate CDNs. Each fetch and redirect
