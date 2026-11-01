@@ -124,6 +124,18 @@ def published_seller_frame(soup, url):
     return prefix + product.group(1)
 
 
+def matching_description_frame(src, url):
+    """Gmarket frames must describe this item, not another group item's detail."""
+    parent, child = urlsplit(url), urlsplit(src)
+    if parent.hostname == 'item.gmarket.co.kr':
+        product = parse_qs(parent.query).get('goodsCode')
+        return bool(product and len(product) == 1
+                    and child.netloc == parent.netloc and child.scheme == parent.scheme
+                    and child.path in ('/Item/ItemDetail', '/Item/ItemDetailV2')
+                    and parse_qs(child.query).get('goodsCode') == product)
+    return True
+
+
 def prepare(html, url, fetch):
     soup = BeautifulSoup(html, 'html.parser')
     title = soup.title.get_text(' ', strip=True) if soup.title else ''
@@ -146,7 +158,8 @@ def prepare(html, url, fetch):
             if any(word in identity for word in ('youtube', 'vimeo', 'doubleclick', 'review', 'recommend', 'tracking', 'advert')):
                 continue
             src = urljoin(url, frame.get('data-src') or frame.get('src') or '')
-            if src != url and urlsplit(src).scheme in ('http', 'https') and src not in frames:
+            if (src != url and urlsplit(src).scheme in ('http', 'https')
+                    and src not in frames and matching_description_frame(src, url)):
                 frames.append(src)
     for src in linked_html_descriptions(soup, url):
         if src not in frames:
@@ -158,6 +171,8 @@ def prepare(html, url, fetch):
     for src in frames[:3]:
         try:
             response = fetch(src)
+            if not matching_description_frame(str(response.url), url):
+                raise ValueError('description_redirected_to_other_product')
             # Legacy detail URLs can redirect back to the complete product page.
             # Treating that page as a description would import recommendations.
             if str(response.url).rstrip('/') == url.rstrip('/'):
