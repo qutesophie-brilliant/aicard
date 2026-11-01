@@ -174,6 +174,45 @@ class LongImageTests(unittest.TestCase):
 
 
 
+class UploadFailureIsolationTests(unittest.TestCase):
+    def test_failed_first_and_middle_groups_do_not_skip_later_images(self):
+        payloads = [(f'{i}.png', 'image/png', picture()) for i in range(4)]
+        ok = lambda text: ocr.OcrResult(texts=[text], engine='test')
+        with patch.object(main, '_read_upload_images', side_effect=[
+                ValueError('provider unavailable'), ok('second'),
+                ValueError('unreadable'), ok('fourth')]) as reader:
+            texts, notes = main._read_check_uploads(payloads)
+        self.assertEqual(4, reader.call_count)
+        self.assertEqual(['second', 'fourth'], texts)
+        self.assertTrue(any(n.startswith('파일 1:') and '제외' in n for n in notes))
+        self.assertTrue(any(n.startswith('파일 3:') and '제외' in n for n in notes))
+
+    def test_failed_pdf_does_not_skip_following_image(self):
+        with pymupdf.open() as doc:
+            doc.new_page()
+            pdf = doc.tobytes()
+        payloads = [('a.pdf', 'application/pdf', pdf), ('b.png', 'image/png', picture())]
+        with patch.object(ocr, 'read_pdf', side_effect=ValueError('unreadable')), \
+             patch.object(main, '_read_upload_images', return_value=ocr.OcrResult(texts=['image evidence'], engine='test')):
+            texts, notes = main._read_check_uploads(payloads)
+        self.assertEqual(['image evidence'], texts)
+        self.assertTrue(any(n.startswith('파일 1 (PDF):') for n in notes))
+
+    def test_all_failed_does_not_fabricate_text(self):
+        with patch.object(main, '_read_upload_images', side_effect=ValueError('unreadable')):
+            texts, notes = main._read_check_uploads([('a.png', 'image/png', picture())])
+        self.assertEqual([], texts)
+        self.assertTrue(any('제외' in n for n in notes))
+
+    def test_deadline_still_stops_work_and_releases_gate(self):
+        with patch.object(main, '_read_upload_images', side_effect=TimeoutError('deadline')) as reader:
+            with self.assertRaises(TimeoutError):
+                main._read_check_uploads([('a.png', 'image/png', picture()), ('b.png', 'image/png', picture())])
+        self.assertEqual(1, reader.call_count)
+        self.assertTrue(main._check_ocr_gate.acquire(blocking=False))
+        main._check_ocr_gate.release()
+
+
 class LongPdfTests(unittest.TestCase):
     def test_long_scan_clips_are_bounded_and_rejoined_before_next_page(self):
         with pymupdf.open() as document:

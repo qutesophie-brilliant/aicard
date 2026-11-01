@@ -138,6 +138,12 @@ def published_seller_frame(soup, url):
 def matching_description_frame(src, url):
     """Known marketplace frames must describe the requested product."""
     parent, child = urlsplit(url), urlsplit(src)
+    compuzone_id = marketplace_documents.compuzone_product_id(url)
+    if compuzone_id:
+        return (child.scheme == 'https' and child.netloc == parent.netloc
+                and not child.fragment and child.path == '/product/product_detail_ajax.php'
+                and parse_qs(child.query, keep_blank_values=True) ==
+                {'actype': ['getProductDetail'], 'productNo': [compuzone_id]})
     himart_id = product_page.himart_product_id(url)
     if himart_id:
         return (child.netloc == parent.netloc and child.scheme == parent.scheme
@@ -207,6 +213,9 @@ def prepare(html, url, fetch):
     gs_frame = marketplace_documents.gs_description_link(soup, url)
     if gs_frame and gs_frame not in frames:
         frames.append(gs_frame)
+    compuzone_frame = marketplace_documents.compuzone_description_link(soup, url)
+    if compuzone_frame and compuzone_frame not in frames:
+        frames.append(compuzone_frame)
     records = []
     for src in frames[:3]:
         try:
@@ -224,7 +233,11 @@ def prepare(html, url, fetch):
                 raise ValueError('description_redirected_to_parent')
             if 'html' not in response.headers.get('content-type', '').lower():
                 raise ValueError('not_html')
-            child = BeautifulSoup(response.text, 'html.parser')
+            if src == compuzone_frame:
+                # The storefront's own public loader uses TextDecoder('EUC-KR').
+                child = BeautifulSoup(response.content.decode('cp949'), 'html.parser')
+            else:
+                child = BeautifulSoup(response.text, 'html.parser')
             child_title = child.title.get_text(' ', strip=True) if child.title else ''
             if any(word in child_title.lower() for word in ('로그인', 'login', 'access denied', 'captcha')):
                 raise ValueError('access_required')

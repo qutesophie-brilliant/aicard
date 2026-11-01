@@ -708,6 +708,13 @@ def _read_check_uploads(payloads: list[tuple[str, str, bytes]]) -> tuple[list[st
             notes.append("글자 읽기: " + engines.get(r.engine, "문자 인식"))
             from . import check_budget
             check_budget.remember_uploads(texts, notes)
+        def unread(label):
+            from . import check_budget
+            # A recoverable failure in one validated file must not prevent
+            # later files from being read. The overall deadline still applies.
+            check_budget.checkpoint()
+            notes.append(f"{label}: 글자를 읽지 못해 분석에서 제외했습니다. 나머지 파일에서 읽은 내용만 표시합니다.")
+            check_budget.remember_uploads(texts, notes)
         with ExitStack() as staging:
             checked = []
             # Disk-backed temporary files avoid retaining every reconstructed
@@ -726,6 +733,8 @@ def _read_check_uploads(payloads: list[tuple[str, str, bytes]]) -> tuple[list[st
                 if imgs:
                     try:
                         keep(_read_upload_images(imgs, allow_llm=config.CHECK_OCR_LLM), "파일 " + ", ".join(image_numbers))
+                    except ValueError:
+                        unread("파일 " + ", ".join(image_numbers))
                     finally:
                         imgs.clear()
                         image_numbers.clear()
@@ -737,10 +746,10 @@ def _read_check_uploads(payloads: list[tuple[str, str, bytes]]) -> tuple[list[st
                     flush()
                     try:
                         keep(ocr.read_pdf(stream.read(), allow_llm=config.CHECK_OCR_LLM, image_reader=_read_upload_images), f"파일 {number}")
-                    except ValueError:
+                    except TimeoutError:
                         raise
-                    except Exception as e:
-                        raise ValueError(f"PDF를 읽지 못했습니다. 손상되거나 암호가 설정된 파일인지 확인해 주세요. ({filename})") from e
+                    except Exception:
+                        unread(f"파일 {number} (PDF)")
                     finally:
                         release_ocr_heap()
                 else:

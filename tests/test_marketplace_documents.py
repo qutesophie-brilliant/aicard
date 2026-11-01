@@ -6,6 +6,40 @@ from app.pipeline import product_documents, product_page, source_capture
 
 
 class PublishedMarketplaceDescriptionTests(unittest.TestCase):
+    def compuzone_parent(self, product='1303784'):
+        return ('<div id="pdtl_product_detail_img"><table><tr><td class="product_detail_data"></td></tr></table></div>'
+                '<script>const PRODUCT_NO = "' + product + '";'
+                'const params = `?actype=getProductDetail&productNo=${PRODUCT_NO}`;'
+                'const url = `../product/product_detail_ajax.php${params}`;</script>'
+                '<div class="recommend">WRONG_PRODUCT_AI</div>')
+
+    def test_compuzone_declared_detail_decodes_korean_and_keeps_images(self):
+        url = 'https://www.compuzone.co.kr/product/product_detail.htm?ProductNo=1303784'
+        detail = 'https://www.compuzone.co.kr/product/product_detail_ajax.php?actype=getProductDetail&productNo=1303784'
+        response = httpx.Response(200, content='<p>AI 습도 조절 기능</p><img src="/detail.jpg">'.encode('cp949'),
+                                 headers={'content-type': 'text/html'}, request=httpx.Request('GET', detail))
+        fetch = Mock(return_value=response)
+        prepared, records = product_documents.prepare(self.compuzone_parent(), url, fetch)
+        fetch.assert_called_once_with(detail)
+        body = product_page.product_body(prepared, url)
+        self.assertIn('AI 습도 조절 기능', body.get_text())
+        self.assertNotIn('WRONG_PRODUCT_AI', body.get_text())
+        self.assertEqual('https://www.compuzone.co.kr/detail.jpg', body.img['src'])
+        self.assertEqual('read', records[0]['status'])
+
+    def test_compuzone_wrong_identity_or_redirect_is_not_used(self):
+        url = 'https://www.compuzone.co.kr/product/product_detail.htm?ProductNo=1303784'
+        fetch = Mock()
+        product_documents.prepare(self.compuzone_parent('999'), url, fetch)
+        fetch.assert_not_called()
+        product_documents.prepare(self.compuzone_parent(), url + '&ProductNo=999', fetch)
+        fetch.assert_not_called()
+        wrong = 'https://www.compuzone.co.kr/product/product_detail_ajax.php?actype=getProductDetail&productNo=999'
+        fetch.return_value = self.response(wrong, '<p>WRONG_PRODUCT_AI</p>')
+        prepared, records = product_documents.prepare(self.compuzone_parent(), url, fetch)
+        self.assertEqual('unavailable', records[0]['status'])
+        self.assertNotIn('<p>WRONG_PRODUCT_AI</p>', prepared)
+
     gs_url = 'https://m.gsshop.com/prd/prd.gs?prdid=1068304374&rank=10'
     gs_detail = 'https://m.gsshop.com/prd/prdDesc.gs?prdid=1068304374'
 

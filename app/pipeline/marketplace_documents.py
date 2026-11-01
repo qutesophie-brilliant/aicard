@@ -9,6 +9,31 @@ from urllib.parse import urlsplit, urljoin, parse_qs
 from bs4 import BeautifulSoup
 
 
+def compuzone_product_id(url):
+    p = urlsplit(url)
+    if (p.scheme != 'https' or p.netloc != 'www.compuzone.co.kr'
+            or p.path != '/product/product_detail.htm'):
+        return None
+    ids = parse_qs(p.query, keep_blank_values=True).get('ProductNo', [])
+    return ids[0] if len(ids) == 1 and re.fullmatch(r'\d{1,12}', ids[0]) else None
+
+
+def compuzone_description_link(soup, url):
+    product = compuzone_product_id(url)
+    if not product or soup.select_one('#pdtl_product_detail_img .product_detail_data') is None:
+        return None
+    # Follow only the published description request for this exact product.
+    # Do not execute scripts or fetch recommendation/review AJAX endpoints.
+    script = '\n'.join(n.get_text() for n in soup.select('script:not([src])'))
+    ids = re.findall(r"\bconst\s+PRODUCT_NO\s*=\s*['\"](\d+)['\"]\s*;", script)
+    if ids != [product]:
+        return None
+    if ('?actype=getProductDetail&productNo=${PRODUCT_NO}' not in script
+            or '../product/product_detail_ajax.php${params}' not in script):
+        return None
+    return urljoin(url, 'product_detail_ajax.php?actype=getProductDetail&productNo=' + product)
+
+
 def gs_product_id(url, *, detail=False):
     p = urlsplit(url)
     if (p.scheme != 'https' or p.hostname not in ('m.gsshop.com', 'www.gsshop.com')
