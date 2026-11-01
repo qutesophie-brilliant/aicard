@@ -154,9 +154,11 @@ def quick_check(name: str, url: str, sales_text: str, fine_text: str = "", use_l
         from . import quick_temperature
         claims = quick_temperature.connect(claims, docs)
         if not use_llm:
-            from . import quick_english
+            from . import quick_english, quick_controls
             claims = quick_english.connect(claims, docs)
+            claims = quick_controls.connect(claims, docs)
         card["claims"] = claims
+        card['quick_has_intelligent_wording'] = any('지능형' in c['text'] for c in claims)
         with llm.rules_only():
             from . import quick_coverage
             card["items"] = quick_coverage.fill(index, product_name=name)

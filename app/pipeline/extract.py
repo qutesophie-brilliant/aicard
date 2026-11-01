@@ -279,7 +279,7 @@ def _rules_extract(source_chunks: list[dict[str, Any]], max_claims: int, *, comp
         q = c["quote"]
         ai_match = AI_PATTERN.search(q)
         if complete_quotes and not ai_match:
-            ai_match = re.search(r'인공\s+지능', q)
+            ai_match = re.search(r'인공\s+지능|지능형', q)
         if not ai_match:
             continue
         if complete_quotes and re.search(r'^\s*(?:learn|read|find\s+out)\s+more\b', q, re.I):
