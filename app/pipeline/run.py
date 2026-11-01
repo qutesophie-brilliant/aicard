@@ -115,6 +115,18 @@ def quick_check(name: str, url: str, sales_text: str, fine_text: str = "", use_l
         card = new_card({"name": name, "maker": "", "model": "", "category": "즉석 확인"})
         card["sources"] = [{"doc_id": d["id"], "kind": d["kind"], "title": d["title"], "url": d["url"],
                             "n_chunks": len(d["chunks"])} for d in docs]
+        # A verified visible product name can carry an AI label without
+        # describing a function. Keep it separate from claims and counts;
+        # never infer it from the input title or filename.
+        card['quick_name_labels'] = []
+        seen_names = set()
+        for d in docs:
+            if d.get('feature_scope') != '상품명':
+                continue
+            for q in d['chunks']:
+                if re.search(r'(?<![A-Za-z])AI(?![A-Za-z])|인공\s*지능', q, re.I) and q not in seen_names:
+                    seen_names.add(q)
+                    card['quick_name_labels'].append({'quote': q, 'doc_id': d['id'], 'kind': '상품명'})
         source_chunks = index.by_kind(CLAIM_SOURCE_KINDS) or index.by_kind(tuple(set(d["kind"] for d in docs)))
         if not use_llm:
             compact_name = re.sub(r"\s+", "", name)

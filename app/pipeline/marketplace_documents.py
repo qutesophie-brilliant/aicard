@@ -100,6 +100,52 @@ def expand_gs_description(soup, url):
     roots[0].append(fragment)
 
 
+def _cafe24_id(url):
+    p = urlsplit(url)
+    if p.scheme != 'https' or p.username or p.password or p.port not in (None, 443):
+        return None
+    match = re.fullmatch(r'/surl/P/(\d+)(?:/product/list\.html)?/?', p.path)
+    if not match:
+        match = re.fullmatch(r'/product/[^/]+/(\d+)(?:/category/\d+/display/\d+)?/?', p.path)
+    if match:
+        return match[1]
+    if p.path == '/product/detail.html':
+        values = parse_qs(p.query).get('product_no', [])
+        if len(values) == 1 and values[0].isdigit():
+            return values[0]
+    return None
+
+
+def _cafe24_heading(soup, url, og):
+    item = _cafe24_id(url)
+    names = soup.select('.xans-product-detail .headingArea h1, .xans-product-detail .headingArea h2')
+    canon = soup.select('link[rel="canonical"][href]')
+    if not item or len(names) != 1 or len(canon) != 1:
+        return ''
+    target = urljoin(url, canon[0]['href'])
+    name = names[0].get_text(' ', strip=True)
+    if (name != og or urlsplit(target).netloc != urlsplit(url).netloc
+            or _cafe24_id(target) != item):
+        return ''
+    products = []
+    for node in soup.select('script[type="application/ld+json"]'):
+        try:
+            value = json.loads(node.string or node.get_text())
+        except (ValueError, TypeError):
+            continue
+        if isinstance(value, dict) and value.get('@type') == 'Product':
+            products.append(value)
+    if len(products) != 1:
+        return ''
+    product = products[0]
+    offer = product.get('offers')
+    if (product.get('name') == name
+            and re.fullmatch(r'cafe24_[A-Za-z0-9_]+_' + re.escape(item), str(product.get('sku', '')))
+            and isinstance(offer, dict) and offer.get('url') == target):
+        return name
+    return ''
+
+
 def product_heading(soup, url):
     """Keep the actual current product name alongside recovered image copy."""
     p = urlsplit(url)
@@ -121,6 +167,9 @@ def product_heading(soup, url):
     if len(titles) != 1:
         return ''
     og = titles[0]['content'].strip()
+    cafe24 = _cafe24_heading(soup, url, og)
+    if cafe24:
+        return cafe24
     product = gs_product_id(url)
     if product:
         data = _gs_product(soup)

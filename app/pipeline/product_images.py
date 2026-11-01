@@ -111,7 +111,7 @@ def capture_images(html, url, capture, fetch_bytes=None, reader=None, limit=24):
     import time
     from .. import check_budget
     from .image_tiles import MAX_PIXELS, MAX_IMAGE_TILES, TILE_SIDE, OVERLAP, MAX_SHORT_SIDE
-    audit=[]; payloads=[]; loaded=[]; total_bytes=0; total_tiles=0
+    audit=[]; payloads=[]; loaded=[]; total_bytes=0; total_tiles=0; separators=0
     download_deadline = time.monotonic() + 35
     prefetch = _PrefetchImages([src for _,src in candidates[:limit]], download, download_deadline) if use_prefetch else None
     if prefetch:
@@ -120,7 +120,7 @@ def capture_images(html, url, capture, fetch_bytes=None, reader=None, limit=24):
         row={'url':src,'text':'','engine':'none','status':'pending','image_number':index+1,
              'download_attempts':0,'ocr_attempts':0}
         audit.append(row)
-        if index >= limit or time.monotonic() >= download_deadline or check_budget.remaining(15) < 15:
+        if index >= limit + min(separators, limit) or time.monotonic() >= download_deadline or check_budget.remaining(15) < 15:
             row['status']='skipped_limit'
             continue
         try:
@@ -137,6 +137,13 @@ def capture_images(html, url, capture, fetch_bytes=None, reader=None, limit=24):
             with Image.open(io.BytesIO(data)) as im:
                 if im.width * im.height > MAX_PIXELS: raise ValueError('Image exceeds OCR pixel budget')
                 width, height = im.size
+                # Unused detail-editor slots can be one-pixel GIF/JPG strips.
+                # Do not spend an OCR slot on them. Replacement downloads stay
+                # within twice the normal limit and the existing deadline.
+                if min(width, height) < 8:
+                    row['status'] = 'no_readable_area'
+                    separators += 1
+                    continue
                 if max(width,height) <= TILE_SIDE + 1 or max(width,height)/min(width,height) < 2:
                     tiles = 1
                 else:
@@ -176,7 +183,7 @@ def capture_images(html, url, capture, fetch_bytes=None, reader=None, limit=24):
                 check_budget.remember_capture(capture)
     capture['images']=audit
     capture['coverage'].update(image_candidates=len(candidates),image_attempted=sum(r['download_attempts'] > 0 for r in audit),
-        image_duplicate_variants=len(duplicates),image_skipped_limit=sum(r['status']=='skipped_limit' for r in audit),
+        image_duplicate_variants=len(duplicates),image_ignored_separator=separators,image_skipped_limit=sum(r['status']=='skipped_limit' for r in audit),
         image_download_failed=sum(r['status'] in ('download_failed','download_timeout') for r in audit),
         image_ocr_unconfirmed=sum(r['status'] in ('no_text','missing_response','timeout','provider_error','not_read','partial') for r in audit),
         image_ocr_retried=sum(r['ocr_attempts']>1 for r in audit),
