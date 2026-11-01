@@ -62,6 +62,11 @@ DETAIL_SELECTOR = (
     '#productDescriptionArea, #llis-root, #llis-goodsdetail-frame, '
     'body.template-product .product-media-and-text, '
     'body.template-product .shopify-section[id*="__product_specifications_"], '
+    'body.template-product main .common-section-container:is('
+    '.new-common-product-swiper-section, .new-common-scroll-text, '
+    '.new-common-img-layout, .media-container), '
+    '.product-info .ndev-product-key-features, '
+    '.shopify-section.shopify-ndev-narwal-main, '
     '#product-features, .product-features, [data-testid="product-features"], '
     '#see-all-benefits, #CMD.features, '
     '.template-product .overview-tab, '
@@ -77,6 +82,11 @@ DETAIL_SELECTOR = (
 
 def _detail_media(node):
     return ('usp-banner-wrap' in node.get('class', []) or
+            ('common-section-container' in node.get('class', []) and
+             'new-common-product-swiper-section' in node.get('class', [])) or
+            # Product carousel layout, not the site's navigation header.
+            ('header-content' in node.get('class', []) and
+             node.find_parent(class_='new-common-product-swiper-section') is not None) or
             ('list-item-banner' in node.get('class', []) and
              node.find_parent(class_='product-media-and-text') is not None))
 

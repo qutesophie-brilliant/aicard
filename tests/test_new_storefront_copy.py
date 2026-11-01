@@ -5,6 +5,35 @@ from app.pipeline.product_page import product_body, product_text, ProductBodyUna
 
 
 class NewStorefrontCopyTests(unittest.TestCase):
+    def test_product_carousel_layout_is_not_navigation_or_media_review(self):
+        html = '''<body class="template-product"><main>
+        <div class="header-content">Site navigation AI deals</div>
+        <section class="common-section-container new-common-product-swiper-section new-swiper-navigation">
+        <div class="header-content"><p>The AI camera detects small obstacles.</p>
+        <img src="https://cdn.example/feature.jpg"><p>Only in suitable lighting.</p></div></section>
+        <section class="common-section-container"><p>Reviewer says AI is great.</p></section>
+        <section class="common-section-container"><p>Compare another model.</p></section>
+        </main></body>'''
+        body = product_body(html, 'https://store.example/products/robot')
+        text = product_text(body)
+        self.assertIn('AI camera detects small obstacles.', text)
+        self.assertIn('Only in suitable lighting.', text)
+        self.assertEqual(len(body.select('img')), 1)
+        for noise in ('Site navigation', 'Reviewer', 'another model'):
+            self.assertNotIn(noise, text)
+
+    def test_product_key_features_and_image_details_are_both_collected(self):
+        html = '''<div class="product-info"><div class="ndev-product-key-features">
+        <p>Obstacle avoidance: Dual AI cameras.</p><p>Recognizes objects in sufficient light.</p>
+        </div></div><section class="shopify-section shopify-ndev-narwal-main">
+        <img data-src="https://cdn.example/detail.jpg"><p>Cleaning features.</p></section>
+        <div class="recommendations">Other model AI function.</div>'''
+        body = product_body(html, 'https://store.example/products/robot')
+        self.assertIn('Dual AI cameras.', product_text(body))
+        self.assertIn('sufficient light.', product_text(body))
+        self.assertEqual(len(body.select('img')), 1)
+        self.assertNotIn('Other model', product_text(body))
+
     def test_product_cms_feature_modules_keep_images_and_conditions_only(self):
         html = '''<main><div id="ipc-listing"><div class="ipc_template">
         <div id="GraphicOverlay_123"><section><h3>AI.See Obstacle Avoidance</h3>
