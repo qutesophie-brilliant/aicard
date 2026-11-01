@@ -290,6 +290,11 @@ def product_body(html: str, url: str) -> BeautifulSoup:
     structured = structured_description(soup) or embedded_description(soup)
     faq = '' if structured else product_faq(soup)
     host = (urlsplit(url).hostname or "").lower()
+    if host in ('lenovo.com', 'www.lenovo.com') and '/p/' in urlsplit(url).path:
+        from .embedded_features import lenovo_features
+        features = lenovo_features(soup)
+        if features:
+            soup.append(BeautifulSoup('<div class="product-description" data-aicard-embedded-features="true">' + features + '</div>', 'html.parser'))
     if host == "rental.lghellovision.net":
         # The seller embeds escaped editor HTML inside a detail/review wrapper.
         # Select the editor first: the shared wrapper is otherwise noise, and
