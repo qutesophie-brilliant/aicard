@@ -116,25 +116,54 @@ def embedded_description(soup):
     return descriptions[0] if len(descriptions) == 1 else ''
 
 
+DETAIL_LABELS = {
+    '상품상세', '상품상세정보', '상품상세설명', '상품설명', '제품상세',
+    '제품상세정보', '제품설명', '제품특징', '상세설명',
+    'productdetails', 'productdescription', 'productfeatures', 'technicaldetails',
+}
+
+
+def _detail_label(text):
+    return re.sub(r'[\s:：]+', '', text).lower() in DETAIL_LABELS
+
+
+def linked_detail_sections(soup):
+    """Follow explicit in-page description controls, never remote/action links."""
+    roots = []
+    for control in soup.select('button,[role="tab"],a[href^="#"]'):
+        if not _detail_label(control.get_text(' ', strip=True)):
+            continue
+        target_id = control.get('aria-controls', '')
+        if not target_id:
+            target_id = control.get('href', '').removeprefix('#')
+        if not target_id or re.search(r'\s', target_id):
+            continue
+        targets = soup.find_all(id=target_id)
+        if len(targets) != 1:
+            continue
+        target = targets[0]
+        if target.name not in ('div', 'section', 'article'):
+            continue
+        if any(parent is target for parent in control.parents):
+            continue
+        roots.append(target)
+    return roots
+
+
 def semantic_details(soup):
     """Find explicitly labelled product sections without knowing a seller's CSS.
 
     Do not use the whole main/body or infer product claims from generic images.
     A section ends at the next peer heading, preserving source order and footnotes.
     """
-    labels = {
-        '상품상세', '상품상세정보', '상품상세설명', '상품설명', '제품상세',
-        '제품상세정보', '제품설명', '제품특징', '상세설명',
-        'productdetails', 'productdescription', 'productfeatures', 'technicaldetails',
-    }
     def named(text):
-        return re.sub(r'[\s:：]+', '', text).lower() in labels
+        return _detail_label(text)
     def rank(node):
         if re.fullmatch(r'h[1-6]', node.name):
             return int(node.name[1])
         value = node.get('aria-level', '2')
         return int(value) if str(value).isdigit() else 2
-    roots = [n for n in soup.select('section[aria-label],article[aria-label],div[role="region"][aria-label],div[role="tabpanel"][aria-label]')
+    roots = linked_detail_sections(soup) + [n for n in soup.select('section[aria-label],article[aria-label],div[role="region"][aria-label],div[role="tabpanel"][aria-label]')
              if named(n.get('aria-label', ''))]
     for heading in soup.select('h1,h2,h3,h4,h5,h6,[role="heading"]'):
         if not named(heading.get_text(' ', strip=True)):
@@ -188,6 +217,7 @@ def product_body(html: str, url: str) -> BeautifulSoup:
                              else editor.get_text())
         soup = BeautifulSoup('<div class="product-description">' +
                              '\n'.join(fragments) + '</div>', 'html.parser')
+    linked_sections = linked_detail_sections(soup)
     for node in list(soup.select("script,style,noscript,nav,header,footer,svg,button,[role=button],[role=navigation],[role=menu]")):
         if node.parent is not None:
             node.decompose()
@@ -230,6 +260,8 @@ def product_body(html: str, url: str) -> BeautifulSoup:
     nodes = soup.select(selector)
     if not nodes or all(n.name == 'iframe' for n in nodes):
         nodes = soup.select(DETAIL_SELECTOR)
+    nodes += [node for node in linked_sections if node.parent is not None
+              and not any(node is existing for existing in nodes)]
     selection_method = 'explicit_product_container'
     if not nodes or all(len(n.get_text('', strip=True)) < 30 and not any(image_source(im) for im in n.select('img')) for n in nodes):
         discovered = semantic_details(soup)

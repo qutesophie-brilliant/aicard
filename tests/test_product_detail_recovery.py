@@ -5,6 +5,54 @@ from app.pipeline import product_page, product_documents, page_recovery, extract
 
 
 class ProductDetailRecoveryTests(unittest.TestCase):
+    def test_unfamiliar_tab_target_recovers_copy_and_lazy_images(self):
+        html = '''<nav><button role="tab" aria-controls="pane-xyz">상품 상세정보</button></nav>
+        <div id="pane-xyz"><p>AI가 온도와 사용 패턴을 분석하여 냉각을 조절합니다. 이 기능은 문이 닫힌 상태에서 작동합니다.</p><img data-src="/long-detail.jpg"></div>
+        <div class="reviews">AI 후기에서 다른 제품을 추천합니다.</div>'''
+        body = product_page.product_body(html, 'https://unseen.example/item/99')
+        self.assertIn('냉각', body.get_text())
+        self.assertEqual('/long-detail.jpg', product_page.image_source(body.img))
+        self.assertNotIn('후기', body.get_text())
+
+    def test_tab_target_frame_is_fetched_as_product_description(self):
+        url = 'https://unseen.example/item/99'
+        html = '<button aria-controls="pane-xyz">상품 설명</button><div id="pane-xyz"><iframe src="/description"></iframe></div>'
+        detail = '<p>AI가 온도와 사용 패턴을 분석하여 냉각을 조절합니다. 이 기능은 문이 닫힌 상태에서 작동합니다.</p>'
+        fetch = Mock(return_value=httpx.Response(200, text=detail, headers={'content-type':'text/html'}, request=httpx.Request('GET',url+'/description')))
+        prepared, records = product_documents.prepare(html, url, fetch)
+        self.assertEqual(records[0]['status'], 'read')
+        self.assertIn('냉각', product_page.product_body(prepared, url).get_text())
+
+    def test_review_controls_and_page_wide_targets_are_not_evidence(self):
+        for html in [
+            '<button aria-controls="pane">상품 후기</button><div id="pane">AI 후기는 이 제품이 모든 문제를 해결한다고 이야기합니다. 다른 제품도 추천합니다.</div>',
+            '<div id="pane"><button aria-controls="pane">상품 설명</button>AI 후기는 이 제품이 모든 문제를 해결한다고 이야기합니다. 다른 제품도 추천합니다.</div>',
+            '<button aria-controls="pane">상품 설명</button><div id="pane" class="reviews">AI 후기는 이 제품이 모든 문제를 해결한다고 이야기합니다. 다른 제품도 추천합니다.</div>',
+        ]:
+            with self.subTest(html=html), self.assertRaises(product_page.ProductBodyUnavailable):
+                product_page.product_body(html, 'https://unseen.example/item/99')
+
+    def test_structured_summary_does_not_stop_dynamic_recovery(self):
+        url = 'https://unseen.example/item/99'
+        summary = '<script type="application/ld+json">{"@type":"Product","description":"A home appliance with automatic operation and modern features for daily use."}</script>'
+        detail = '<div class="product-description">AI가 무게와 옷감을 감지하여 세탁합니다. 이 기능은 세탁물 6kg 이하에서 사용합니다.</div>'
+        renderer = Mock(return_value={'html':summary+detail,'url':url})
+        result, _, _, stages = page_recovery.acquire(summary, url, Mock(), renderer)
+        renderer.assert_called_once_with(url)
+        self.assertIn('6kg', product_page.product_body(result,url).get_text())
+        self.assertEqual(stages[-1]['status'], 'read')
+
+    def test_summary_survives_blocked_or_empty_dynamic_recovery(self):
+        url = 'https://unseen.example/item/99'
+        summary = '<script type="application/ld+json">{"@type":"Product","description":"A home appliance with automatic operation and modern features for daily use."}</script>'
+        for renderer in [Mock(side_effect=product_page.ProductBodyUnavailable('blocked')),
+                         Mock(return_value={'html':'<div id="app"></div>','url':url}),
+                         Mock(return_value={'html':summary,'url':url})]:
+            with self.subTest(renderer=renderer):
+                result, _, _, stages = page_recovery.acquire(summary,url,Mock(),renderer)
+                self.assertIn('automatic operation', product_page.product_body(result,url).get_text())
+                self.assertNotEqual(stages[-1]['status'], 'read')
+
     def test_full_features_win_over_short_structured_summary(self):
         html = '''<script type="application/ld+json">{"@type":"Product","description":"An AI computer with a fast processor and long battery life."}</script>
         <div id="CMD" class="features"><p>AI 노이즈 캔슬링은 머신 러닝으로 주변 소음을 제거합니다. 화상 회의에서 사람의 목소리를 구분하여 전달합니다.</p></div>

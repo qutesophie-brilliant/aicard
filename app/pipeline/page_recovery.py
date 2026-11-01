@@ -62,10 +62,12 @@ def acquire(html, url, fetch, renderer=None):
     prepared, documents = product_documents.prepare(html, url, lambda u: fetch_retry(u, fetch))
     stages = overview_stages + [{'stage': 'html_and_linked_description', 'status': 'read'}]
     have_body = False
+    summary_only = False
     try:
-        product_page.product_body(prepared, url)
+        body = product_page.product_body(prepared, url)
         have_body = True
-        if not any(d['status'] == 'unavailable' for d in documents):
+        summary_only = body.section.get('data-aicard-selection') == 'structured_product_description'
+        if not summary_only and not any(d['status'] == 'unavailable' for d in documents):
             return prepared, url, documents, stages
         stages[-1]['status'] = 'partial'
     except product_page.ProductBodyUnavailable:
@@ -80,7 +82,10 @@ def acquire(html, url, fetch, renderer=None):
             raise product_page.ProductBodyUnavailable('판매사이트가 자동 수집에 로그인·접근 확인을 요구해 상품 설명을 받지 못했습니다.')
         recovered, extra = product_documents.prepare(rendered['html'], final_url, lambda u: fetch_retry(u, fetch))
         # A blank browser shell is NOT a successful negative AI finding.
-        product_page.product_body(recovered, final_url)
+        recovered_body = product_page.product_body(recovered, final_url)
+        if have_body and recovered_body.section.get('data-aicard-selection') == 'structured_product_description':
+            stages.append({'stage': 'browser_render', 'status': 'no_additional_detail'})
+            return prepared, url, documents, stages
     except product_page.ProductBodyUnavailable:
         if not have_body:
             raise
