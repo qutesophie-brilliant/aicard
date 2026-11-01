@@ -35,6 +35,16 @@ def acquire(html, url, fetch, renderer=None):
     if access_problem(html, url):
         raise product_page.ProductBodyUnavailable('판매사이트가 로그인·접근 제한 또는 상품 없음 화면을 보내 왔습니다. 공개된 상품 상세주소인지 확인해 주세요.')
     overview = product_documents.overview_link(html, url)
+    canonical = None
+    if not overview:
+        try:
+            body = product_page.product_body(html, url)
+            needs_detail = body.section.get('data-aicard-selection') == 'structured_product_description'
+        except product_page.ProductBodyUnavailable:
+            needs_detail = True
+        if needs_detail:
+            canonical = product_documents.canonical_detail_link(html, url)
+    overview = overview or canonical
     overview_stages = []
     if overview:
         try:
@@ -46,9 +56,9 @@ def acquire(html, url, fetch, renderer=None):
                 raise ValueError('access_required')
             product_page.product_body(response.text, final)
             html, url = response.text, final
-            overview_stages.append({'stage': 'product_overview', 'status': 'read', 'url': final})
+            overview_stages.append({'stage': 'canonical_product_detail' if canonical else 'product_overview', 'status': 'read', 'url': final})
         except (ValueError, httpx.HTTPError):
-            overview_stages.append({'stage': 'product_overview', 'status': 'unavailable'})
+            overview_stages.append({'stage': 'canonical_product_detail' if canonical else 'product_overview', 'status': 'unavailable'})
     prepared, documents = product_documents.prepare(html, url, lambda u: fetch_retry(u, fetch))
     stages = overview_stages + [{'stage': 'html_and_linked_description', 'status': 'read'}]
     have_body = False

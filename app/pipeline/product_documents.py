@@ -11,6 +11,31 @@ from bs4 import BeautifulSoup
 from . import product_page
 
 
+def canonical_detail_link(html, url):
+    """Follow only a published same-origin extension of this product's path.
+
+    Short product links sometimes serve a JS redirect/error shell while their
+    canonical URL includes the full product slug. Never guess URLs or follow a
+    canonical to the homepage, another product, or an external origin.
+    """
+    parsed = urlsplit(url)
+    path = parsed.path.rstrip('/')
+    if len(path.split('/')) < 3 or not re.search(r'\d', path):
+        return None
+    soup = BeautifulSoup(html, 'html.parser')
+    links = soup.select('link[rel="canonical"][href]')
+    if len(links) != 1:
+        return None
+    target = urljoin(url, links[0]['href'])
+    dest = urlsplit(target)
+    if (dest.scheme == parsed.scheme and dest.netloc == parsed.netloc
+            and not dest.query and not dest.fragment
+            and dest.path.startswith(path + '/')
+            and dest.path.rstrip('/') != path):
+        return target
+    return None
+
+
 def overview_link(html, url):
     """Use the product's published overview link; never guess another product URL."""
     parsed = urlsplit(url)

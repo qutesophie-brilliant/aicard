@@ -61,7 +61,9 @@ DETAIL_SELECTOR = (
     '.xans-product-additional #prdDetail .cont, #detailIfrm, #ifrmDesc, '
     '#productDescriptionArea, #llis-root, #llis-goodsdetail-frame, '
     'body.template-product .product-media-and-text, '
-    'body.template-product .shopify-section[id*="__product_specifications_"]'
+    'body.template-product .shopify-section[id*="__product_specifications_"], '
+    '#product-features, .product-features, [data-testid="product-features"], '
+    '#see-all-benefits, #CMD.features'
 )
 
 

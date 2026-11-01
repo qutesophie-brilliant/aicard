@@ -182,7 +182,7 @@ SCENE_DESCRIPTION = re.compile(r'(?:이미지|화면)(?:의)?\s*(?:왼쪽|오른
 FRAG_START = re.compile(r"^\S{1,8}(니다|습니다|어요|세요|죠)\.\s")  # "작습니다. 고정밀 …"처럼 앞 문장 꼬리가 붙은 조각
 
 
-def _postfilter(rows: list[dict[str, Any]], max_claims: int, product_has_ai: bool = True) -> list[dict[str, Any]]:
+def _postfilter(rows: list[dict[str, Any]], max_claims: int, product_has_ai: bool = True, *, allow_spaced_ai: bool = False) -> list[dict[str, Any]]:
     kept: list[dict[str, Any]] = []
     for r in rows:
         t = r["text"]
@@ -198,9 +198,10 @@ def _postfilter(rows: list[dict[str, Any]], max_claims: int, product_has_ai: boo
         if SITE_COMMON.search(t) or COND_ONLY.search(t) or SCENE_DESCRIPTION.search(t):
             continue
         # 5차 개선: 서술어 없이 기능 이름만 이어 붙인 제목 줄("물걸레 온수 세척 기능 인공지능 관리 재세척")은 표시 문구로 보지 않는다
-        if not STRONG.search(t):
+        ai_text = re.sub(r'인공\s+지능', '인공지능', t) if allow_spaced_ai else t
+        if not STRONG.search(ai_text):
             continue  # '스마트', '음성 제어', '추천'만 있는 문장
-        if not product_has_ai and not CORE_AI.search(t):
+        if not product_has_ai and not CORE_AI.search(ai_text):
             continue  # 3차 개선: 페이지 어디에도 'AI·학습·스스로'가 없는 제품(대조군)에서는 센서 인식 문장을 AI 표시로 보지 않는다
         if CERT.search(t) or (NAME_ONLY.match(t) and not VERBISH.search(t)):
             continue  # 제품명·플랫폼 이름만 있는 문장
@@ -276,7 +277,10 @@ def _rules_extract(source_chunks: list[dict[str, Any]], max_claims: int, *, comp
     seen: set[str] = set()
     for c in source_chunks:
         q = c["quote"]
-        if not AI_PATTERN.search(q):
+        ai_match = AI_PATTERN.search(q)
+        if complete_quotes and not ai_match:
+            ai_match = re.search(r'인공\s+지능', q)
+        if not ai_match:
             continue
         # Quick previews also receive English copy on Korean manufacturer sites.
         # Keep exact source wording, without translating or changing formal rules.
@@ -284,11 +288,12 @@ def _rules_extract(source_chunks: list[dict[str, Any]], max_claims: int, *, comp
             r'\b(?:detect\w*|recogniz\w*|recognis\w*|recognition|clean\w*|mop\w*|'
             r'navigat\w*|control\w*|track\w*|adjust\w*|learn\w*|optimiz\w*|'
             r'optimis\w*|voice|assistant|image|sound|temperature)\b', q, re.I))
-        if _NOISE_LINE.search(q) or not (_FUNC_CUE.search(q) or english_function) or len(q) > (500 if complete_quotes else 200):
+        explicit_ai_basis = complete_quotes and bool(re.search(r'인공\s*지능.{0,12}기반', q))
+        if _NOISE_LINE.search(q) or not (_FUNC_CUE.search(q) or english_function or explicit_ai_basis) or len(q) > (500 if complete_quotes else 200):
             continue
         if english_function and re.search(r'^\s*(?:[*†※]|note\s*:|test\s+conditions\s*:)|\b(?:customer review|add to cart|shipping|discount|coupon)\b', q, re.I):
             continue
-        if complete_quotes and (not CORE_AI.search(q) or FOOTNOTE_INLINE.match(q)):
+        if complete_quotes and (not CORE_AI.search(re.sub(r'인공\s+지능', '인공지능', q)) or FOOTNOTE_INLINE.match(q)):
             continue  # Quick-check counts explicit AI wording, not every nearby automatic feature.
         key = re.sub(r"\W", "", q)[:30]
         if key in seen:
@@ -305,9 +310,9 @@ def _rules_extract(source_chunks: list[dict[str, Any]], max_claims: int, *, comp
             item = "safety"
         elif re.search(r"(환불|보상|문의|고객센터|A/S|AS|피해)", q):
             item = "remedy"
-        label = (AI_PATTERN.search(q).group(0)[:8])
+        label = ai_match.group(0)[:8]
         out.append({"text": q if complete_quotes else q[:160], "item": item, "label": label,
                     "source": {"doc_id": c["doc_id"], "chunk": c["chunk"], "quote": q}})
         if len(out) >= max_claims * 3:
             break
-    return _postfilter(out, max_claims)
+    return _postfilter(out, max_claims, allow_spaced_ai=complete_quotes)
