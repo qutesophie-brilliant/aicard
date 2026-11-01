@@ -46,9 +46,15 @@ def _matches(key: str, text: str) -> bool:
     if key == "optout":
         # A refrigerator compartment's power switch does not show that its AI
         # feature can be disabled. Require a named intelligent/automatic function.
-        if not re.search(r'\bAI\b|인공지능|학습|생성형|음성|인식|감지|스마트|자동', text, re.I):
-            return False
-        return bool((_OPTOUT.search(text) or _EN_OPTOUT.search(text)) and _AI_CONTEXT.search(text))
+        # Product names in a test configuration must not qualify unrelated
+        # actions such as "Prestige AI / Disable Wi-Fi / Disable lighting".
+        # Keep the named intelligent function and the action in one clause.
+        for clause in re.split(r'[/;。!?]|\.(?:\s|$)', text):
+            if not re.search(r'\bAI\b|인공지능|학습|생성형|음성|인식|감지|스마트|자동', clause, re.I):
+                continue
+            if _OPTOUT.search(clause) or _EN_OPTOUT.search(clause):
+                return True
+        return False
     if key == "safety":
         return bool(_SAFETY.search(text))
     if key == "remedy":

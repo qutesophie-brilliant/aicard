@@ -4,6 +4,16 @@ from app.pipeline import quick_coverage,quick_text
 
 
 class QuickUploadFlowTests(unittest.TestCase):
+    def test_unrelated_test_switches_are_not_ai_disable(self):
+        for text in (
+            'Test configuration: Prestige 13 AI + A3MG / Intel Core Ultra 7 / Disable keyboard lighting / Disable Wi-Fi / Eco-Silent mode.',
+            'AI tracking is supported. Disable Wi-Fi during the battery test.',
+            'AI 카메라 사용; 시험 시 키보드 조명 끄기',
+        ):
+            self.assertFalse(quick_coverage._matches('optout', text), text)
+        self.assertTrue(quick_coverage._matches('optout',
+            'Test configuration: laptop / You can disable AI tracking in settings.'))
+
     def test_off_in_image_geometry_is_not_ai_disable(self):
         text = 'Our advanced AI optimizes your whiteboard content, keeping it in focus and even squaring it off for maximum visibility.'
         self.assertFalse(quick_coverage._matches('optout', text))
