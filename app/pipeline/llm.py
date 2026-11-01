@@ -300,6 +300,14 @@ def _mime(img: bytes) -> str:
 def ask_json(prompt: str, images: list[bytes] | None = None, max_tokens: int = 4000) -> Any:
     """JSON 응답을 요구하는 단일 호출."""
     p = provider()
+    from .. import check_budget
+    blocked, status = check_budget.payment_failure(p)
+    if blocked:
+        failure = LLMError('OCR provider HTTP 402')
+        failure.status_code = 402
+        if status in OCR_ERROR_STATUSES:
+            failure.provider_status = status
+        raise failure
     if p == "gemini":
         call = _gemini_call
     elif p == "anthropic":
@@ -324,6 +332,9 @@ def ask_json(prompt: str, images: list[bytes] | None = None, max_tokens: int = 4
             last_err = e
             prompt = prompt + "\n\n(이전 응답이 올바른 JSON이 아니었습니다. JSON만 다시 출력하세요.)"
         except Exception as e:  # SDK 오류는 그대로 올린다
+            if getattr(e, 'status_code', None) == 402:
+                status = getattr(e, 'provider_status', None)
+                check_budget.remember_payment_failure(p, status if status in OCR_ERROR_STATUSES else None)
             if _ocr_budget.get() is not None:
                 raise
             raise LLMError(str(e)) from e

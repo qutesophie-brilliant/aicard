@@ -17,6 +17,7 @@ class Budget:
     end: float = field(init=False)
     stopped: bool = False
     snapshot: dict = field(default_factory=dict)
+    payment_failures: dict = field(default_factory=dict)
     lock: object = field(default_factory=threading.Lock)
 
     def __post_init__(self):
@@ -33,6 +34,21 @@ def remaining(default):
 
 def active():
     return _current.get() is not None
+
+
+def remember_payment_failure(provider, status):
+    state = _current.get()
+    if state is not None:
+        with state.lock:
+            state.payment_failures[provider] = status
+
+
+def payment_failure(provider):
+    state = _current.get()
+    if state is None:
+        return False, None
+    with state.lock:
+        return provider in state.payment_failures, state.payment_failures.get(provider)
 
 
 def checkpoint():
