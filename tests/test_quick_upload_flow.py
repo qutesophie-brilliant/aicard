@@ -4,6 +4,16 @@ from app.pipeline import quick_coverage,quick_text
 
 
 class QuickUploadFlowTests(unittest.TestCase):
+    def test_off_in_image_geometry_is_not_ai_disable(self):
+        text = 'Our advanced AI optimizes your whiteboard content, keeping it in focus and even squaring it off for maximum visibility.'
+        self.assertFalse(quick_coverage._matches('optout', text))
+        self.assertFalse(quick_coverage._matches('optout', 'AI tracking is available with 20% off this week.'))
+        for text in ('You can turn off AI tracking in the app.',
+                     'AI tracking can be switched off in settings.',
+                     'You can disable AI tracking.', 'AI tracking: OFF',
+                     'AI 기능을 설정에서 비활성화할 수 있습니다.'):
+            self.assertTrue(quick_coverage._matches('optout', text), text)
+
     def test_pdf_soft_line_wrap_keeps_full_sentence_and_numeric_condition(self):
         text='인공지능 세탁은 세탁물 무게와 오염도를 감지해\n세탁 시간을 조절합니다.'
         condition='* 인공지능 세탁은 세탁량 6kg 이하에서 동작합니다.'

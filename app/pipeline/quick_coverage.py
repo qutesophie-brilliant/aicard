@@ -11,7 +11,11 @@ _DATA_SUBJECT = re.compile(
     r"(?:음성|영상|얼굴|위치|지도|카메라).{0,8}(?:데이터|정보|기록|저장|전송|수집|보관)|"
     r"(?:데이터|정보).{0,15}(?:서버|클라우드|전송|수집|삭제|보관|암호화)|"
     r"(?:서버|클라우드).{0,20}(?:데이터|정보|처리|저장)", re.I)
-_OPTOUT = re.compile(r"비활성화|해제|끄(?:기|면|거나|는|고|세요)|끌\s*수|\bOFF\b|일반\s*모드|수동\s*모드", re.I)
+_OPTOUT = re.compile(r"비활성화|해제|끄(?:기|면|거나|는|고|세요)|끌\s*수|일반\s*모드|수동\s*모드", re.I)
+_EN_OPTOUT = re.compile(
+    r"\b(?:disable[ds]?|deactivat(?:e[ds]?|ion))\b|"
+    r"\b(?:turn|switch)(?:ed|ing)?\s+(?:\w+[ -]){0,8}off\b|"
+    r"\b(?:AI|인공지능|자동|스마트)(?:[ -]\w+){0,5}\s*[:：=]?\s+OFF\b", re.I)
 _AI_CONTEXT = re.compile(r"\bAI\b|인공지능|학습|생성형|음성|인식|감지|스마트|맞춤|자동|모드", re.I)
 _SAFETY = re.compile(r"안전\s*장치|과열|과부하|누전|어린이.{0,8}잠금|차일드\s*락|업데이트|지원\s*기간|자동\s*정지|긴급\s*(?:정지|멈춤)|보안.{0,20}(?:패치|암호화|인증|보호|지원|취약점)|(?:펌웨어|소프트웨어).{0,20}(?:갱신|패치|배포|지원\s*종료)", re.I)
 _REMEDY = re.compile(r"고객\s*센터|서비스\s*센터|A\s*/\s*S|보증|환불|반품|보상|교환|수리|피해\s*구제|소비자\s*분쟁", re.I)
@@ -44,7 +48,7 @@ def _matches(key: str, text: str) -> bool:
         # feature can be disabled. Require a named intelligent/automatic function.
         if not re.search(r'\bAI\b|인공지능|학습|생성형|음성|인식|감지|스마트|자동', text, re.I):
             return False
-        return bool(_OPTOUT.search(text) and _AI_CONTEXT.search(text))
+        return bool((_OPTOUT.search(text) or _EN_OPTOUT.search(text)) and _AI_CONTEXT.search(text))
     if key == "safety":
         return bool(_SAFETY.search(text))
     if key == "remedy":
