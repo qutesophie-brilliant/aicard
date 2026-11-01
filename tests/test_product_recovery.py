@@ -73,8 +73,8 @@ class ProductRecoveryTests(unittest.TestCase):
     def test_tile_limit_preserves_preceding_and_later_small_images(self):
         html='<div class="product-description"><img src="/a.png"><img src="/large.png"><img src="/b.png"></div>'
         capture={'sections':[],'coverage':{}}
-        product_images.capture_images(html,URL,capture,fetch_bytes=lambda u:png(800,32890) if 'large' in u else png(),reader=lambda _:ocr.OcrResult(texts=['AI가 온도를 감지합니다.'],engine='test'))
-        # 1 + 23 consumes 24 tiles; third image is explicitly unprocessed.
+        product_images.capture_images(html,URL,capture,fetch_bytes=lambda u:png(800,57830) if 'large' in u else png(),reader=lambda _:ocr.OcrResult(texts=['AI가 온도를 감지합니다.'],engine='test'))
+        # 1 + 39 consumes 40 tiles; third image is explicitly unprocessed.
         self.assertEqual(['read','read','skipped_limit'],[r['status'] for r in capture['images']])
         self.assertEqual(2,len(capture['sections']))
 

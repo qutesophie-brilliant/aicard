@@ -25,7 +25,7 @@ _UNAVAILABLE = (
 def image_source(image):
     """Resolve lazy image attributes used by product-detail editors."""
     lazy = next((image.get(key) for key in
-                 ('ec-data-src', 'data-src', 'data-original', 'data-lazy-src', 'data-echo')
+                 ('ec-data-src', 'data-src', 'data-original', 'data-lazy-src', 'data-echo', 'data-goods-lazy')
                  if image.get(key) and not image.get(key).startswith('data:')), '')
     if lazy:
         return lazy

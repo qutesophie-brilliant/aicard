@@ -110,7 +110,7 @@ def capture_images(html, url, capture, fetch_bytes=None, reader=None, limit=24):
     import math
     import time
     from .. import check_budget
-    from .image_tiles import MAX_PIXELS, MAX_TILES, TILE_SIDE, OVERLAP, MAX_SHORT_SIDE
+    from .image_tiles import MAX_PIXELS, MAX_IMAGE_TILES, TILE_SIDE, OVERLAP, MAX_SHORT_SIDE
     audit=[]; payloads=[]; loaded=[]; total_bytes=0; total_tiles=0
     download_deadline = time.monotonic() + 35
     prefetch = _PrefetchImages([src for _,src in candidates[:limit]], download, download_deadline) if use_prefetch else None
@@ -144,7 +144,7 @@ def capture_images(html, url, capture, fetch_bytes=None, reader=None, limit=24):
                     length = max(round(width*scale),round(height*scale))
                     tiles = 1 + math.ceil(max(0,length-TILE_SIDE)/(TILE_SIDE-OVERLAP))
             # Too much detail must not discard everything already read.
-            if total_bytes + len(data) > 32*1024*1024 or total_tiles + tiles > MAX_TILES:
+            if total_bytes + len(data) > 32*1024*1024 or total_tiles + tiles > MAX_IMAGE_TILES:
                 row['status']='skipped_limit'
                 continue
             total_bytes += len(data); total_tiles += tiles

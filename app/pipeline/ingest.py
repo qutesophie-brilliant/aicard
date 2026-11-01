@@ -220,6 +220,12 @@ def from_url(url: str, ocr_images: bool = True, product_only: bool = False) -> I
         return from_image(url.rsplit("/", 1)[-1], r.content)
 
     if product_only:
+        from . import ssfshop
+        if ssfshop.detail_url(str(r.url)):
+            try:
+                return ssfshop.read_product(str(r.url), r.text, ocr_images=ocr_images)
+            except (product_page.ProductBodyUnavailable, httpx.HTTPError):
+                pass  # Continue ordinary HTML/render recovery if the public route changed.
         from . import cjonstyle
         if cjonstyle.detail_api_url(str(r.url)):
             try:
