@@ -85,7 +85,12 @@ def resolve_sources(result, original):
             except Exception:
                 pass
         identity = source_identity(target)
-        if not identity or identity == source_identity(original) or identity in seen:
+        host = (urlsplit(target).hostname or '').lower()
+        # Grounding can cite identification videos as well as product pages.
+        # Video/social links are not usable inputs for the product-page reader.
+        non_product = ('youtube.com', 'youtu.be', 'instagram.com', 'tiktok.com', 'facebook.com')
+        if (any(host == domain or host.endswith('.' + domain) for domain in non_product)
+                or not identity or identity == source_identity(original) or identity in seen):
             continue
         seen.add(identity)
         rows.append({**row, 'analysis_url': target})

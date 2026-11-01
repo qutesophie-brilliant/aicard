@@ -50,6 +50,13 @@ class AlternativeTests(unittest.TestCase):
             result = alt.resolve_sources(alt.parse_sources(payload(citation), ORIGINAL), ORIGINAL)
         self.assertEqual([], result['sources'])
 
+    def test_identification_video_is_not_offered_as_product_page(self):
+        citation = 'https://vertexaisearch.cloud.google.com/grounding-api-redirect/example'
+        response = httpx.Response(302, headers={'location': 'https://www.youtube.com/watch?v=example'}, request=httpx.Request('GET', citation))
+        with patch.object(alt, 'fetch_public', return_value=response):
+            result = alt.resolve_sources(alt.parse_sources(payload(citation), ORIGINAL), ORIGINAL)
+        self.assertEqual([], result['sources'])
+
     def test_single_grounded_call_and_no_retry(self):
         with patch.object(alt.config, 'GEMINI_API_KEY', 'test'), patch.object(alt, 'public_addresses'), patch.object(alt.httpx, 'post', side_effect=httpx.ConnectError('offline')) as post:
             self.assertEqual('unavailable', alt.search(ORIGINAL, '세탁기 ABC123')['status'])
@@ -78,6 +85,8 @@ class AlternativeRoutesTests(unittest.TestCase):
         search.assert_called_once_with(ORIGINAL, '')
         quick.assert_not_called()
         self.assertIn('이 페이지 분석하기', response.text)
+        self.assertIn('name="fresh" value="1"', response.text)
+        self.assertIn('다른 공개 출처를 찾았습니다', response.text)
         self.assertIn(SOURCE, response.text)
         self.assertIn('동일 제품으로 확정된 자료가 아닙니다', response.text)
 

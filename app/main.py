@@ -815,6 +815,8 @@ async def check_url(request: Request, url: str = Form(""), text: str = Form(""),
                 alternatives = await check_budget.call(budget, alternative_sources.search, url, title)
             except Exception:
                 pass
+        if alternatives.get('sources'):
+            message = '입력한 페이지의 내용을 읽지 못해 다른 공개 출처를 찾았습니다. 제품명·모델명을 확인한 뒤 분석할 페이지를 선택해 주세요.'
         return render(request, 'check.html', base=base, bookmarklet=bm, url=url, q='',
                       pname=title[:120], error=message, upload_fallback=True, alternatives=alternatives)
 
