@@ -91,6 +91,10 @@ DETAIL_SELECTOR = (
 
 def detail_selector(url):
     """Use the same scoped description roots during fetch and rendering."""
+    parsed = urlsplit(url)
+    if (parsed.hostname in ('acer.com', 'www.acer.com')
+            and re.fullmatch(r'/kr-ko/laptops/[^/]+/[^/]+/?', parsed.path)):
+        return DETAIL_SELECTOR + ', main#main .level-page-content'
     return (DETAIL_SELECTOR + ', ' + NAVER_DETAIL_SELECTOR
             if is_naver_product(url) else DETAIL_SELECTOR)
 
@@ -361,6 +365,11 @@ def product_body(html: str, url: str) -> BeautifulSoup:
         selector = '[data-aicard-ai-selected="true"]'
     elif is_naver_product(url):
         selector = NAVER_DETAIL_SELECTOR
+    elif host in ('acer.com', 'www.acer.com'):
+        # The manufacturer's Korean product landing pages put the real feature
+        # paragraphs and caveats in this wrapper, outside JSON-LD summaries.
+        # The shared selector restricts this to a product path, never a listing.
+        selector = detail_selector(url)
     elif roborock_page:
         selector = '[class$="_product-container"], [class*="sections-container"]'
     elif host in ('tp-link.com', 'www.tp-link.com'):

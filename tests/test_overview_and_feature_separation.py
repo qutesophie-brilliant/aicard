@@ -6,6 +6,29 @@ from app.pipeline.run import _other_quick_feature, quick_check
 
 
 class OverviewRecoveryTests(unittest.TestCase):
+    def test_acer_product_features_are_not_replaced_by_short_summary(self):
+        html = ('<script type="application/ld+json">'
+                '{"@type":"Product","description":"AI 기반 성능을 제공하는 노트북을 소개합니다. 자세한 사용 조건은 본문에서 확인하세요."}</script>'
+                '<main id="main"><div class="level-page-content">'
+                '<section><h2>AI 소음 제거</h2><p>마이크의 배경 소음을 줄여줍니다.</p></section>'
+                '<section><p>이 기능은 지원되는 앱에서 사용할 수 있습니다.</p><img src="/feature.jpg"></section>'
+                '<nav>다른 AI 제품 추천</nav><div class="reviews">고객의 개인 의견</div>'
+                '</div><div class="recommend">다른 노트북은 AI 기능을 제공합니다.</div></main>')
+        url = 'https://www.acer.com/kr-ko/laptops/swift/swift-14-16-ai'
+        body = product_page.product_body(html, url)
+        self.assertIn('마이크의 배경 소음', body.get_text())
+        self.assertIn('지원되는 앱', body.get_text())
+        self.assertNotIn('개인 의견', body.get_text())
+        self.assertNotIn('다른 노트북', body.get_text())
+        self.assertEqual('explicit_product_container', body.section['data-aicard-selection'])
+        self.assertEqual(['/feature.jpg'], [im['src'] for im in body.select('img')])
+
+    def test_acer_container_does_not_enable_sitewide_or_category_fallback(self):
+        html = '<main id="main"><div class="level-page-content">다양한 AI 노트북과 다른 제품의 기능을 추천하는 페이지입니다.</div></main>'
+        for url in ('https://www.acer.com/kr-ko/laptops/swift', 'https://example.com/kr-ko/laptops/swift/model'):
+            with self.subTest(url=url), self.assertRaises(product_page.ProductBodyUnavailable):
+                product_page.product_body(html, url)
+
     url = 'https://www.mi.com/kr/product/example-robot/buy/'
     overview = 'https://www.mi.com/kr/product/example-robot/'
 
