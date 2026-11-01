@@ -8,6 +8,34 @@ from app.pipeline.product_page import product_body, ProductBodyUnavailable
 
 
 class ProductPageTests(unittest.TestCase):
+    def test_sony_feature_description_retains_ai_explanation_without_navigation(self):
+        html = '''<div class="LargeStaticImageHotSpot__DescriptionContainer">
+          <div class="LargeStaticImageHotSpot__ContentHeader"><h2>새로 개발된 AI 프로세싱 유닛</h2></div>
+          <div>인체의 형상과 자세 정보를 활용하여 카메라의 피사체 인식 정확도를 개선합니다.</div></div>
+          <div class="Highlights__KeySpec"><p>61.0MP 센서</p></div>
+          <div class="PrimaryTout__TextBoxContainer">AI 기반 성능 자세히 보기</div>
+          <div class="recommendations">다른 카메라 AI 줌 기능</div>'''
+        text = product_body(html, 'https://www.sony.co.kr/interchangeable-lens-cameras/products/ilce-7rm5').get_text(' ',strip=True)
+        self.assertIn('AI 프로세싱 유닛', text)
+        self.assertIn('인체의 형상과 자세 정보', text)
+        self.assertNotIn('자세히 보기', text)
+        self.assertNotIn('AI 줌', text)
+
+    def test_hp_custom_product_modules_keep_copy_without_generic_ai_or_variants(self):
+        html = '''<div class="heroBanner"><c-hp-hero-banner class="c-hp-hero-banner">
+          <div class="c-hp-hero-banner__description"><p>OmniBook Ultra는 AI 가속 기능을 제공하는 노트북입니다.</p></div>
+          <a>다른 제품 구매</a></c-hp-hero-banner></div>
+          <c-hp-ksp-carousel id="benefits" class="dropdown-menu-detached"><p>AI 도구로 창작과 협업을 지원합니다.</p></c-hp-ksp-carousel>
+          <c-hp-bg-container id="faqs"><div class="dropdown-menu-detached"><p>배터리 사용 시간은 사용 환경에 따라 달라집니다.</p></div></c-hp-bg-container>
+          <c-hp-bg-container id="compare"><p>다른 구성의 AI 프로세서 옵션</p></c-hp-bg-container>
+          <c-hp-scroll-reveal><p>일반적인 AI PC 개념 설명</p></c-hp-scroll-reveal>
+          <c-hp-footnotes><p>기능 제공 여부는 구성에 따라 다릅니다.</p></c-hp-footnotes>'''
+        text = product_body(html, 'https://www.hp.com/kr-ko/laptops/home-laptops/omnibook/omnibook-ultra-ai-pc.html').get_text(' ', strip=True)
+        for phrase in ('AI 가속 기능', 'AI 도구로 창작', '사용 환경', '구성에 따라 다릅니다'):
+            self.assertIn(phrase, text)
+        for phrase in ('다른 제품 구매', '다른 구성', '일반적인 AI PC'):
+            self.assertNotIn(phrase, text)
+
     def test_single_product_group_uses_only_its_shared_description(self):
         import json
         text = 'AI-powered notifications identify people and pets in this indoor camera.'

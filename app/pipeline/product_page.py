@@ -84,7 +84,10 @@ DETAIL_SELECTOR = (
 
 
 def _detail_media(node):
-    return ('usp-banner-wrap' in node.get('class', []) or
+    return (node.name == 'c-hp-hero-banner' or node.find_parent('c-hp-hero-banner') is not None or
+            'c-hp-hero-banner__description' in node.get('class', []) or
+            ('heroBanner' in node.get('class', []) and node.find('c-hp-hero-banner') is not None) or
+            'usp-banner-wrap' in node.get('class', []) or
             ('common-section-container' in node.get('class', []) and
              'new-common-product-swiper-section' in node.get('class', [])) or
             # Product carousel layout, not the site's navigation header.
@@ -97,8 +100,12 @@ def _detail_media(node):
 def _detail_heading(node):
     # A feature-card-header is a product heading, not the site's header.
     # Retaining it also stops a preceding specification joining the next feature.
-    return (node.name in ('h1', 'h2', 'h3', 'h4', 'h5', 'h6')
-            and node.find_parent(class_=lambda value: value in ('feature-card', 'product-feature')) is not None)
+    return ((node.name in ('h1', 'h2', 'h3', 'h4', 'h5', 'h6')
+             and node.find_parent(class_=lambda value: value in ('feature-card', 'product-feature')) is not None)
+            or ('LargeStaticImageHotSpot__ContentHeader' in node.get('class', [])
+                and node.find_parent(class_='LargeStaticImageHotSpot__DescriptionContainer') is not None)
+            or ('c-hp-ksp-carousel__header' in node.get('class', [])
+                and node.find_parent('c-hp-ksp-carousel') is not None))
 
 
 def structured_description(soup):
@@ -290,6 +297,13 @@ def product_body(html: str, url: str) -> BeautifulSoup:
     structured = structured_description(soup) or embedded_description(soup)
     faq = '' if structured else product_faq(soup)
     host = (urlsplit(url).hostname or "").lower()
+    if host in ('hp.com', 'www.hp.com') and '/laptops/home-laptops/omnibook/' in urlsplit(url).path:
+        # This HP animation class is also attached to benefit carousels and
+        # accordion answers. It is not a navigation menu in those components.
+        for node in soup.select('c-hp-ksp-carousel.dropdown-menu-detached, '
+                                'c-hp-ksp-carousel .dropdown-menu-detached, '
+                                'c-hp-bg-container#faqs .dropdown-menu-detached'):
+            node['class'] = [c for c in node.get('class', []) if c != 'dropdown-menu-detached']
     if host in ('lenovo.com', 'www.lenovo.com') and '/p/' in urlsplit(url).path:
         from .embedded_features import lenovo_features
         features = lenovo_features(soup)
@@ -342,6 +356,17 @@ def product_body(html: str, url: str) -> BeautifulSoup:
                     '.dyson_cms_row_config[id*="caveat"]')
     elif host in ('mi.com', 'www.mi.com') and re.match(r'^/[a-z]{2}/product/[^/]+/?$', urlsplit(url).path):
         selector = '.product_v4 main[class*="fly-birds-page"]'
+    elif host in ('hp.com', 'www.hp.com') and '/laptops/home-laptops/omnibook/' in urlsplit(url).path:
+        # HP's product copy lives in custom elements. Keep product benefits and
+        # product FAQ; exclude generic AI-PC education, support and model-comparison
+        # modules so another configuration's features do not enter this card.
+        selector = ('c-hp-hero-banner .c-hp-hero-banner__description, '
+                    'c-hp-ksp-carousel#benefits, c-hp-bg-container#discover, '
+                    'c-hp-bg-container#faqs, c-hp-footnotes')
+    elif host in ('sony.co.kr', 'www.sony.co.kr') and '/products/' in urlsplit(url).path:
+        # These are visible feature descriptions, not the feature-navigation
+        # cards linking to other pages. Preserve the explanatory paragraph.
+        selector = '.LargeStaticImageHotSpot__DescriptionContainer, .Highlights__KeySpec'
     elif host == 'llis-goodsdetail.lotteon.com':
         selector = '#llis-root'
     elif host in ("navimro.com", "www.navimro.com"):
